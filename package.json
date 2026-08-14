@@ -1,0 +1,45 @@
+{
+  "name": "battlefield-rts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=10"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build:sfx-cues": "node scripts/build-battle-sfx-cues.mjs",
+    "check:sfx-cues": "node scripts/build-battle-sfx-cues.mjs --check",
+    "generate:sfx": "node scripts/generate-battle-sfx.mjs",
+    "generate:models": "node scripts/generate-tripo-assets.mjs",
+    "check:models": "node scripts/check-tripo-runtime-assets.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "check": "pnpm lint && pnpm typecheck && pnpm check:sfx-cues && pnpm check:models && pnpm test && pnpm build"
+  },
+  "dependencies": {
+    "@react-three/fiber": "9.7.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "three": "0.182.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@fal-ai/client": "^1.10.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "@types/three": "0.182.0",
+    "@vitejs/plugin-react": "6.0.5",
+    "eslint": "10.8.1",
+    "globals": "17.5.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.67.0",
+    "vite": "8.2.1",
+    "vitest": "4.1.10"
+  }
+}

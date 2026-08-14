@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+*.log
+
+# Local secrets and machine-specific credentials
+config.yaml
+config.yml
+.env
+.env.*
+!.env.example
+dave.pem
+*.pem
+*.key

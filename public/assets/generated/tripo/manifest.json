@@ -1,0 +1,227 @@
+{
+  "version": 1,
+  "provider": "Tripo3D",
+  "updatedAt": "2026-08-14T16:17:17.665Z",
+  "operator": {
+    "id": "catapult-operator",
+    "label": "投石车操作兵",
+    "mode": "reused",
+    "model": "/assets/kaykit/adventurers/characters/Knight.glb"
+  },
+  "entries": [
+    {
+      "id": "mobile-catapult",
+      "label": "移动式投石车",
+      "modelFamily": "H3.1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready low-poly medieval mobile counterweight catapult, a standalone four-wheeled siege engine with a heavy oak chassis, chunky wooden wheels, reinforced A-frame supports, a long throwing arm, a visible rope sling with a small leather pouch, and a rear stone counterweight box. KayKit-inspired stylized proportions, readable silhouette from an isometric RTS camera, clean flat shapes, centered at world origin, arm lowered in a neutral loading pose, no people, no terrain, no fortress, no tower, no surrounding props. Keep chassis, wheels, throwing arm, sling pouch, counterweight and projectile separable.",
+        "model": "v3.1-20260211",
+        "negative_prompt": "fixed tower, building, characters, scenery, text, photorealistic, fused moving parts, broken mesh, extra wheels",
+        "face_limit": 6000,
+        "smart_low_poly": true,
+        "generate_parts": true,
+        "texture": false,
+        "pbr": false,
+        "quad": false,
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "de94e4a201466b34d403c247ac8682166a0945ae198621a8b625d136a4b9f1bc",
+      "taskId": "c7beb75e-f69b-4b6c-8cda-b0f30418b028",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "mobile-catapult/model.glb",
+          "bytes": 511824,
+          "sha256": "8885fdb4e4c196454ba3fb27b1d812c65dec62826f1d3aca97fb74ce85d78c1b"
+        },
+        "preview": {
+          "path": "mobile-catapult/preview.webp",
+          "bytes": 13568,
+          "sha256": "6f6d0aa50fb6b421389d6dc922534385546ac610afccbb2a39758f089cba0a2b"
+        }
+      },
+      "postprocess": {
+        "endpoint": "/v3/mesh/segment",
+        "request": {
+          "model": "v2.0-20260430",
+          "segmentation_granularity": "simple",
+          "split_by_connectivity": false
+        },
+        "specHash": "9ecebe7f69b900d3563b1bbd76d2b673dd120d7a323627602bd06ebe3a7bd80d",
+        "taskId": "532eb940-e79c-4296-bad3-136bb6a22b68",
+        "status": "success",
+        "progress": 100,
+        "creditsConsumed": 40,
+        "files": {
+          "model": {
+            "path": "mobile-catapult/segmented-simple-semantic-532eb940.glb",
+            "bytes": 185952,
+            "sha256": "4fb786f6a23afae64e6a7db9c382a30abee63a606b6fa33240266c9d4a0da464"
+          },
+          "preview": {
+            "path": "mobile-catapult/segmented-simple-semantic-532eb940-preview.webp",
+            "bytes": 17110,
+            "sha256": "282421579c1eaf4b3f7c9f836b2e5f32f13c3a74b7f12e4db478ad0b1325c91b"
+          }
+        }
+      },
+      "postprocessHistory": [
+        {
+          "endpoint": "/v3/mesh/segment",
+          "request": {
+            "model": "v2.0-20260430",
+            "segmentation_granularity": "balanced",
+            "split_by_connectivity": true
+          },
+          "specHash": "cd61f858c632adb071241628a18530af3a1d4de37218cca2bdbd8fc587834479",
+          "taskId": "d9e49441-119c-491a-bff1-862118a973de",
+          "status": "success",
+          "progress": 100,
+          "creditsConsumed": 40,
+          "files": {
+            "model": {
+              "path": "mobile-catapult/segmented.glb",
+              "bytes": 248560,
+              "sha256": "726f0c3e5add0a84b3a5e888435a72954f008843d688f50df4af004837cbac55"
+            },
+            "preview": {
+              "path": "mobile-catapult/segmented-preview.webp",
+              "bytes": 16980,
+              "sha256": "010ee5c70976ba29ed1c33d8682f33ab0f949e39ba93fee2584664bd8eadf6b1"
+            }
+          }
+        },
+        {
+          "endpoint": "/v3/mesh/segment",
+          "request": {
+            "model": "v2.0-20260430",
+            "segmentation_granularity": "simple",
+            "split_by_connectivity": true
+          },
+          "specHash": "06c697393e96b4f0d49598aeb7ecf4646b72bc8b14e256e06cfe459aabe68966",
+          "taskId": "59d9ded9-4f2e-488e-84e1-84c5cdb99581",
+          "status": "success",
+          "progress": 100,
+          "creditsConsumed": 40,
+          "files": {
+            "model": {
+              "path": "mobile-catapult/segmented-simple.glb",
+              "bytes": 243684,
+              "sha256": "385f8b26a30fdb585355d6d7df94556dbe268aa40455df8a4cddfceffd0ede4f"
+            },
+            "preview": {
+              "path": "mobile-catapult/segmented-simple-preview.webp",
+              "bytes": 17164,
+              "sha256": "e76f9cc0948320745f5f59c6c10c361d324d9ffb729f844c3ee870d7370f6ab7"
+            }
+          }
+        }
+      ],
+      "texture": {
+        "endpoint": "/v3/models/texture",
+        "request": {
+          "model": "v3.0-20250812",
+          "texture_prompt": {
+            "text": "Stylized low-poly medieval siege engine matching KayKit Medieval Hex: warm medium oak frame, pale wood wheels and throwing arm, muted gray iron bands and axle, coarse beige rope sling, dark brown leather pouch, desaturated stone counterweight, clean flat colors, minimal wear, no photorealism."
+          },
+          "pbr": false,
+          "texture_quality": "standard",
+          "texture_alignment": "geometry",
+          "bake": true
+        },
+        "inputTaskId": "532eb940-e79c-4296-bad3-136bb6a22b68",
+        "specHash": "3f036f2141eb9d7217c01a19f38e8884641e0d79cd91b332d31ef5edbfd92271",
+        "taskId": "fe41d875-f385-4db7-b9c2-501f7a1ec3a9",
+        "status": "success",
+        "progress": 100,
+        "creditsConsumed": 10,
+        "files": {
+          "model": {
+            "path": "mobile-catapult/textured-simple-semantic-532eb940-fe41d875.glb",
+            "bytes": 1448164,
+            "sha256": "32d5f7af2aaa38635fc58ea0caf966142a969f5e2c13540ecede3e390c38393e"
+          },
+          "preview": {
+            "path": "mobile-catapult/textured-simple-semantic-532eb940-fe41d875-preview.webp",
+            "bytes": 24770,
+            "sha256": "8a1e7eb5011d24a80649962eabc65c8104f6712907e18f3b98da68291857d43e"
+          }
+        }
+      },
+      "textureHistory": [
+        {
+          "endpoint": "/v3/models/texture",
+          "request": {
+            "model": "v3.0-20250812",
+            "texture_prompt": {
+              "text": "Stylized low-poly medieval siege engine matching KayKit Medieval Hex: warm medium oak frame, pale wood wheels and throwing arm, muted gray iron bands and axle, coarse beige rope sling, dark brown leather pouch, desaturated stone counterweight, clean flat colors, minimal wear, no photorealism."
+            },
+            "pbr": false,
+            "texture_quality": "standard",
+            "texture_alignment": "geometry",
+            "bake": true
+          },
+          "inputTaskId": "59d9ded9-4f2e-488e-84e1-84c5cdb99581",
+          "specHash": "45854de2ccc9546872f46c962b6dbd317b14f5535ffed0471785139457534e65",
+          "taskId": "b876bf6e-23a0-43ad-a7cb-fb401fce849f",
+          "status": "success",
+          "progress": 100,
+          "creditsConsumed": 10,
+          "files": null,
+          "artifactRetained": false
+        }
+      ],
+      "runtime": {
+        "sourceStage": "texture",
+        "sourceTaskId": "fe41d875-f385-4db7-b9c2-501f7a1ec3a9",
+        "path": "runtime/mobile-catapult.glb",
+        "bytes": 1448164,
+        "sha256": "32d5f7af2aaa38635fc58ea0caf966142a969f5e2c13540ecede3e390c38393e"
+      }
+    },
+    {
+      "id": "siege-workshop",
+      "label": "攻城工坊",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready low-poly medieval siege workshop building, visually distinct from a blacksmith and barracks, with a broad heavy timber frame, low stone foundation, open front construction bay, simple asymmetric gabled roof, stacked siege beams, rope coils and one oversized wooden gear integrated into the facade. KayKit Medieval Hex inspired stylized proportions, chunky readable silhouette for an RTS, warm ochre wood, dark brown roof and muted stone, clean flat color texture, isolated complete building, no people, no terrain tile, no smoke, no text.",
+        "model": "P1-20260311",
+        "face_limit": 5000,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "3f70c134ac28bee780aef2e7cb10a102d4b2c27c0d0c0f9cfde5dbb72c5752a9",
+      "taskId": "1d4b6f5d-fab0-4f81-bba0-ee99f20ebfe7",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "siege-workshop/model.glb",
+          "bytes": 547192,
+          "sha256": "2156fb4a6f1d334b47642bdc6313b66901ad36379da7572c0f8078671a43a450"
+        },
+        "preview": {
+          "path": "siege-workshop/preview.webp",
+          "bytes": 33628,
+          "sha256": "d85df70ffbf31ec20dc9c08b51bc6d8a13f2d9e754465324c23e2ba5e10b6417"
+        }
+      },
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "1d4b6f5d-fab0-4f81-bba0-ee99f20ebfe7",
+        "path": "runtime/siege-workshop.glb",
+        "bytes": 547192,
+        "sha256": "2156fb4a6f1d334b47642bdc6313b66901ad36379da7572c0f8078671a43a450"
+      }
+    }
+  ]
+}
