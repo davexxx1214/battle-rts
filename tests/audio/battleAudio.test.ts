@@ -86,6 +86,24 @@ describe("battle audio", () => {
     expect(router.consume(events)).toEqual([]);
   });
 
+  it("plays the full-gold prompt once per transition event", () => {
+    const router = new BattleAudioEventRouter();
+    const playerEvent = stampBattleEvent({
+      type: "gold-full",
+      faction: "verdant",
+      promptSequence: 1,
+    }, 5, 2.8);
+    const enemyEvent = stampBattleEvent({
+      type: "gold-full",
+      faction: "crimson",
+      promptSequence: 1,
+    }, 6, 2.8);
+
+    expect(router.consume([playerEvent]).map(({ cue }) => cue)).toEqual(["command.attack"]);
+    expect(router.consume([playerEvent])).toEqual([]);
+    expect(router.consume([enemyEvent])).toEqual([]);
+  });
+
   it("routes damage audio from the event snapshot without reading mutable unit state", () => {
     const router = new BattleAudioEventRouter();
     const event = stampBattleEvent({

@@ -1,5 +1,7 @@
 import type { Faction, UnitRole, WorldPoint } from "./types";
 import type { BuildingSimulationEvent } from "./buildings";
+import type { DeployableKind } from "./rules";
+import type { HexCoordinate } from "../map/battlefield";
 
 interface BattleEventBase {
   readonly sequence: number;
@@ -12,6 +14,14 @@ export type BattleEventInput =
       readonly type: "gold-full";
       readonly faction: Faction;
       readonly promptSequence: number;
+    }
+  | {
+      readonly type: "deployment-succeeded";
+      readonly faction: Faction;
+      readonly entityId: string;
+      readonly kind: DeployableKind;
+      readonly coordinate: HexCoordinate;
+      readonly position: WorldPoint;
     }
   | {
       readonly type: "attack-started";

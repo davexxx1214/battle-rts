@@ -16,6 +16,8 @@ import type {
   BattleState,
   WorldPoint,
 } from "../game/battle";
+import type { DeploymentPreview } from "../game/deployTransaction";
+import type { DeployableKind } from "../game/rules";
 import type { ProjectedUnit } from "../game/selection";
 import { terrainHeightAt } from "../map/battlefield";
 import {
@@ -52,6 +54,7 @@ interface BattlefieldCanvasProps {
   readonly bridgeRef: MutableRefObject<SceneInteractionBridge>;
   readonly commandMarker: CommandMarker | null;
   readonly plannedCommandMarkers: readonly CommandMarker[];
+  readonly deploymentPreview: (DeploymentPreview & { readonly kind: DeployableKind }) | null;
   readonly cameraResetToken: number;
   readonly cameraViewStore: CameraViewStore;
   readonly onBenchmarkUpdate?: (snapshot: BenchmarkSnapshot) => void;
@@ -78,6 +81,7 @@ export function BattlefieldCanvas({
   bridgeRef,
   commandMarker,
   plannedCommandMarkers,
+  deploymentPreview,
   cameraResetToken,
   cameraViewStore,
   onBenchmarkUpdate,
@@ -122,6 +126,7 @@ export function BattlefieldCanvas({
       {onBenchmarkUpdate && <BenchmarkProbe onUpdate={onBenchmarkUpdate} />}
       <Suspense fallback={<ArenaFallback />}>
         <BattlefieldTerrain />
+        <DeployedBuildingLayer battle={battle} />
         <UnitShadowInstances battle={battle} />
         {battle.units.map((unit) => {
           const damage = latestDamagePresentation(battle, unit.id);
@@ -141,6 +146,7 @@ export function BattlefieldCanvas({
         })}
         <BattleEffects battle={battle} />
       </Suspense>
+      {deploymentPreview && <DeploymentPreviewVisual preview={deploymentPreview} />}
       {displayedPlans.map((marker) => (
         <CommandMarkerVisual
           marker={marker}
@@ -154,6 +160,113 @@ export function BattlefieldCanvas({
         />
       )}
     </Canvas>
+  );
+}
+
+function DeployedBuildingLayer({ battle }: { readonly battle: BattleState }) {
+  return battle.buildings.map((building) => {
+    if (building.kind === "castle") return null;
+    const color = building.faction === "verdant" ? "#3f86b8" : "#a94643";
+    const y = terrainHeightAt(building.position);
+    const visible = building.status === "active";
+    return (
+      <group
+        position={[building.position.x, y, building.position.z]}
+        scale={visible ? 1 : 0.82}
+        key={building.id}
+      >
+        <mesh position={[0, 0.07, 0]} receiveShadow castShadow>
+          <cylinderGeometry args={[1.02, 1.02, 0.14, 6]} />
+          <meshStandardMaterial color="#463d2c" roughness={0.92} />
+        </mesh>
+        {building.kind === "gold-mine" ? (
+          <>
+            <mesh position={[0, 0.48, 0]} castShadow>
+              <cylinderGeometry args={[0.68, 0.78, 0.72, 8]} />
+              <meshStandardMaterial color="#5c5543" roughness={0.9} />
+            </mesh>
+            {[-0.32, 0, 0.32].map((x, index) => (
+              <mesh
+                position={[x, 0.94 + index * 0.04, (index - 1) * 0.16]}
+                rotation={[0, index * 0.65, 0.14]}
+                castShadow
+                key={x}
+              >
+                <octahedronGeometry args={[0.28, 0]} />
+                <meshStandardMaterial
+                  color="#e5b84d"
+                  emissive="#6e4711"
+                  emissiveIntensity={0.28}
+                  roughness={0.56}
+                />
+              </mesh>
+            ))}
+          </>
+        ) : (
+          <>
+            <mesh position={[0, 0.47, 0]} castShadow>
+              <boxGeometry args={[1.22, 0.78, 1.05]} />
+              <meshStandardMaterial color={color} roughness={0.86} />
+            </mesh>
+            <mesh position={[0, 0.98, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
+              <coneGeometry args={[0.94, 0.68, 4]} />
+              <meshStandardMaterial color="#322d25" roughness={0.96} />
+            </mesh>
+            <mesh position={[0, 0.48, 0.54]}>
+              <boxGeometry args={[0.34, 0.56, 0.06]} />
+              <meshStandardMaterial color="#171713" roughness={1} />
+            </mesh>
+          </>
+        )}
+      </group>
+    );
+  });
+}
+
+function DeploymentPreviewVisual({
+  preview,
+}: {
+  readonly preview: DeploymentPreview & { readonly kind: DeployableKind };
+}) {
+  if (!preview.position) return null;
+  const building = preview.kind === "gold-mine" || preview.kind === "barracks";
+  const color = preview.valid ? "#70e6a0" : "#ef625e";
+  const y = terrainHeightAt(preview.position) + 0.075;
+  return (
+    <group position={[preview.position.x, y, preview.position.z]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={100}>
+        <ringGeometry args={building ? [0.9, 1.07, 6] : [0.38, 0.5, 18]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.95}
+          depthTest={false}
+          depthWrite={false}
+        />
+      </mesh>
+      <mesh position={[0, building ? 0.16 : 0.06, 0]} renderOrder={99}>
+        <cylinderGeometry args={building ? [0.88, 0.88, 0.26, 6] : [0.34, 0.34, 0.1, 18]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.24}
+          depthTest={false}
+          depthWrite={false}
+        />
+      </mesh>
+      {building && (
+        <mesh position={[0, 0.78, 0]} renderOrder={99}>
+          <boxGeometry args={[0.92, 1.24, 0.92]} />
+          <meshBasicMaterial
+            color={color}
+            transparent
+            opacity={0.2}
+            depthTest={false}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
+    </group>
   );
 }
 

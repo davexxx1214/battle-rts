@@ -149,6 +149,10 @@ export class BattleAudioEventRouter {
 }
 
 function eventCues(event: BattleEvent): string[] {
+  if (event.type === "gold-full") {
+    return event.faction === "verdant" ? ["command.attack"] : [];
+  }
+  if (event.type === "deployment-succeeded") return ["command.move"];
   if (event.type === "attack-started") {
     if (event.role === "knight") return ["knight.attack"];
     if (event.role === "ranger") return ["ranger.attack"];

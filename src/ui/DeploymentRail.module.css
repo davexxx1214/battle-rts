@@ -1,0 +1,327 @@
+.rail {
+  position: absolute;
+  z-index: 24;
+  top: 12px;
+  bottom: 12px;
+  left: 12px;
+  width: 218px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid rgb(90 174 255 / 72%);
+  color: var(--parchment);
+  background:
+    linear-gradient(145deg, rgb(90 174 255 / 11%), transparent 38%),
+    repeating-linear-gradient(135deg, rgb(255 255 255 / 1.4%) 0 1px, transparent 1px 7px),
+    rgb(15 17 15 / 94%);
+  box-shadow: 14px 16px 42px rgb(0 0 0 / 38%), inset 0 0 28px rgb(255 255 255 / 2%);
+  animation: railDeploy 280ms 70ms ease-out both;
+}
+
+.goldHeader {
+  padding: 3px 2px 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.goldTitle {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 7px;
+}
+
+.goldTitle > span {
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgb(229 184 77 / 48%);
+  border-radius: 50%;
+  color: var(--amber);
+  background: radial-gradient(circle at 35% 30%, #ffe39a, #b27620 64%, #694112);
+  box-shadow: 0 0 18px rgb(229 184 77 / 16%);
+  font-size: 7px;
+}
+
+.goldTitle small,
+.goldTitle strong {
+  display: block;
+}
+
+.goldTitle small {
+  color: var(--muted);
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+
+.goldTitle strong {
+  margin-top: 2px;
+  font-family: var(--display);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+.goldTitle em {
+  padding: 3px 5px;
+  border: 1px solid rgb(229 184 77 / 35%);
+  color: var(--amber);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.goldReadout {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.goldReadout strong {
+  color: #f0c65f;
+  font-family: var(--display);
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.goldReadout span {
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.goldTrack {
+  position: relative;
+  height: 5px;
+  margin-top: 7px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 8%);
+}
+
+.goldTrack i,
+.goldTrack b {
+  position: absolute;
+  inset: 0 auto 0 0;
+  display: block;
+}
+
+.goldTrack i {
+  background: linear-gradient(90deg, #9b651f, #f0c65f);
+  transition: width 180ms linear;
+}
+
+.goldTrack b {
+  height: 1px;
+  top: auto;
+  background: #fff2bd;
+  opacity: 0.8;
+}
+
+.recoveryStatus,
+.fullPrompt {
+  margin: 5px 0 0;
+  font-size: 7px;
+}
+
+.recoveryStatus {
+  color: var(--muted);
+}
+
+.fullPrompt {
+  display: none;
+  padding: 5px 6px;
+  border-left: 2px solid var(--amber);
+  color: #ffe49a;
+  background: rgb(229 184 77 / 11%);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.rail[data-full="true"] {
+  border-color: rgb(229 184 77 / 62%);
+  box-shadow: 14px 16px 42px rgb(0 0 0 / 38%), 0 0 30px rgb(229 184 77 / 12%);
+  animation: fullGoldPulse 1.15s ease-in-out infinite;
+}
+
+.rail[data-full="true"] .fullPrompt {
+  display: block;
+}
+
+.group h2 {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 7px;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+}
+
+.cardList {
+  display: flex;
+  flex-direction: column;
+}
+
+.card {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  margin-top: -1px;
+  padding: 6px 7px;
+  border: 1px solid var(--line);
+  border-left: 2px solid rgb(90 174 255 / 46%);
+  color: var(--parchment);
+  background: rgb(16 17 14 / 85%);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.card[data-kind="gold-mine"],
+.card[data-kind="barracks"] {
+  border-left-color: rgb(229 184 77 / 62%);
+}
+
+.card:hover:not(:disabled),
+.card[data-selected="true"] {
+  z-index: 1;
+  border-color: var(--amber);
+  background: linear-gradient(90deg, rgb(229 184 77 / 16%), rgb(19 20 16 / 94%));
+  transform: translateX(2px);
+}
+
+.card[data-selected="true"] {
+  box-shadow: inset 3px 0 var(--amber), 0 0 18px rgb(229 184 77 / 8%);
+}
+
+.card:focus-visible {
+  z-index: 2;
+  outline: 2px solid var(--parchment);
+  outline-offset: 2px;
+}
+
+.card:disabled {
+  color: rgb(222 211 183 / 40%);
+  background: rgb(8 9 8 / 68%);
+  cursor: not-allowed;
+}
+
+.glyph {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgb(222 211 183 / 18%);
+  color: var(--amber);
+  background: #0d0f0d;
+  font-size: 14px;
+}
+
+.card:disabled .glyph {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+
+.identity,
+.identity strong,
+.identity small,
+.price small {
+  min-width: 0;
+  display: block;
+}
+
+.identity strong {
+  overflow: hidden;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.identity small,
+.price small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 6px;
+  white-space: nowrap;
+}
+
+.price {
+  min-width: 46px;
+  color: #f0c65f;
+  text-align: right;
+}
+
+.price b {
+  font-family: var(--display);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.card:disabled .price {
+  color: var(--crimson);
+}
+
+.instructions {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 6px;
+}
+
+.instructions kbd {
+  color: rgb(222 211 183 / 66%);
+  font: inherit;
+  white-space: nowrap;
+}
+
+@keyframes railDeploy {
+  from { opacity: 0; transform: translateX(-14px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fullGoldPulse {
+  50% { border-color: var(--amber); box-shadow: 14px 16px 42px rgb(0 0 0 / 38%), 0 0 38px rgb(229 184 77 / 22%); }
+}
+
+@media (max-height: 720px) {
+  .rail { gap: 6px; padding-block: 8px; }
+  .goldReadout strong { font-size: 21px; }
+  .card { min-height: 44px; padding-block: 4px; }
+  .glyph { width: 25px; height: 25px; }
+  .identity small { margin-top: 2px; }
+}
+
+@media (max-width: 620px) {
+  .rail {
+    top: auto;
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    width: auto;
+    max-height: 292px;
+    overflow-y: auto;
+  }
+
+  .goldHeader { display: grid; grid-template-columns: 1fr auto; gap: 0 10px; }
+  .goldReadout { margin-top: 0; }
+  .goldTrack,
+  .recoveryStatus,
+  .fullPrompt { grid-column: 1 / -1; }
+  .cardList { display: grid; grid-template-columns: repeat(2, 1fr); }
+  .instructions { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail,
+  .rail[data-full="true"] { animation: none; }
+  .card,
+  .goldTrack i { transition: none; }
+}

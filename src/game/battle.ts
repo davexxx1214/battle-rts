@@ -101,6 +101,7 @@ export interface BattleState {
   readonly matchElapsed: number;
   readonly buildings: readonly BattleBuilding[];
   readonly buildingOccupancy: BuildingOccupancy;
+  readonly nextDeploymentSequence: number;
   readonly nextEventSequence: number;
   readonly elapsed: number;
   readonly winner: Faction | "draw" | null;
@@ -168,6 +169,7 @@ export function createBattleState(units: readonly BattleUnit[]): BattleState {
     matchElapsed: 0,
     buildings: [],
     buildingOccupancy: createBuildingOccupancy(),
+    nextDeploymentSequence: 0,
     nextEventSequence: 0,
     elapsed: 0,
     winner,
@@ -521,6 +523,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     matchElapsed,
     buildings: buildingCleanup.buildings,
     buildingOccupancy: buildingCleanup.occupancy,
+    nextDeploymentSequence: state.nextDeploymentSequence,
     nextEventSequence,
     elapsed,
     winner,
@@ -1038,7 +1041,7 @@ function advanceTowardCombatPosition(
   };
 }
 
-function appendUnitsToSquads(
+export function appendUnitsToSquads(
   squads: readonly BattleSquad[],
   units: readonly BattleUnit[],
 ): readonly BattleSquad[] {

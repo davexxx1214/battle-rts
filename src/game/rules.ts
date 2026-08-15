@@ -1,14 +1,20 @@
 import type { UnitRole } from "./types";
 
-export type DeployableKind =
-  | "swordsman"
-  | "archer"
-  | "mage"
-  | "catapult"
-  | "gold-mine"
-  | "barracks";
+export const DEPLOYABLE_CATEGORIES = {
+  swordsman: "troop",
+  archer: "troop",
+  mage: "troop",
+  catapult: "troop",
+  "gold-mine": "building",
+  barracks: "building",
+} as const satisfies Readonly<Record<string, "troop" | "building">>;
 
-export type BuildingKind = "gold-mine" | "barracks";
+export type DeployableKind = keyof typeof DEPLOYABLE_CATEGORIES;
+export type BuildingKind = {
+  [Kind in DeployableKind]: typeof DEPLOYABLE_CATEGORIES[Kind] extends "building"
+    ? Kind
+    : never;
+}[DeployableKind];
 export type TroopKind = Exclude<DeployableKind, BuildingKind>;
 
 export interface UnitSpec {
@@ -188,6 +194,15 @@ export const GAME_RULES = {
   },
   units: UNIT_SPECS,
 } as const satisfies GameRules;
+
+export const BUILDING_ACTIVE_LIMITS = {
+  "gold-mine": GAME_RULES.buildings.goldMine.maximumActivePerFaction,
+  barracks: GAME_RULES.buildings.barracks.maximumActivePerFaction,
+} as const satisfies Readonly<Record<BuildingKind, number>>;
+
+export function isBuildingDeployable(kind: DeployableKind): kind is BuildingKind {
+  return DEPLOYABLE_CATEGORIES[kind] === "building";
+}
 
 export function validateGameRules(rules: GameRules): string[] {
   const errors: string[] = [];
