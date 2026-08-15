@@ -1,16 +1,18 @@
 import type { BattleUnit } from "./battle";
+import type { CombatTarget, CombatTargetType } from "./combat";
 import type { WorldPoint } from "./types";
 
 export interface MeleeEngagementSlot {
   readonly attackerId: string;
   readonly targetId: string;
+  readonly targetType: CombatTargetType;
   readonly index: number;
   readonly position: WorldPoint;
 }
 
 interface MeleeEngagementRequest {
   readonly attacker: BattleUnit;
-  readonly target: BattleUnit;
+  readonly target: CombatTarget;
   readonly previousSlotIndex?: number;
 }
 
@@ -27,13 +29,15 @@ export function assignMeleeEngagementSlots(
   const occupiedByTarget = new Map<string, Set<number>>();
   const assignments: MeleeEngagementSlot[] = [];
   const sorted = [...requests].sort((first, second) => (
-    first.target.id.localeCompare(second.target.id)
+    first.target.targetType.localeCompare(second.target.targetType)
+    || first.target.id.localeCompare(second.target.id)
     || first.attacker.id.localeCompare(second.attacker.id)
   ));
 
   for (const request of sorted) {
-    const occupied = occupiedByTarget.get(request.target.id) ?? new Set<number>();
-    occupiedByTarget.set(request.target.id, occupied);
+    const targetKey = `${request.target.targetType}:${request.target.id}`;
+    const occupied = occupiedByTarget.get(targetKey) ?? new Set<number>();
+    occupiedByTarget.set(targetKey, occupied);
     const available = Array.from({ length: SLOT_COUNT }, (_, index) => index)
       .filter((index) => (
         !occupied.has(index)
@@ -52,6 +56,7 @@ export function assignMeleeEngagementSlots(
     assignments.push({
       attackerId: request.attacker.id,
       targetId: request.target.id,
+      targetType: request.target.targetType,
       index,
       position: slotPosition(request.target.position, index),
     });

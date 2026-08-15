@@ -2,6 +2,7 @@ import type { Faction, UnitRole, WorldPoint } from "./types";
 import type { BuildingSimulationEvent } from "./buildings";
 import type { DeployableKind } from "./rules";
 import type { HexCoordinate } from "../map/battlefield";
+import type { CombatTargetType } from "./combat";
 
 interface BattleEventBase {
   readonly sequence: number;
@@ -27,6 +28,7 @@ export type BattleEventInput =
       readonly type: "attack-started";
       readonly attackerId: string;
       readonly targetId: string;
+      readonly targetType: CombatTargetType;
       readonly role: UnitRole;
       readonly origin: WorldPoint;
       readonly targetPosition: WorldPoint;
@@ -36,6 +38,7 @@ export type BattleEventInput =
       readonly projectileId: string;
       readonly attackerId: string;
       readonly targetId: string;
+      readonly targetType: CombatTargetType;
       readonly role: UnitRole;
       readonly origin: WorldPoint;
       readonly destination: WorldPoint;
@@ -45,6 +48,7 @@ export type BattleEventInput =
       readonly projectileId: string;
       readonly attackerId: string;
       readonly targetId: string;
+      readonly targetType: CombatTargetType;
       readonly role: UnitRole;
       readonly position: WorldPoint;
       readonly splashRadius: number;
@@ -55,6 +59,7 @@ export type BattleEventInput =
       readonly sourceRole: UnitRole;
       readonly sourcePosition: WorldPoint;
       readonly targetId: string;
+      readonly targetType: CombatTargetType;
       readonly targetPosition: WorldPoint;
       readonly amount: number;
     }

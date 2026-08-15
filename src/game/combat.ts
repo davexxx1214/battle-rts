@@ -2,6 +2,11 @@ import type { Faction, WorldPoint } from "./types";
 
 export type CombatTargetType = "unit" | "building";
 
+export interface CombatTargetRef {
+  readonly targetType: CombatTargetType;
+  readonly targetId: string;
+}
+
 export interface CombatTarget {
   readonly targetType: CombatTargetType;
   readonly id: string;

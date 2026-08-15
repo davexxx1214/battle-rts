@@ -70,7 +70,6 @@ function unresolvedSession(gold = 1000, phase: "briefing" | "engaged" = "engaged
   return {
     battle: unresolvedBattle(gold),
     phase,
-    plannedCommands: [],
   } as const;
 }
 

@@ -4,8 +4,6 @@ import {
   UNIT_SPECS,
   createBattleState,
   createBattleUnit,
-  issueAttackCommand,
-  issueHoldCommand,
   stepBattle,
 } from "../../src/game/battle";
 
@@ -15,19 +13,15 @@ describe("authoritative presentation state", () => {
       id: "v-mage",
       faction: "verdant",
       role: "mage",
-      position: { x: 0, z: 0 },
+      position: { x: 0, z: 5 },
     });
     const target = createBattleUnit({
       id: "c-target",
       faction: "crimson",
       role: "knight",
-      position: { x: 0, z: 5 },
+      position: { x: 0, z: 0 },
     });
-    let state = issueAttackCommand(
-      issueHoldCommand(createBattleState([mage, target]), [target.id]),
-      [mage.id],
-      target.id,
-    );
+    let state = createBattleState([mage, target]);
 
     for (let index = 0; index < 12; index += 1) state = stepBattle(state, 0.1);
     const impact = state.events.find((event) => (
@@ -42,19 +36,15 @@ describe("authoritative presentation state", () => {
       id: "v-knight",
       faction: "verdant",
       role: "knight",
-      position: { x: 0, z: 0 },
+      position: { x: 0, z: 1 },
     });
     const target = createBattleUnit({
       id: "c-knight",
       faction: "crimson",
       role: "knight",
-      position: { x: 0, z: 1 },
+      position: { x: 0, z: 0 },
     });
-    let state = issueAttackCommand(
-      issueHoldCommand(createBattleState([attacker, target]), [target.id]),
-      [attacker.id],
-      target.id,
-    );
+    let state = createBattleState([attacker, target]);
 
     for (let index = 0; index < 10; index += 1) {
       state = stepBattle(state, 0.1);
@@ -79,24 +69,20 @@ describe("authoritative presentation state", () => {
       id: "v-knight",
       faction: "verdant",
       role: "knight",
-      position: { x: 0, z: 0 },
+      position: { x: 0, z: 1 },
     });
     const target = {
       ...createBattleUnit({
         id: "c-target",
         faction: "crimson",
         role: "knight",
-        position: { x: 0, z: 1 },
+        position: { x: 0, z: 0 },
       }),
       health: 1,
     };
-    let state = issueAttackCommand(
-      issueHoldCommand(createBattleState([attacker, target]), [target.id]),
-      [attacker.id],
-      target.id,
-    );
+    let state = createBattleState([attacker, target]);
 
-    for (let index = 0; index < 20 && !state.winner; index += 1) state = stepBattle(state, 0.1);
+    for (let index = 0; index < 20; index += 1) state = stepBattle(state, 0.1);
     const diedAt = state.units.find((unit) => unit.id === target.id)?.diedAt;
     for (let index = 0; index < 10; index += 1) state = stepBattle(state, 0.1);
 

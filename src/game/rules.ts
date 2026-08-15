@@ -19,11 +19,9 @@ export type TroopKind = Exclude<DeployableKind, BuildingKind>;
 
 export interface UnitSpec {
   readonly attackMode: "melee" | "projectile";
-  readonly rangeResponse: "stand" | "skirmish";
   readonly maxHealth: number;
   readonly damage: number;
   readonly attackRange: number;
-  readonly minimumRange: number;
   readonly attackCooldown: number;
   readonly moveSpeed: number;
   readonly aggroRange: number;
@@ -45,6 +43,9 @@ export interface GameRules {
   };
   readonly deployment: {
     readonly costs: Readonly<Record<DeployableKind, number>>;
+  };
+  readonly targeting: {
+    readonly routeCorridorWidth: number;
   };
   readonly buildings: {
     readonly destructionSeconds: number;
@@ -80,11 +81,9 @@ export interface GameRules {
 export const UNIT_SPECS = {
   knight: {
     attackMode: "melee",
-    rangeResponse: "stand",
     maxHealth: 220,
     damage: 5.25,
     attackRange: 1.22,
-    minimumRange: 0,
     attackCooldown: 1.1,
     moveSpeed: 3.25,
     aggroRange: 7.5,
@@ -93,11 +92,9 @@ export const UNIT_SPECS = {
   },
   ranger: {
     attackMode: "projectile",
-    rangeResponse: "skirmish",
     maxHealth: 122,
     damage: 4,
     attackRange: 7,
-    minimumRange: 5.5,
     attackCooldown: 1.4,
     moveSpeed: 3.55,
     aggroRange: 9,
@@ -106,11 +103,9 @@ export const UNIT_SPECS = {
   },
   mage: {
     attackMode: "projectile",
-    rangeResponse: "skirmish",
     maxHealth: 102,
     damage: 5,
     attackRange: 6.2,
-    minimumRange: 4.5,
     attackCooldown: 2,
     moveSpeed: 3.05,
     aggroRange: 8.5,
@@ -119,11 +114,9 @@ export const UNIT_SPECS = {
   },
   catapult: {
     attackMode: "projectile",
-    rangeResponse: "stand",
     maxHealth: 360,
     damage: 42,
     attackRange: 13.5,
-    minimumRange: 0,
     attackCooldown: 4,
     moveSpeed: 1.65,
     aggroRange: 13,
@@ -163,6 +156,9 @@ export const GAME_RULES = {
       "gold-mine": GOLD_MINE_COST,
       barracks: BARRACKS_COST,
     },
+  },
+  targeting: {
+    routeCorridorWidth: 3,
   },
   buildings: {
     destructionSeconds: 0.8,
@@ -206,7 +202,7 @@ export function isBuildingDeployable(kind: DeployableKind): kind is BuildingKind
 
 export function validateGameRules(rules: GameRules): string[] {
   const errors: string[] = [];
-  const { match, economy, deployment, buildings, castle, units } = rules;
+  const { match, economy, deployment, targeting, buildings, castle, units } = rules;
 
   if (!isPositive(match.durationSeconds)) errors.push("match.durationSeconds must be positive");
   if (
@@ -256,6 +252,9 @@ export function validateGameRules(rules: GameRules): string[] {
   }
   if (deployment.costs.catapult < 700 || deployment.costs.catapult > 800) {
     errors.push("catapult cost must be from 700 to 800");
+  }
+  if (!isPositive(targeting.routeCorridorWidth)) {
+    errors.push("targeting.routeCorridorWidth must be positive");
   }
 
   if (!isPositive(buildings.destructionSeconds)) {
@@ -312,9 +311,6 @@ export function validateGameRules(rules: GameRules): string[] {
       "moveSpeed",
       "aggroRange",
     ]);
-    if (!isNonNegative(spec.minimumRange) || spec.minimumRange > spec.attackRange) {
-      errors.push(`units.${role}.minimumRange must be inside attack range`);
-    }
     if (!isNonNegative(spec.splashRadius)) {
       errors.push(`units.${role}.splashRadius must not be negative`);
     }

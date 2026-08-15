@@ -113,7 +113,7 @@ export function App() {
   const engageBattle = useCallback(() => {
     setApp((current) => ({
       ...current,
-      session: beginBattleSession(current.session, "verdant"),
+      session: beginBattleSession(current.session),
       feedback: { tone: "info", message: "选择左侧卡牌，然后点击己方势力范围部署" },
     }));
   }, []);
@@ -184,7 +184,6 @@ export function App() {
       <BattleAudio
         battle={battle}
         resetToken={battleInstanceRevision}
-        commandMarker={null}
         enabled={audioEnabled && battlePhase === "engaged"}
       />
       <header className={styles.commandBar}>
@@ -254,10 +253,7 @@ export function App() {
         >
           <BattlefieldCanvas
             battle={battle}
-            selectedIds={[]}
             bridgeRef={bridgeRef}
-            commandMarker={null}
-            plannedCommandMarkers={[]}
             deploymentPreview={app.selectedDeployable && deploymentPreview
               ? { kind: app.selectedDeployable, ...deploymentPreview }
               : null}
@@ -317,7 +313,6 @@ function createAppState(benchmarkMode: boolean): AppState {
     session: {
       battle: createInitialBattle(),
       phase: benchmarkMode ? "engaged" : "briefing",
-      plannedCommands: [],
     },
     selectedDeployable: null,
     feedback: null,

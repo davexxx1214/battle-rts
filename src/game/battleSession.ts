@@ -1,24 +1,20 @@
 import { stepBattle, type BattleState } from "./battle";
-import { applyPlannedCommands, type PlannedCommand } from "./battlePlans";
-import type { Faction } from "./types";
 
 export type BattlePhase = "briefing" | "engaged";
 
 export interface BattlePhaseAccess {
   readonly inspectField: boolean;
-  readonly issueCommands: boolean;
-  readonly planCommands: boolean;
+  readonly deployEntities: boolean;
 }
 
 export interface BattleSessionState {
   readonly battle: BattleState;
   readonly phase: BattlePhase;
-  readonly plannedCommands: readonly PlannedCommand[];
 }
 
 const PHASE_ACCESS: Readonly<Record<BattlePhase, BattlePhaseAccess>> = {
-  briefing: { inspectField: true, issueCommands: false, planCommands: true },
-  engaged: { inspectField: true, issueCommands: true, planCommands: false },
+  briefing: { inspectField: true, deployEntities: false },
+  engaged: { inspectField: true, deployEntities: true },
 };
 
 export function getBattlePhaseAccess(phase: BattlePhase): BattlePhaseAccess {
@@ -27,13 +23,11 @@ export function getBattlePhaseAccess(phase: BattlePhase): BattlePhaseAccess {
 
 export function beginBattleSession(
   session: BattleSessionState,
-  issuerFaction: Faction,
 ): BattleSessionState {
   if (session.phase === "engaged") return session;
   return {
-    battle: applyPlannedCommands(session.battle, session.plannedCommands, issuerFaction),
+    battle: session.battle,
     phase: "engaged",
-    plannedCommands: [],
   };
 }
 

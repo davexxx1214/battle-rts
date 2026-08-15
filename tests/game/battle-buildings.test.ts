@@ -141,10 +141,11 @@ describe("battle building integration", () => {
         position: { x: 0, z: 0 },
       }),
     ]), mine);
+    state = { ...state, matchElapsed: 179.95 };
 
     state = stepBattle(stepBattle(state, 0.1), 0.1);
 
-    expect(state.winner).toBe("verdant");
+    expect(state.winner).toBe("draw");
     expect(state.buildings).toEqual([]);
     expect(state.buildingOccupancy[coordinateKey(mine.coordinate)]).toBeUndefined();
   });

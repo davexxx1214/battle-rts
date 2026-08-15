@@ -1,10 +1,11 @@
-import type { BattleUnit } from "./battle";
+import type { CombatTarget, CombatTargetType } from "./combat";
 import type { UnitRole, WorldPoint } from "./types";
 
 export interface BattleProjectile {
   readonly id: string;
   readonly attackerId: string;
   readonly targetId: string;
+  readonly targetType: CombatTargetType;
   readonly role: UnitRole;
   readonly origin: WorldPoint;
   readonly position: WorldPoint;
@@ -26,15 +27,18 @@ export interface ProjectileStep {
 
 export function advanceProjectiles(
   projectiles: readonly BattleProjectile[],
-  units: readonly BattleUnit[],
+  targets: readonly CombatTarget[],
   deltaSeconds: number,
 ): ProjectileStep {
   const remaining: BattleProjectile[] = [];
   const impacts: ProjectileImpact[] = [];
-  const unitsById = new Map(units.map((unit) => [unit.id, unit] as const));
+  const targetsByKey = new Map(targets.map((target) => [
+    `${target.targetType}:${target.id}`,
+    target,
+  ] as const));
 
   for (const projectile of projectiles) {
-    const target = unitsById.get(projectile.targetId);
+    const target = targetsByKey.get(`${projectile.targetType}:${projectile.targetId}`);
     const destination = target && target.health > 0
       ? target.position
       : projectile.destination;

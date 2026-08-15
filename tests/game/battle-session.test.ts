@@ -18,20 +18,18 @@ describe("battle session gate", () => {
     expect(engaged.revision).toBeGreaterThan(initial.revision);
   });
 
-  it("allows battlefield inspection and planning before engagement", () => {
+  it("allows inspection before engagement and deployment only after engagement", () => {
     expect(getBattlePhaseAccess("briefing")).toEqual({
       inspectField: true,
-      issueCommands: false,
-      planCommands: true,
+      deployEntities: false,
     });
     expect(getBattlePhaseAccess("engaged")).toEqual({
       inspectField: true,
-      issueCommands: true,
-      planCommands: false,
+      deployEntities: true,
     });
   });
 
-  it("applies and clears every plan in the same transition that starts engagement", () => {
+  it("starts automatic combat without applying player commands", () => {
     const friendly = createBattleUnit({
       id: "v-1",
       faction: "verdant",
@@ -48,14 +46,10 @@ describe("battle session gate", () => {
     const engaged = beginBattleSession({
       battle: createBattleState([friendly, enemy]),
       phase: "briefing",
-      plannedCommands: [{ kind: "attack", unitIds: [friendly.id], targetId: enemy.id }],
-    }, "verdant");
+    });
 
     expect(engaged.phase).toBe("engaged");
-    expect(engaged.plannedCommands).toEqual([]);
-    expect(engaged.battle.units.find((unit) => unit.id === friendly.id)?.order).toEqual({
-      type: "attack",
-      targetId: enemy.id,
-    });
+    expect(engaged.battle.units.find((unit) => unit.id === friendly.id)?.behavior)
+      .toBe("charging");
   });
 });

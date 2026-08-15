@@ -82,11 +82,13 @@ describe("central game rules", () => {
       deployment: {
         costs: { ...tunable.deployment.costs, swordsman: 50 },
       },
+      targeting: { routeCorridorWidth: 0 },
     };
     expect(validateGameRules(invalid)).toEqual(expect.arrayContaining([
       "economy.maximumGold must be a multiple of 100",
       "deployment.costs.swordsman must be a multiple of 100 from 100 to 1000",
       "swordsman cost must be from 200 to 700",
+      "targeting.routeCorridorWidth must be positive",
     ]));
   });
 });

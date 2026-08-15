@@ -25,20 +25,13 @@ interface RuntimeCueCatalog {
   readonly cues: Readonly<Record<string, RuntimeCue>>;
 }
 
-interface AudioCommandMarker {
-  readonly kind: "move" | "attack" | "attack-move";
-  readonly revision: number;
-}
-
 export function BattleAudio({
   battle,
   resetToken,
-  commandMarker,
   enabled,
 }: {
   readonly battle: BattleState;
   readonly resetToken: number;
-  readonly commandMarker: AudioCommandMarker | null;
   readonly enabled: boolean;
 }) {
   const system = useRef<BrowserBattleAudioSystem | null>(null);
@@ -83,14 +76,6 @@ export function BattleAudio({
     }
     previousWinner.current = battle.winner;
   }, [battle.nextEventSequence, battle.winner]);
-
-  useEffect(() => {
-    if (!commandMarker) return;
-    system.current?.play({
-      cue: commandMarker.kind === "move" ? "command.move" : "command.attack",
-      sequence: commandMarker.revision,
-    });
-  }, [commandMarker]);
 
   return null;
 }

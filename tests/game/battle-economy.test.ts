@@ -59,7 +59,7 @@ describe("battle economy integration", () => {
   });
 
   it("freezes the match clock and economy after a result is already known", () => {
-    const resolved = createBattleState([
+    const active = createBattleState([
       createBattleUnit({
         id: "only-survivor",
         faction: "verdant",
@@ -67,10 +67,11 @@ describe("battle economy integration", () => {
         position: { x: 0, z: 0 },
       }),
     ]);
+    const resolved = stepBattle({ ...active, matchElapsed: 179.95 }, 0.1);
     let advanced = resolved;
     for (let index = 0; index < 28; index += 1) advanced = stepBattle(advanced, 0.1);
 
-    expect(resolved.winner).toBe("verdant");
+    expect(resolved.winner).toBe("draw");
     expect(advanced.matchElapsed).toBe(resolved.matchElapsed);
     expect(getBattleMatchClock(advanced)).toEqual(getBattleMatchClock(resolved));
     expect(advanced.economy).toEqual(resolved.economy);

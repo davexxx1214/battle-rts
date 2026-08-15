@@ -108,6 +108,7 @@ describe("battle audio", () => {
     const router = new BattleAudioEventRouter();
     const event = stampBattleEvent({
       type: "damage-applied",
+      targetType: "unit",
       sourceId: "v-1",
       sourceRole: "knight",
       sourcePosition: { x: 1, z: 2 },
@@ -127,6 +128,7 @@ describe("battle audio", () => {
     const events = [
       stampBattleEvent({
         type: "attack-started",
+        targetType: "unit",
         attackerId: "v-catapult",
         targetId: "c-target",
         role: "catapult",
@@ -135,6 +137,7 @@ describe("battle audio", () => {
       }, 8, 1.5),
       stampBattleEvent({
         type: "projectile-hit",
+        targetType: "unit",
         projectileId: "stone-1",
         attackerId: "v-catapult",
         targetId: "c-target",

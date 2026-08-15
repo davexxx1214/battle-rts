@@ -18,7 +18,6 @@ import type {
 } from "../game/battle";
 import type { DeploymentPreview } from "../game/deployTransaction";
 import type { DeployableKind } from "../game/rules";
-import type { ProjectedUnit } from "../game/selection";
 import { terrainHeightAt } from "../map/battlefield";
 import {
   BattleCamera,
@@ -31,29 +30,13 @@ import { UnitModel } from "./units/UnitModel";
 import { FrameBenchmark, type BenchmarkSnapshot } from "../game/benchmark";
 
 export interface SceneInteractionBridge {
-  projectedUnits: ProjectedUnit[];
   screenToWorld: (x: number, y: number) => WorldPoint | null;
   zoomBy: (deltaY: number) => void;
 }
 
-export interface CommandMarker extends WorldPoint {
-  readonly kind: "move" | "attack" | "attack-move";
-  readonly revision: number;
-  readonly persistent?: boolean;
-  readonly targetId?: string;
-  readonly facing?: number;
-  readonly unitIds?: readonly string[];
-  readonly formationSlots?: readonly WorldPoint[];
-}
-
-type DisplayedCommandMarker = CommandMarker;
-
 interface BattlefieldCanvasProps {
   readonly battle: BattleState;
-  readonly selectedIds: readonly string[];
   readonly bridgeRef: MutableRefObject<SceneInteractionBridge>;
-  readonly commandMarker: CommandMarker | null;
-  readonly plannedCommandMarkers: readonly CommandMarker[];
   readonly deploymentPreview: (DeploymentPreview & { readonly kind: DeployableKind }) | null;
   readonly cameraResetToken: number;
   readonly cameraViewStore: CameraViewStore;
@@ -69,7 +52,6 @@ const ATTACK_PRESENTATION_SECONDS = 3.6;
 
 export function createSceneInteractionBridge(): SceneInteractionBridge {
   return {
-    projectedUnits: [],
     screenToWorld: () => null,
     zoomBy: () => undefined,
   };
@@ -77,21 +59,13 @@ export function createSceneInteractionBridge(): SceneInteractionBridge {
 
 export function BattlefieldCanvas({
   battle,
-  selectedIds,
   bridgeRef,
-  commandMarker,
-  plannedCommandMarkers,
   deploymentPreview,
   cameraResetToken,
   cameraViewStore,
   onBenchmarkUpdate,
 }: BattlefieldCanvasProps) {
   const attackPresentations = useAttackPresentationCache(battle);
-  const displayedCommandMarker = resolveDisplayedCommandMarker(commandMarker, battle);
-  const displayedPlans = plannedCommandMarkers.flatMap((marker) => {
-    const displayed = resolveDisplayedCommandMarker(marker, battle);
-    return displayed ? [displayed] : [];
-  });
   return (
     <Canvas
       orthographic
@@ -122,7 +96,7 @@ export function BattlefieldCanvas({
         shake={latestShakeImpulse(battle)}
         onViewChange={cameraViewStore.publish}
       />
-      <SceneBridge battle={battle} bridgeRef={bridgeRef} />
+      <SceneBridge bridgeRef={bridgeRef} />
       {onBenchmarkUpdate && <BenchmarkProbe onUpdate={onBenchmarkUpdate} />}
       <Suspense fallback={<ArenaFallback />}>
         <BattlefieldTerrain />
@@ -134,7 +108,7 @@ export function BattlefieldCanvas({
           return (
             <UnitModel
               unit={unit}
-              selected={selectedIds.includes(unit.id)}
+              selected={false}
               attackSequence={attack?.sequence}
               attackTime={attack?.time}
               battleTime={battle.elapsed}
@@ -147,18 +121,6 @@ export function BattlefieldCanvas({
         <BattleEffects battle={battle} />
       </Suspense>
       {deploymentPreview && <DeploymentPreviewVisual preview={deploymentPreview} />}
-      {displayedPlans.map((marker) => (
-        <CommandMarkerVisual
-          marker={marker}
-          key={`plan-${marker.revision}-${marker.kind}-${marker.targetId ?? `${marker.x}:${marker.z}`}`}
-        />
-      ))}
-      {displayedCommandMarker && (
-        <CommandMarkerVisual
-          marker={displayedCommandMarker}
-          key={`${displayedCommandMarker.revision}-${displayedCommandMarker.kind}`}
-        />
-      )}
     </Canvas>
   );
 }
@@ -327,31 +289,9 @@ function BenchmarkProbe({ onUpdate }: {
   return null;
 }
 
-function resolveDisplayedCommandMarker(
-  marker: CommandMarker | null,
-  battle: BattleState,
-): DisplayedCommandMarker | null {
-  if (!marker) return null;
-  if (marker.kind === "attack" && marker.targetId) {
-    const target = battle.units.find((unit) => unit.id === marker.targetId && unit.health > 0);
-    return target ? { ...marker, ...target.position } : marker;
-  }
-  if (marker.formationSlots) return marker;
-  if (!marker.unitIds) return marker;
-  const commanded = new Set(marker.unitIds);
-  return {
-    ...marker,
-    formationSlots: battle.units.flatMap((unit) => (
-      commanded.has(unit.id) && unit.health > 0 ? [unit.formationSlot] : []
-    )),
-  };
-}
-
 function SceneBridge({
-  battle,
   bridgeRef,
 }: {
-  readonly battle: BattleState;
   readonly bridgeRef: MutableRefObject<SceneInteractionBridge>;
 }) {
   const { camera, size } = useThree();
@@ -359,24 +299,8 @@ function SceneBridge({
   const ground = useMemo(() => new Plane(new Vector3(0, 1, 0), 0), []);
   const hit = useMemo(() => new Vector3(), []);
   const ndc = useMemo(() => new Vector2(), []);
-  const projected = useMemo(() => new Vector3(), []);
 
   useFrame(() => {
-    bridgeRef.current.projectedUnits = battle.units.map((unit) => {
-      projected.set(
-        unit.position.x,
-        terrainHeightAt(unit.position) + 0.86,
-        unit.position.z,
-      ).project(camera);
-      return {
-        id: unit.id,
-        faction: unit.faction,
-        x: ((projected.x + 1) / 2) * size.width,
-        y: ((1 - projected.y) / 2) * size.height,
-        alive: unit.health > 0,
-        visible: projected.z >= -1 && projected.z <= 1,
-      };
-    });
     bridgeRef.current.screenToWorld = (x, y) => {
       ndc.set((x / size.width) * 2 - 1, 1 - (y / size.height) * 2);
       raycaster.setFromCamera(ndc, camera);
@@ -390,110 +314,6 @@ function SceneBridge({
     };
   });
   return null;
-}
-
-function CommandMarkerVisual({ marker }: { readonly marker: DisplayedCommandMarker }) {
-  const root = useRef<Object3D>(null);
-  const focusBillboard = useRef<Object3D>(null);
-  const bornAt = useRef<number | null>(null);
-  useFrame(({ camera, clock }) => {
-    bornAt.current ??= clock.elapsedTime;
-    const age = clock.elapsedTime - bornAt.current;
-    if (!root.current) return;
-    const pulse = 1 + Math.min(1, age * 3) * 0.38;
-    root.current.scale.setScalar(pulse);
-    root.current.visible = marker.persistent
-      || age < (marker.kind === "attack" ? 1.5 : 1.2);
-    focusBillboard.current?.lookAt(camera.position);
-  });
-  const color = marker.kind === "attack"
-    ? "#ec5b58"
-    : marker.kind === "attack-move" ? "#e59b45" : "#f1cd67";
-  return (
-    <group ref={root} position={[marker.x, terrainHeightAt(marker) + 0.09, marker.z]}>
-      {marker.formationSlots?.map((slot, index) => (
-        <mesh
-          position={[slot.x - marker.x, 0.005, slot.z - marker.z]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          key={`${index}:${slot.x.toFixed(2)}:${slot.z.toFixed(2)}`}
-        >
-          <ringGeometry args={[0.11, 0.16, 10]} />
-          <meshBasicMaterial color={color} transparent opacity={0.62} depthWrite={false} />
-        </mesh>
-      ))}
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.42, 0.55, marker.kind === "attack" ? 4 : marker.kind === "attack-move" ? 6 : 24]} />
-        <meshBasicMaterial
-          color={color}
-          transparent
-          opacity={0.9}
-          depthWrite={false}
-        />
-      </mesh>
-      {marker.kind !== "attack" && (
-        <group rotation={[0, marker.facing ?? 0, 0]}>
-          <mesh position={[0, 0.025, 0.73]}>
-            <boxGeometry args={[0.08, 0.035, 0.72]} />
-            <meshBasicMaterial color={color} transparent opacity={0.82} depthWrite={false} />
-          </mesh>
-          <mesh position={[0, 0.025, 1.15]} rotation={[Math.PI / 2, 0, 0]}>
-            <coneGeometry args={[0.2, 0.42, 3]} />
-            <meshBasicMaterial color={color} transparent opacity={0.9} depthWrite={false} />
-          </mesh>
-        </group>
-      )}
-      {marker.kind === "attack" && (
-        <group>
-          {[0, Math.PI / 2, Math.PI, Math.PI * 1.5].map((rotation) => (
-            <group rotation={[0, rotation, 0]} key={rotation}>
-              <mesh position={[0, 0.04, 0.94]}>
-                <boxGeometry args={[0.14, 0.06, 0.5]} />
-                <meshBasicMaterial color={color} transparent opacity={0.95} depthWrite={false} />
-              </mesh>
-            </group>
-          ))}
-          <mesh position={[0, 1.05, 0]}>
-            <cylinderGeometry args={[0.035, 0.15, 2.1, 6]} />
-            <meshBasicMaterial color={color} transparent opacity={0.62} depthWrite={false} />
-          </mesh>
-          <group ref={focusBillboard} position={[0, 1.35, 0]}>
-            <CrossedSword rotation={Math.PI / 4} color={color} />
-            <CrossedSword rotation={-Math.PI / 4} color={color} />
-          </group>
-        </group>
-      )}
-    </group>
-  );
-}
-
-function CrossedSword({ rotation, color }: {
-  readonly rotation: number;
-  readonly color: string;
-}) {
-  return (
-    <group rotation={[0, 0, rotation]}>
-      <mesh position={[0, 0.18, 0]}>
-        <boxGeometry args={[0.11, 0.86, 0.07]} />
-        <meshBasicMaterial color="#fff1cf" transparent opacity={0.98} depthWrite={false} />
-      </mesh>
-      <mesh position={[0, 0.67, 0]}>
-        <coneGeometry args={[0.105, 0.25, 4]} />
-        <meshBasicMaterial color="#fff1cf" transparent opacity={0.98} depthWrite={false} />
-      </mesh>
-      <mesh position={[0, -0.31, 0.005]}>
-        <boxGeometry args={[0.46, 0.09, 0.09]} />
-        <meshBasicMaterial color={color} transparent opacity={0.98} depthWrite={false} />
-      </mesh>
-      <mesh position={[0, -0.49, 0]}>
-        <boxGeometry args={[0.1, 0.3, 0.08]} />
-        <meshBasicMaterial color={color} transparent opacity={0.98} depthWrite={false} />
-      </mesh>
-      <mesh position={[0, -0.68, 0]}>
-        <octahedronGeometry args={[0.11, 0]} />
-        <meshBasicMaterial color={color} transparent opacity={0.98} depthWrite={false} />
-      </mesh>
-    </group>
-  );
 }
 
 function ArenaFallback() {
@@ -530,7 +350,11 @@ function useAttackPresentationCache(battle: BattleState): ReadonlyMap<string, At
 function latestDamagePresentation(battle: BattleState, unitId: string) {
   for (let index = battle.events.length - 1; index >= 0; index -= 1) {
     const event = battle.events[index]!;
-    if (event.type !== "damage-applied" || event.targetId !== unitId) continue;
+    if (
+      event.type !== "damage-applied"
+      || event.targetType !== "unit"
+      || event.targetId !== unitId
+    ) continue;
     return {
       time: event.time,
       sourcePosition: event.sourcePosition,
