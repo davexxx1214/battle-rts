@@ -1,4 +1,5 @@
 import type { Faction, UnitRole, WorldPoint } from "./types";
+import type { BuildingSimulationEvent } from "./buildings";
 
 interface BattleEventBase {
   readonly sequence: number;
@@ -6,6 +7,7 @@ interface BattleEventBase {
 }
 
 export type BattleEventInput =
+  | BuildingSimulationEvent
   | {
       readonly type: "gold-full";
       readonly faction: Faction;

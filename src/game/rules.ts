@@ -41,8 +41,10 @@ export interface GameRules {
     readonly costs: Readonly<Record<DeployableKind, number>>;
   };
   readonly buildings: {
+    readonly destructionSeconds: number;
     readonly goldMine: {
       readonly cost: number;
+      readonly maxHealth: number;
       readonly lifetimeSeconds: number;
       readonly firstProductionSeconds: number;
       readonly productionIntervalSeconds: number;
@@ -51,6 +53,7 @@ export interface GameRules {
     };
     readonly barracks: {
       readonly cost: number;
+      readonly maxHealth: number;
       readonly lifetimeSeconds: number;
       readonly firstSpawnSeconds: number;
       readonly spawnIntervalSeconds: number;
@@ -156,8 +159,10 @@ export const GAME_RULES = {
     },
   },
   buildings: {
+    destructionSeconds: 0.8,
     goldMine: {
       cost: GOLD_MINE_COST,
+      maxHealth: 900,
       lifetimeSeconds: 36,
       firstProductionSeconds: 4,
       productionIntervalSeconds: 4,
@@ -166,6 +171,7 @@ export const GAME_RULES = {
     },
     barracks: {
       cost: BARRACKS_COST,
+      maxHealth: 1200,
       lifetimeSeconds: 30,
       firstSpawnSeconds: 5,
       spawnIntervalSeconds: 10,
@@ -237,7 +243,11 @@ export function validateGameRules(rules: GameRules): string[] {
     errors.push("catapult cost must be from 700 to 800");
   }
 
+  if (!isPositive(buildings.destructionSeconds)) {
+    errors.push("buildings.destructionSeconds must be positive");
+  }
   validatePositiveGroup(errors, "buildings.goldMine", buildings.goldMine, [
+    "maxHealth",
     "lifetimeSeconds",
     "firstProductionSeconds",
     "productionIntervalSeconds",
@@ -245,6 +255,7 @@ export function validateGameRules(rules: GameRules): string[] {
     "maximumActivePerFaction",
   ]);
   validatePositiveGroup(errors, "buildings.barracks", buildings.barracks, [
+    "maxHealth",
     "lifetimeSeconds",
     "firstSpawnSeconds",
     "spawnIntervalSeconds",

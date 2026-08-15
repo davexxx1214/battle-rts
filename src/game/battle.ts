@@ -45,6 +45,12 @@ import {
   createBuildingOccupancy,
   type BuildingOccupancy,
 } from "./deployment";
+import {
+  advanceBuildings,
+  removeDestroyedBuildingsAt,
+  type BattleBuilding,
+} from "./buildings";
+import type { CombatDamageIntent, CombatTarget } from "./combat";
 
 export type { Faction, UnitRole, WorldPoint } from "./types";
 export { UNIT_SPECS } from "./rules";
@@ -64,7 +70,8 @@ export type UnitOrder =
     }
   | { readonly type: "hold"; readonly position: WorldPoint };
 
-export interface BattleUnit {
+export interface BattleUnit extends CombatTarget {
+  readonly targetType: "unit";
   readonly id: string;
   readonly faction: Faction;
   readonly role: UnitRole;
@@ -92,6 +99,7 @@ export interface BattleState {
   readonly events: readonly BattleEvent[];
   readonly economy: EconomyState;
   readonly matchElapsed: number;
+  readonly buildings: readonly BattleBuilding[];
   readonly buildingOccupancy: BuildingOccupancy;
   readonly nextEventSequence: number;
   readonly elapsed: number;
@@ -106,12 +114,6 @@ export interface CreateBattleUnitInput {
   readonly role: UnitRole;
   readonly position: WorldPoint;
   readonly squadId?: string;
-}
-
-interface DamageIntent {
-  readonly sourceId: string;
-  readonly targetId: string;
-  readonly amount: number;
 }
 
 interface RangedEvasionDecision {
@@ -135,6 +137,7 @@ export function createBattleUnit(input: CreateBattleUnitInput): BattleUnit {
   const spec = UNIT_SPECS[input.role];
   return {
     ...input,
+    targetType: "unit",
     squadId: input.squadId ?? `${input.faction}-independent-${input.id}`,
     position: { ...input.position },
     formationSlot: { ...input.position },
@@ -163,6 +166,7 @@ export function createBattleState(units: readonly BattleUnit[]): BattleState {
     events: [],
     economy: createEconomyState(),
     matchElapsed: 0,
+    buildings: [],
     buildingOccupancy: createBuildingOccupancy(),
     nextEventSequence: 0,
     elapsed: 0,
@@ -373,8 +377,15 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       state.resolvedAt + POST_BATTLE_PRESENTATION_SECONDS,
       state.elapsed + deltaSeconds,
     );
+    const cleanup = removeDestroyedBuildingsAt(
+      state.buildings,
+      state.buildingOccupancy,
+      elapsed,
+    );
     return {
       ...state,
+      buildings: cleanup.buildings,
+      buildingOccupancy: cleanup.occupancy,
       projectiles: [],
       events: pruneBattleEvents(state.events, elapsed - EVENT_WINDOW_SECONDS),
       elapsed,
@@ -383,7 +394,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
   }
   const elapsed = state.elapsed + deltaSeconds;
   const livingAtStart = state.units.filter((unit) => unit.health > 0);
-  const damage: DamageIntent[] = [];
+  const damage: CombatDamageIntent[] = [];
   const emitted: BattleEvent[] = [];
   let nextEventSequence = state.nextEventSequence;
   const emit: EmitBattleEvent = (input) => {
@@ -400,13 +411,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
   const matchElapsed = matchIsActive
     ? getMatchClock(state.matchElapsed + deltaSeconds).elapsedSeconds
     : state.matchElapsed;
-  for (const faction of economyStep.newlyFullFactions) {
-    emit({
-      type: "gold-full",
-      faction,
-      promptSequence: economyStep.state.accounts[faction].fullPromptSequence,
-    });
-  }
+  const activeMatchDeltaSeconds = matchElapsed - state.matchElapsed;
   const projectileStep = advanceProjectiles(
     state.projectiles,
     livingAtStart,
@@ -457,10 +462,54 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
   ));
   const separatedUnits = separateLivingAllies(advancedUnits);
   const damagedUnits = applyDamageIntents(separatedUnits, damage, elapsed, emit);
-  const winner = resolveWinner(damagedUnits);
+  const buildingStep = matchIsActive && activeMatchDeltaSeconds > 0
+    ? advanceBuildings({
+        buildings: state.buildings,
+        economy: economyStep.state,
+        occupancy: state.buildingOccupancy,
+        map: BATTLEFIELD_MAP,
+        units: damagedUnits,
+        elapsedSeconds: state.matchElapsed,
+        deltaSeconds: activeMatchDeltaSeconds,
+        damageIntents: damage,
+      })
+    : {
+        buildings: state.buildings,
+        economy: economyStep.state,
+        occupancy: state.buildingOccupancy,
+        unitSpawns: [],
+        events: [],
+        newlyFullFactions: [],
+      };
+  for (const event of buildingStep.events) emit(event);
+  const newlyFullFactions = new Set([
+    ...economyStep.newlyFullFactions,
+    ...buildingStep.newlyFullFactions,
+  ]);
+  for (const faction of newlyFullFactions) {
+    emit({
+      type: "gold-full",
+      faction,
+      promptSequence: buildingStep.economy.accounts[faction].fullPromptSequence,
+    });
+  }
+  const producedUnits = buildingStep.unitSpawns.map((spawn) => createBattleUnit({
+    id: spawn.unitId,
+    faction: spawn.faction,
+    role: spawn.role,
+    squadId: `${spawn.buildingId}-spawned`,
+    position: spawn.position,
+  }));
+  const buildingCleanup = removeDestroyedBuildingsAt(
+    buildingStep.buildings,
+    buildingStep.occupancy,
+    elapsed,
+  );
+  const units = [...damagedUnits, ...producedUnits];
+  const winner = resolveWinner(units);
   return {
-    units: damagedUnits,
-    squads: state.squads,
+    units,
+    squads: appendUnitsToSquads(state.squads, producedUnits),
     projectiles: winner
       ? []
       : [...projectileStep.projectiles, ...spawnedProjectiles],
@@ -468,9 +517,10 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       ...pruneBattleEvents(state.events, elapsed - EVENT_WINDOW_SECONDS),
       ...emitted,
     ],
-    economy: economyStep.state,
+    economy: buildingStep.economy,
     matchElapsed,
-    buildingOccupancy: state.buildingOccupancy,
+    buildings: buildingCleanup.buildings,
+    buildingOccupancy: buildingCleanup.occupancy,
     nextEventSequence,
     elapsed,
     winner,
@@ -486,7 +536,7 @@ function advanceUnit(
   engagementSlot: MeleeEngagementSlot | null,
   deltaSeconds: number,
   elapsed: number,
-  damage: DamageIntent[],
+  damage: CombatDamageIntent[],
   spawnedProjectiles: BattleProjectile[],
   emit: EmitBattleEvent,
 ): BattleUnit {
@@ -587,7 +637,12 @@ function advanceUnit(
     targetPosition: { ...target.position },
   });
   if (spec.attackMode === "melee") {
-    damage.push({ sourceId: next.id, targetId: target.id, amount: spec.damage });
+    damage.push({
+      sourceId: next.id,
+      targetId: target.id,
+      targetType: "unit",
+      amount: spec.damage,
+    });
   } else {
     const projectileId = `projectile-${attackEvent.sequence}`;
     const projectile: BattleProjectile = {
@@ -765,7 +820,7 @@ function advanceRangedTowardRear(
 function resolveProjectileImpact(
   impact: ProjectileImpact,
   units: readonly BattleUnit[],
-  damage: DamageIntent[],
+  damage: CombatDamageIntent[],
   emit: EmitBattleEvent,
 ): void {
   const { projectile, position } = impact;
@@ -784,6 +839,7 @@ function resolveProjectileImpact(
   damage.push({
     sourceId: projectile.attackerId,
     targetId: target.id,
+    targetType: "unit",
     amount: projectile.damage,
   });
   if (projectile.splashRadius <= 0) return;
@@ -797,6 +853,7 @@ function resolveProjectileImpact(
     damage.push({
       sourceId: projectile.attackerId,
       targetId: candidate.id,
+      targetType: "unit",
       amount: projectile.damage * 0.55,
     });
   }
@@ -804,7 +861,7 @@ function resolveProjectileImpact(
 
 function applyDamageIntents(
   units: readonly BattleUnit[],
-  intents: readonly DamageIntent[],
+  intents: readonly CombatDamageIntent[],
   elapsed: number,
   emit: EmitBattleEvent,
 ): BattleUnit[] {
@@ -815,6 +872,7 @@ function applyDamageIntents(
   const totals = new Map<string, { amount: number; killerId: string }>();
 
   for (const intent of intents) {
+    if (intent.targetType !== "unit") continue;
     if (intent.amount <= 0 || !livingIds.has(intent.targetId)) continue;
     const source = unitsById.get(intent.sourceId);
     const target = unitsById.get(intent.targetId);
@@ -978,6 +1036,31 @@ function advanceTowardCombatPosition(
     waypoints: route.slice(1),
     navigationKey,
   };
+}
+
+function appendUnitsToSquads(
+  squads: readonly BattleSquad[],
+  units: readonly BattleUnit[],
+): readonly BattleSquad[] {
+  if (units.length === 0) return squads;
+  const next = new Map(squads.map((squad) => [squad.id, squad] as const));
+  for (const unit of units) {
+    const existing = next.get(unit.squadId);
+    next.set(unit.squadId, existing
+      ? {
+          ...existing,
+          memberIds: [...existing.memberIds, unit.id],
+          initialSize: existing.initialSize + 1,
+        }
+      : {
+          id: unit.squadId,
+          faction: unit.faction,
+          role: unit.role,
+          memberIds: [unit.id],
+          initialSize: 1,
+        });
+  }
+  return [...next.values()];
 }
 
 function createArmy(faction: Faction): BattleUnit[] {

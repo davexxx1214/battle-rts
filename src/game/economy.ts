@@ -24,6 +24,13 @@ export interface SpendGoldResult {
   readonly spent: boolean;
 }
 
+export interface GrantGoldResult {
+  readonly state: EconomyState;
+  readonly creditedAmount: number;
+  readonly wastedAmount: number;
+  readonly becameFull: boolean;
+}
+
 export interface MatchClock {
   readonly elapsedSeconds: number;
   readonly remainingSeconds: number;
@@ -112,6 +119,45 @@ export function trySpendGold(
           ...account,
           gold,
           isFull: gold >= GAME_RULES.economy.maximumGold,
+        },
+      },
+    },
+  };
+}
+
+export function grantGold(
+  state: EconomyState,
+  faction: Faction,
+  amount: number,
+): GrantGoldResult {
+  if (!Number.isInteger(amount) || amount <= 0 || amount % 100 !== 0) {
+    return {
+      state,
+      creditedAmount: 0,
+      wastedAmount: 0,
+      becameFull: false,
+    };
+  }
+  const account = state.accounts[faction];
+  const availableCapacity = Math.max(0, GAME_RULES.economy.maximumGold - account.gold);
+  const creditedAmount = Math.min(amount, availableCapacity);
+  const wastedAmount = amount - creditedAmount;
+  const gold = account.gold + creditedAmount;
+  const isFull = gold >= GAME_RULES.economy.maximumGold;
+  const becameFull = isFull && !account.isFull;
+  return {
+    creditedAmount,
+    wastedAmount,
+    becameFull,
+    state: {
+      ...state,
+      accounts: {
+        ...state.accounts,
+        [faction]: {
+          ...account,
+          gold,
+          isFull,
+          fullPromptSequence: account.fullPromptSequence + (becameFull ? 1 : 0),
         },
       },
     },

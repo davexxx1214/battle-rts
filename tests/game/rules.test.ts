@@ -22,8 +22,10 @@ describe("central game rules", () => {
   });
 
   it("stores the first playable mine and barracks production baselines", () => {
+    expect(GAME_RULES.buildings.destructionSeconds).toBe(0.8);
     expect(GAME_RULES.buildings.goldMine).toMatchObject({
       cost: 700,
+      maxHealth: 900,
       lifetimeSeconds: 36,
       firstProductionSeconds: 4,
       productionIntervalSeconds: 4,
@@ -32,6 +34,7 @@ describe("central game rules", () => {
     });
     expect(GAME_RULES.buildings.barracks).toMatchObject({
       cost: 700,
+      maxHealth: 1200,
       lifetimeSeconds: 30,
       firstSpawnSeconds: 5,
       spawnIntervalSeconds: 10,
