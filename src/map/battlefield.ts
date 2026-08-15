@@ -21,14 +21,42 @@ export interface BattlefieldMap {
   readonly radius: number;
 }
 
+export type BattlefieldStructureKind =
+  | "castle"
+  | "blacksmith"
+  | "barracks"
+  | "arrow-tower"
+  | "mine"
+  | "wall-straight"
+  | "wall-corner"
+  | "wall-gate";
+
 export interface BattlefieldStructure {
   readonly id: string;
-  readonly kind: "siege-workshop";
+  readonly kind: BattlefieldStructureKind;
   readonly faction: Faction;
   readonly coordinate: HexCoordinate;
   readonly footprint: readonly HexCoordinate[];
   readonly rotationY: number;
 }
+
+export type BattlefieldDecoration =
+  | {
+      readonly id: string;
+      readonly kind: "mining-cart";
+      readonly faction: Faction;
+      readonly coordinate: HexCoordinate;
+      readonly rotationY: number;
+      readonly targetStructureId: string;
+      readonly phase: number;
+    }
+  | {
+      readonly id: string;
+      readonly kind: "ore-pile";
+      readonly faction: Faction;
+      readonly coordinate: HexCoordinate;
+      readonly rotationY: number;
+    };
 
 const HEX_RADIUS = 9;
 const HEIGHT_LOW = 0;
@@ -36,22 +64,13 @@ const HEIGHT_MIDDLE = 0.36;
 const HEIGHT_HIGH = 0.72;
 
 export const BATTLEFIELD_STRUCTURES: readonly BattlefieldStructure[] = [
-  {
-    id: "verdant-siege-workshop",
-    kind: "siege-workshop",
-    faction: "verdant",
-    coordinate: { q: 0, r: 7 },
-    footprint: [{ q: 0, r: 7 }, { q: -1, r: 7 }, { q: 0, r: 6 }],
-    rotationY: -Math.PI / 5,
-  },
-  {
-    id: "crimson-siege-workshop",
-    kind: "siege-workshop",
-    faction: "crimson",
-    coordinate: { q: 0, r: -7 },
-    footprint: [{ q: 0, r: -7 }, { q: 1, r: -7 }, { q: 0, r: -6 }],
-    rotationY: Math.PI - Math.PI / 5,
-  },
+  ...createCampStructures("verdant"),
+  ...createCampStructures("crimson"),
+];
+
+export const BATTLEFIELD_DECORATIONS: readonly BattlefieldDecoration[] = [
+  ...createCampDecorations("verdant"),
+  ...createCampDecorations("crimson"),
 ];
 
 const STRUCTURE_FOOTPRINT_KEYS = new Set(
@@ -113,8 +132,8 @@ function createBattlefieldMap(): BattlefieldMap {
   }
   return {
     cells,
-    verdantCamp: { q: -3, r: 7 },
-    crimsonCamp: { q: 3, r: -7 },
+    verdantCamp: { q: -3, r: 6 },
+    crimsonCamp: { q: 3, r: -6 },
     center: { q: 0, r: 0 },
     radius: HEX_RADIUS,
   };
@@ -185,4 +204,71 @@ function roundAxial(q: number, r: number): HexCoordinate {
 
 function positiveModulo(value: number, divisor: number): number {
   return ((value % divisor) + divisor) % divisor;
+}
+
+function createCampStructures(faction: Faction): BattlefieldStructure[] {
+  const mirror = faction === "verdant" ? 1 : -1;
+  const facing = faction === "verdant" ? 0 : Math.PI;
+  const coordinate = (q: number, r: number): HexCoordinate => ({
+    q: q * mirror,
+    r: r * mirror,
+  });
+  const structure = (
+    kind: BattlefieldStructureKind,
+    name: string,
+    q: number,
+    r: number,
+    localRotation = 0,
+    footprintOffsets: readonly HexCoordinate[] = [{ q: 0, r: 0 }],
+  ): BattlefieldStructure => {
+    const placement = coordinate(q, r);
+    return {
+      id: `${faction}-${name}`,
+      kind,
+      faction,
+      coordinate: placement,
+      footprint: footprintOffsets.map((offset) => coordinate(q + offset.q, r + offset.r)),
+      rotationY: facing + localRotation,
+    };
+  };
+
+  return [
+    structure("castle", "castle", -4, 9),
+    structure("blacksmith", "blacksmith", -3, 8, -0.12),
+    structure("barracks", "barracks", -7, 8, 0.12),
+    structure("mine", "mine", -1, 8),
+    structure("arrow-tower", "arrow-tower-left", -6, 9),
+    structure("wall-straight", "wall-left", -5, 8, Math.PI / 3),
+    structure("wall-corner", "wall-left-corner", -4, 7, Math.PI),
+    structure("wall-gate", "wall-front-gate", -3, 7, 0, []),
+    structure("wall-corner", "wall-right-corner", -2, 7, 2 * Math.PI / 3),
+    structure("wall-straight", "wall-right", -2, 8, -Math.PI / 3),
+    structure("arrow-tower", "arrow-tower-right", -2, 9),
+  ];
+}
+
+function createCampDecorations(faction: Faction): BattlefieldDecoration[] {
+  const mirror = faction === "verdant" ? 1 : -1;
+  const coordinate = (q: number, r: number): HexCoordinate => ({
+    q: q * mirror,
+    r: r * mirror,
+  });
+  return [
+    {
+      id: `${faction}-mining-cart`,
+      kind: "mining-cart",
+      faction,
+      coordinate: coordinate(0, 7),
+      rotationY: faction === "verdant" ? 0 : Math.PI,
+      targetStructureId: `${faction}-mine`,
+      phase: faction === "verdant" ? 0 : 0.5,
+    },
+    {
+      id: `${faction}-ore-pile`,
+      kind: "ore-pile",
+      faction,
+      coordinate: coordinate(-1, 7),
+      rotationY: 0,
+    },
+  ];
 }

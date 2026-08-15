@@ -499,7 +499,7 @@ function formatTime(seconds: number): string {
 }
 
 function winnerLabel(winner: BattleState["winner"]): string {
-  if (winner === "verdant") return "翠绿军团获胜";
+  if (winner === "verdant") return "苍蓝军团获胜";
   if (winner === "crimson") return "猩红军团获胜";
   if (winner === "draw") return "双方同归于尽";
   return "";

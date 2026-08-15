@@ -37,11 +37,10 @@ describe("squad formations", () => {
     const friendlyIds = initial.units
       .filter((unit) => unit.faction === "verdant")
       .map((unit) => unit.id);
-    const destination = { x: 0, z: 2.5 };
+    const destination = { x: 0, z: -4 };
     const first = issueMoveCommand(initial, friendlyIds, destination);
     const second = issueMoveCommand(first, friendlyIds, destination);
     const firstSlots = new Map(first.units.map((unit) => [unit.id, unit.formationSlot]));
-
     expect(first.units.filter((unit) => friendlyIds.includes(unit.id))).toHaveLength(41);
     for (const unit of second.units.filter((candidate) => friendlyIds.includes(candidate.id))) {
       expect(unit.formationSlot).toEqual(firstSlots.get(unit.id));

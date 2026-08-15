@@ -11,6 +11,7 @@ import {
   issueMoveCommand,
   stepBattle,
 } from "../../src/game/battle";
+import { getBattlefieldCell, worldToAxial } from "../../src/map/battlefield";
 
 describe("RTS battle simulation", () => {
   it("starts both armies with infantry, ranged troops, mages, and one mobile catapult", () => {
@@ -31,6 +32,14 @@ describe("RTS battle simulation", () => {
       attackMode: "projectile",
       rangeResponse: "stand",
     });
+  });
+
+  it("keeps every initial unit on walkable terrain in front of the fortified camps", () => {
+    const state = createInitialBattle();
+
+    expect(state.units.every((unit) => (
+      getBattlefieldCell(worldToAxial(unit.position))?.walkable
+    ))).toBe(true);
   });
 
   it("fans selected units into a formation around a move destination", () => {
@@ -120,7 +129,13 @@ describe("RTS battle simulation", () => {
     const firedRanger = fired.units.find((unit) => unit.id === ranger.id);
 
     expect(fired.units.find((unit) => unit.id === target.id)?.health).toBe(target.health);
-    expect(firedRanger?.position.z).toBeGreaterThan(ranger.position.z);
+    expect(Math.hypot(
+      target.position.x - firedRanger!.position.x,
+      target.position.z - firedRanger!.position.z,
+    )).toBeGreaterThanOrEqual(Math.hypot(
+      target.position.x - ranger.position.x,
+      target.position.z - ranger.position.z,
+    ));
     expect(fired.events.some((event) => (
       event.type === "attack-started" && event.targetId === target.id
     ))).toBe(true);

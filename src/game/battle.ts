@@ -30,6 +30,7 @@ import {
   getBattlefieldCell,
   worldToAxial,
 } from "../map/battlefield";
+import { BATTLEFIELD_DEPLOYMENTS } from "../scenarios/battlefieldScenario";
 import type { Faction, UnitRole, WorldPoint } from "./types";
 
 export type { Faction, UnitRole, WorldPoint } from "./types";
@@ -211,8 +212,8 @@ export function createBattleState(units: readonly BattleUnit[]): BattleState {
 
 export function createInitialBattle(): BattleState {
   const units: BattleUnit[] = [];
-  units.push(...createArmy("verdant", 1));
-  units.push(...createArmy("crimson", -1));
+  units.push(...createArmy("verdant"));
+  units.push(...createArmy("crimson"));
   const state = createBattleState(units);
   const enemyIds = units
     .filter((unit) => unit.faction === "crimson")
@@ -985,21 +986,9 @@ function advanceTowardCombatPosition(
   };
 }
 
-function createArmy(faction: Faction, side: 1 | -1): BattleUnit[] {
-  const facing = side === 1 ? Math.PI : 0;
-  const definitions: readonly {
-    readonly name: string;
-    readonly role: UnitRole;
-    readonly count: number;
-    readonly center: WorldPoint;
-  }[] = [
-    { name: "shield-left", role: "knight", count: 10, center: { x: -2.4, z: side * 7 } },
-    { name: "shield-right", role: "knight", count: 10, center: { x: 2.4, z: side * 7 } },
-    { name: "bow-left", role: "ranger", count: 8, center: { x: -2.4, z: side * 9.6 } },
-    { name: "bow-right", role: "ranger", count: 8, center: { x: 2.4, z: side * 9.6 } },
-    { name: "arcane", role: "mage", count: 4, center: { x: 0, z: side * 11.8 } },
-    { name: "siege", role: "catapult", count: 1, center: { x: 0, z: side * 14.2 } },
-  ];
+function createArmy(faction: Faction): BattleUnit[] {
+  const facing = faction === "verdant" ? Math.PI : 0;
+  const definitions = BATTLEFIELD_DEPLOYMENTS[faction];
   return definitions.flatMap((definition) => {
     const squadId = `${faction}-${definition.name}`;
     return createFormationSlots(definition.count, definition.center, facing).map((position, index) => (

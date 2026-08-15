@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef } from "react";
 
 import type { BattleUnit, UnitRole, WorldPoint } from "../../game/battle";
 import { terrainHeightAt } from "../../map/battlefield";
+import { FACTION_SCENE_COLORS, UNIT_BASE_RING_GEOMETRY } from "../assets";
 import { CatapultUnitModel } from "./CatapultUnitModel";
 
 const MODEL_URLS: Readonly<Record<Exclude<UnitRole, "catapult">, string>> = {
@@ -149,7 +150,8 @@ function CharacterUnitModel({
   });
 
   const healthRatio = Math.max(0, unit.health / unit.maxHealth);
-  const factionColor = unit.faction === "verdant" ? "#50d88e" : "#df4c4f";
+  const factionColors = FACTION_SCENE_COLORS[unit.faction];
+  const baseRing = UNIT_BASE_RING_GEOMETRY.character;
   const healthWidth = 0.76 * healthRatio;
   return (
     <group
@@ -159,9 +161,16 @@ function CharacterUnitModel({
     >
       <primitive object={model} />
       {unit.health > 0 && (
-        <mesh position={[0, 0.035, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <circleGeometry args={[0.42, 24]} />
-          <meshBasicMaterial color={unit.faction === "verdant" ? "#194d34" : "#5d2024"} transparent opacity={0.72} />
+        <mesh position={[0, 0.035, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry
+            args={[baseRing.innerRadius, baseRing.outerRadius, baseRing.segments]}
+          />
+          <meshBasicMaterial
+            color={factionColors.accent}
+            transparent
+            opacity={0.9}
+            depthWrite={false}
+          />
         </mesh>
       )}
       {selected && unit.health > 0 && (
@@ -184,7 +193,7 @@ function CharacterUnitModel({
           </mesh>
           <mesh position={[-(0.76 - healthWidth) / 2, 0, 0.006]}>
             <planeGeometry args={[healthWidth, 0.064]} />
-            <meshBasicMaterial color={factionColor} depthTest={false} />
+            <meshBasicMaterial color={factionColors.accent} depthTest={false} />
           </mesh>
         </group>
       )}
@@ -220,7 +229,7 @@ function AttackPulse({ role }: { readonly role: UnitRole }) {
 
 function prepareCharacterModel(source: Object3D, faction: BattleUnit["faction"]): Object3D {
   const model = cloneSkeleton(source);
-  const tint = new Color(faction === "verdant" ? "#65d591" : "#db5555");
+  const tint = new Color(FACTION_SCENE_COLORS[faction].tint);
   model.scale.setScalar(CHARACTER_SCALE);
   model.traverse((object) => {
     if (!(object instanceof Mesh)) return;
