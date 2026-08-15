@@ -1,6 +1,7 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
   MathUtils,
+  InstancedMesh,
   Object3D,
   OrthographicCamera,
   Plane,
@@ -25,6 +26,7 @@ import type { CameraViewStore } from "./camera/cameraViewStore";
 import { BattleEffects } from "./effects/BattleEffects";
 import { BattlefieldTerrain } from "./terrain/BattlefieldTerrain";
 import { UnitModel } from "./units/UnitModel";
+import { FrameBenchmark, type BenchmarkSnapshot } from "../game/benchmark";
 
 export interface SceneInteractionBridge {
   projectedUnits: ProjectedUnit[];
@@ -52,6 +54,7 @@ interface BattlefieldCanvasProps {
   readonly plannedCommandMarkers: readonly CommandMarker[];
   readonly cameraResetToken: number;
   readonly cameraViewStore: CameraViewStore;
+  readonly onBenchmarkUpdate?: (snapshot: BenchmarkSnapshot) => void;
 }
 
 interface AttackPresentation {
@@ -77,6 +80,7 @@ export function BattlefieldCanvas({
   plannedCommandMarkers,
   cameraResetToken,
   cameraViewStore,
+  onBenchmarkUpdate,
 }: BattlefieldCanvasProps) {
   const attackPresentations = useAttackPresentationCache(battle);
   const displayedCommandMarker = resolveDisplayedCommandMarker(commandMarker, battle);
@@ -88,7 +92,7 @@ export function BattlefieldCanvas({
     <Canvas
       orthographic
       shadows="basic"
-      dpr={[1, 1.5]}
+      dpr={onBenchmarkUpdate ? 1 : [1, 1.5]}
       camera={{ position: [16, 18, 20], zoom: 32, near: 0.1, far: 140 }}
       gl={{ antialias: true, alpha: false }}
       style={{ width: "100%", height: "100%", background: "#aeb9ad" }}
@@ -115,8 +119,10 @@ export function BattlefieldCanvas({
         onViewChange={cameraViewStore.publish}
       />
       <SceneBridge battle={battle} bridgeRef={bridgeRef} />
+      {onBenchmarkUpdate && <BenchmarkProbe onUpdate={onBenchmarkUpdate} />}
       <Suspense fallback={<ArenaFallback />}>
         <BattlefieldTerrain />
+        <UnitShadowInstances battle={battle} />
         {battle.units.map((unit) => {
           const damage = latestDamagePresentation(battle, unit.id);
           const attack = attackPresentations.get(unit.id);
@@ -149,6 +155,63 @@ export function BattlefieldCanvas({
       )}
     </Canvas>
   );
+}
+
+function UnitShadowInstances({ battle }: { readonly battle: BattleState }) {
+  const mesh = useRef<InstancedMesh>(null);
+  const dummy = useMemo(() => new Object3D(), []);
+  useFrame(() => {
+    if (!mesh.current) return;
+    battle.units.forEach((unit, index) => {
+      const visible = unit.health > 0 || (
+        unit.diedAt !== null && battle.elapsed - unit.diedAt < 6.85
+      );
+      dummy.position.set(
+        unit.position.x + 0.12,
+        terrainHeightAt(unit.position) + 0.018,
+        unit.position.z + 0.14,
+      );
+      dummy.rotation.set(-Math.PI / 2, 0, 0);
+      dummy.scale.setScalar(visible ? (unit.role === "catapult" ? 0.78 : 0.42) : 0);
+      dummy.updateMatrix();
+      mesh.current!.setMatrixAt(index, dummy.matrix);
+    });
+    mesh.current.instanceMatrix.needsUpdate = true;
+  });
+  return (
+    <instancedMesh ref={mesh} args={[undefined, undefined, battle.units.length]} frustumCulled={false}>
+      <circleGeometry args={[1, 16]} />
+      <meshBasicMaterial color="#171b17" transparent opacity={0.24} depthWrite={false} />
+    </instancedMesh>
+  );
+}
+
+function BenchmarkProbe({ onUpdate }: {
+  readonly onUpdate: (snapshot: BenchmarkSnapshot) => void;
+}) {
+  const benchmark = useMemo(() => new FrameBenchmark(10), []);
+  const updateElapsed = useRef(0);
+  const warmupElapsed = useRef(0);
+  const reportedComplete = useRef(false);
+  useFrame(({ gl }, delta) => {
+    if (warmupElapsed.current < 2) {
+      warmupElapsed.current += delta;
+      return;
+    }
+    benchmark.addFrame(delta * 1000, {
+      calls: gl.info.render.calls,
+      triangles: gl.info.render.triangles,
+    });
+    updateElapsed.current += delta;
+    if (benchmark.complete && !reportedComplete.current) {
+      reportedComplete.current = true;
+      onUpdate(benchmark.snapshot());
+    } else if (!benchmark.complete && updateElapsed.current >= 0.5) {
+      updateElapsed.current = 0;
+      onUpdate(benchmark.snapshot());
+    }
+  });
+  return null;
 }
 
 function resolveDisplayedCommandMarker(

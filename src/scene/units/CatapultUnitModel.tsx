@@ -254,7 +254,7 @@ function prepareCatapult(
   model.scale.setScalar(2.2);
   model.traverse((object) => {
     if (!(object instanceof Mesh)) return;
-    object.castShadow = true;
+    object.castShadow = false;
     object.receiveShadow = true;
     const materials = Array.isArray(object.material) ? object.material : [object.material];
     const tinted = materials.map((material) => tintMaterial(material, tint, 0.12));
@@ -276,7 +276,7 @@ function prepareOperator(source: Object3D, faction: BattleUnit["faction"]): Obje
   model.scale.setScalar(0.25);
   model.traverse((object) => {
     if (!(object instanceof Mesh)) return;
-    object.castShadow = true;
+    object.castShadow = false;
     object.receiveShadow = true;
     const materials = Array.isArray(object.material) ? object.material : [object.material];
     const tinted = materials.map((material) => tintMaterial(material, tint, 0.34));

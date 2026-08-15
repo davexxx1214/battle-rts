@@ -34,6 +34,7 @@ const ANIMATION_URLS = [
 ] as const;
 
 const CHARACTER_SCALE = 0.27;
+const FAR_ANIMATION_STEP_SECONDS = 1 / 15;
 
 export function UnitModel({
   ...props
@@ -84,6 +85,7 @@ function CharacterUnitModel({
   );
   const mixer = useMemo(() => new AnimationMixer(model), [model]);
   const modelMaterials = useMemo(() => collectModelMaterials(model), [model]);
+  const animationAccumulator = useRef(0);
   const animationName = resolveAnimation(unit);
   const damageAge = damageTime === undefined ? Number.POSITIVE_INFINITY : battleTime - damageTime;
 
@@ -109,7 +111,15 @@ function CharacterUnitModel({
     mixer.stopAllAction();
   }, [mixer]);
   useFrame(({ camera }, delta) => {
-    mixer.update(delta);
+    const isNearCamera = Math.hypot(
+      camera.position.x - unit.position.x,
+      camera.position.z - unit.position.z,
+    ) <= 12;
+    animationAccumulator.current += delta;
+    if (isNearCamera || animationAccumulator.current >= FAR_ANIMATION_STEP_SECONDS) {
+      mixer.update(animationAccumulator.current);
+      animationAccumulator.current = 0;
+    }
     const damageProgress = MathUtils.clamp(damageAge / 0.2, 0, 1);
     const recoilStrength = damageAge < 0.2 ? Math.sin(damageProgress * Math.PI) * 0.18 : 0;
     const recoilDirection = damageSourcePosition
@@ -230,7 +240,7 @@ function prepareCharacterModel(source: Object3D, faction: BattleUnit["faction"])
   model.scale.setScalar(CHARACTER_SCALE);
   model.traverse((object) => {
     if (!(object instanceof Mesh)) return;
-    object.castShadow = true;
+    object.castShadow = false;
     object.receiveShadow = true;
     if (Array.isArray(object.material)) {
       object.material = object.material.map((material) => tintMaterial(material, tint));

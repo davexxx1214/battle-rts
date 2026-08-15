@@ -741,3 +741,30 @@
     transition: none;
   }
 }
+
+.benchmarkPanel {
+  position: absolute;
+  z-index: 40;
+  top: 14px;
+  left: 50%;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 3px 14px;
+  min-width: 300px;
+  padding: 10px 14px;
+  border: 1px solid rgb(229 184 77 / 65%);
+  background: rgb(10 12 10 / 88%);
+  color: #e8e3d2;
+  font: 11px/1.4 ui-monospace, "Cascadia Mono", monospace;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.benchmarkPanel strong,
+.benchmarkPanel small {
+  grid-column: 1 / -1;
+}
+
+.benchmarkPanel[data-complete="true"] {
+  border-color: #73d49b;
+}

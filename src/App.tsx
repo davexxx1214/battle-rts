@@ -51,6 +51,7 @@ import {
 } from "./scene/camera/cameraViewStore";
 import { TacticalHudPanel } from "./ui/TacticalHudPanel";
 import { shouldStartFieldPointerInteraction } from "./ui/fieldInput";
+import type { BenchmarkSnapshot } from "./game/benchmark";
 
 interface DragState {
   readonly pointerId: number;
@@ -74,9 +75,12 @@ const ROLE_LABELS: Readonly<Record<UnitRole, string>> = {
 };
 
 export function App() {
+  const benchmarkMode = useMemo(() => (
+    new URLSearchParams(window.location.search).get("benchmark") === "80"
+  ), []);
   const [session, setSession] = useState<BattleSessionState>(() => ({
     battle: createInitialBattle(),
-    phase: "briefing",
+    phase: benchmarkMode ? "engaged" : "briefing",
     plannedCommands: [],
   }));
   const { battle, phase: battlePhase, plannedCommands } = session;
@@ -86,6 +90,7 @@ export function App() {
   const [cameraResetToken, setCameraResetToken] = useState(0);
   const [battleInstanceRevision, setBattleInstanceRevision] = useState(0);
   const [audioEnabled, setAudioEnabled] = useState(false);
+  const [benchmark, setBenchmark] = useState<BenchmarkSnapshot | null>(null);
   const battleAccess = getBattlePhaseAccess(battlePhase);
   const bridgeRef = useRef(createSceneInteractionBridge());
   const commandRevision = useRef(0);
@@ -421,7 +426,18 @@ export function App() {
             plannedCommandMarkers={plannedCommandMarkers}
             cameraResetToken={cameraResetToken}
             cameraViewStore={cameraViewStore}
+            onBenchmarkUpdate={benchmarkMode ? setBenchmark : undefined}
           />
+          {benchmarkMode && (
+            <output className={styles.benchmarkPanel} data-complete={benchmark?.complete ?? false}>
+              <strong>BENCHMARK 80 · {benchmark?.complete ? "完成" : "采样中"}</strong>
+              <span>中位 FPS：{benchmark?.medianFps ?? "—"}</span>
+              <span>1% LOW：{benchmark?.onePercentLowFps ?? "—"}</span>
+              <span>Draw calls：{benchmark?.drawCalls ?? "—"}</span>
+              <span>Triangles：{benchmark?.triangles.toLocaleString() ?? "—"}</span>
+              <small>{benchmark?.frames ?? 0} frames / 10 sec</small>
+            </output>
+          )}
           {drag && <div className={styles.selectionBox} style={dragStyle} />}
           <div className={styles.fieldCaption}>
             <span>方向键平移</span>
