@@ -1,4 +1,4 @@
-import type { Faction } from "./battle";
+import type { Faction, UnitRole } from "./types";
 
 export interface ScreenRectInput {
   readonly startX: number;
@@ -24,6 +24,33 @@ export interface ProjectedUnit {
 }
 
 export type SelectionMode = "replace" | "toggle";
+
+interface RoleSelectableUnit {
+  readonly id: string;
+  readonly faction: Faction;
+  readonly role: UnitRole;
+  readonly health: number;
+}
+
+export type FieldClickIntent =
+  | { readonly type: "select"; readonly unitId: string }
+  | { readonly type: "attack"; readonly targetId: string }
+  | { readonly type: "advance" }
+  | { readonly type: "clear" };
+
+export function resolveFieldClickIntent(input: {
+  readonly canIssueCommands: boolean;
+  readonly hasCommandableSelection: boolean;
+  readonly friendlyId: string | null;
+  readonly enemyId: string | null;
+}): FieldClickIntent {
+  if (input.canIssueCommands && input.hasCommandableSelection && input.enemyId) {
+    return { type: "attack", targetId: input.enemyId };
+  }
+  if (input.friendlyId) return { type: "select", unitId: input.friendlyId };
+  if (input.canIssueCommands && input.hasCommandableSelection) return { type: "advance" };
+  return { type: "clear" };
+}
 
 export function normalizeScreenRect(input: ScreenRectInput): ScreenRect | null {
   const values = [input.startX, input.startY, input.endX, input.endY];
@@ -66,4 +93,24 @@ export function applySelection(
     else selected.add(id);
   }
   return [...selected].sort();
+}
+
+export function selectLivingFriendlyRole(
+  units: readonly RoleSelectableUnit[],
+  selectedUnitId: string,
+): string[] {
+  const selectedUnit = units.find((unit) => (
+    unit.id === selectedUnitId
+    && unit.faction === "verdant"
+    && unit.health > 0
+  ));
+  if (!selectedUnit) return [];
+  return units
+    .filter((unit) => (
+      unit.faction === "verdant"
+      && unit.role === selectedUnit.role
+      && unit.health > 0
+    ))
+    .map((unit) => unit.id)
+    .sort();
 }

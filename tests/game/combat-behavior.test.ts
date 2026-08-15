@@ -5,12 +5,13 @@ import {
   createBattleUnit,
   createInitialBattle,
   issueAttackCommand,
+  issueAttackMoveCommand,
   issueHoldCommand,
   stepBattle,
 } from "../../src/game/battle";
 import {
-  axialToWorld,
   BATTLEFIELD_MAP,
+  axialToWorld,
   getBattlefieldCell,
   worldToAxial,
 } from "../../src/map/battlefield";
@@ -75,6 +76,40 @@ describe("combat role behavior", () => {
     expect(new Set(slots.map((slot) => `${slot?.targetId}:${slot?.index}`)).size).toBe(2);
   });
 
+  it("keeps a melee unit planted when its target is already in attack range", () => {
+    const target = createBattleUnit({
+      id: "c-target",
+      faction: "crimson",
+      role: "knight",
+      position: { x: 0, z: 1.1 },
+    });
+    const attacker = {
+      ...createBattleUnit({
+        id: "v-attacker",
+        faction: "verdant" as const,
+        role: "knight" as const,
+        position: { x: 0, z: 0 },
+      }),
+      engagementSlot: {
+        attackerId: "v-attacker",
+        targetId: target.id,
+        index: 2,
+        position: { x: 0, z: 2.12 },
+      },
+    };
+    const state = issueAttackCommand(
+      issueHoldCommand(createBattleState([attacker, target]), [target.id]),
+      [attacker.id],
+      target.id,
+    );
+
+    const next = stepBattle(state, 0.05);
+    const advanced = next.units.find((unit) => unit.id === attacker.id)!;
+
+    expect(advanced.position).toEqual(attacker.position);
+    expect(advanced.status).toBe("attacking");
+  });
+
   it.each([
     ["ranger", 5.5, 7],
     ["mage", 4.5, 6.2],
@@ -134,6 +169,46 @@ describe("combat role behavior", () => {
     expect(moved.order).toEqual({ type: "attack", targetId: pressure.id });
   });
 
+  it("does not alternate advance and evasion every combat tick", () => {
+    const ranger = createBattleUnit({
+      id: "v-ranger",
+      faction: "verdant",
+      role: "ranger",
+      position: { x: 0, z: 0 },
+    });
+    const focus = createBattleUnit({
+      id: "c-focus",
+      faction: "crimson",
+      role: "ranger",
+      position: { x: 0, z: -10 },
+    });
+    const pressure = createBattleUnit({
+      id: "c-pressure",
+      faction: "crimson",
+      role: "knight",
+      position: { x: 0, z: -2.2 },
+    });
+    let state = issueAttackCommand(
+      issueHoldCommand(createBattleState([ranger, focus, pressure]), [focus.id, pressure.id]),
+      [ranger.id],
+      focus.id,
+    );
+    const positions = [ranger.position.z];
+
+    for (let index = 0; index < 20; index += 1) {
+      state = stepBattle(state, 0.05);
+      positions.push(state.units.find((unit) => unit.id === ranger.id)!.position.z);
+    }
+    const motions = positions.slice(1).map((position, index) => position - positions[index]!);
+    const reversals = motions.slice(1).filter((motion, index) => (
+      Math.abs(motion) > 0.005
+      && Math.abs(motions[index]!) > 0.005
+      && Math.sign(motion) !== Math.sign(motions[index]!)
+    ));
+
+    expect(reversals.length).toBeLessThanOrEqual(2);
+  });
+
   it("keeps an explicit focus target ahead of a closer automatic target", () => {
     const ranger = createBattleUnit({
       id: "v-ranger",
@@ -179,7 +254,13 @@ describe("combat role behavior", () => {
       order: { type: "move" as const, destination },
       waypoints: [],
     };
-    let state = createBattleState([mover]);
+    const distantEnemy = createBattleUnit({
+      id: "c-observer",
+      faction: "crimson",
+      role: "knight",
+      position: { x: -100, z: -100 },
+    });
+    let state = issueHoldCommand(createBattleState([mover, distantEnemy]), [distantEnemy.id]);
     const visited = [mover.position];
 
     for (let index = 0; index < 120; index += 1) {
@@ -194,7 +275,7 @@ describe("combat role behavior", () => {
     expect(state.units[0]!.position.z).not.toBeNaN();
   });
 
-  it("routes a squad at thirty percent strength and removes it from victory counts", () => {
+  it("keeps a squad fighting at thirty percent strength and delays victory until every unit dies", () => {
     const squad = Array.from({ length: 10 }, (_, index) => {
       const unit = createBattleUnit({
         id: `v-${index}`,
@@ -217,51 +298,21 @@ describe("combat role behavior", () => {
     const next = stepBattle(createBattleState([...squad, enemy]), 0.1);
     const survivors = next.units.filter((unit) => unit.squadId === "verdant-test-squad" && unit.health > 0);
 
-    expect(survivors.every((unit) => unit.routed && unit.status === "routing")).toBe(true);
-    expect(next.squads.find((candidate) => candidate.id === "verdant-test-squad")?.routed).toBe(true);
-    expect(next.events.filter((event) => event.type === "squad-routed")).toHaveLength(1);
-    expect(next.winner).toBe("crimson");
+    expect(survivors.every((unit) => unit.health > 0 && unit.status !== "dead")).toBe(true);
+    expect(next.events).toEqual([]);
+    expect(next.winner).toBeNull();
   });
 
-  it("keeps routed units moving to their own camp without reacquiring targets", () => {
-    const squad = Array.from({ length: 10 }, (_, index) => {
-      const unit = createBattleUnit({
-        id: `v-${index}`,
-        squadId: "verdant-test-squad",
-        faction: "verdant",
-        role: "knight",
-        position: { x: index * 0.1, z: 0 },
-      });
-      return index < 3
-        ? unit
-        : { ...unit, health: 0, status: "dead" as const };
-    });
-    const enemy = createBattleUnit({
-      id: "c-survivor",
-      faction: "crimson",
-      role: "ranger",
-      position: { x: 0, z: -8 },
-    });
-    let state = stepBattle(createBattleState([...squad, enemy]), 0.1);
-    const firstRouteSequence = state.events.find((event) => event.type === "squad-routed")?.sequence;
-
-    for (let index = 0; index < 100; index += 1) state = stepBattle(state, 0.1);
-    const camp = axialToWorld(BATTLEFIELD_MAP.verdantCamp);
-    const survivors = state.units.filter((unit) => unit.squadId === "verdant-test-squad" && unit.health > 0);
-
-    expect(survivors.every((unit) => unit.routed)).toBe(true);
-    expect(survivors.every((unit) => Math.hypot(
-      unit.position.x - camp.x,
-      unit.position.z - camp.z,
-    ) < 2.5)).toBe(true);
-    expect(state.events.some((event) => (
-      event.type === "attack-started" && survivors.some((unit) => unit.id === event.attackerId)
-    ))).toBe(false);
-    expect(state.nextEventSequence).toBe((firstRouteSequence ?? -1) + 1);
-  });
-
-  it("resolves the default deterministic battle between sixty and one hundred twenty seconds", () => {
+  it("resolves the default deterministic battle between sixty and one hundred seconds", () => {
     let state = createInitialBattle();
+    const verdantIds = state.units
+      .filter((unit) => unit.faction === "verdant")
+      .map((unit) => unit.id);
+    state = issueAttackMoveCommand(
+      state,
+      verdantIds,
+      axialToWorld(BATTLEFIELD_MAP.crimsonCamp),
+    );
 
     for (let index = 0; index < 2_400 && !state.winner; index += 1) {
       state = stepBattle(state, 0.05);
@@ -271,10 +322,9 @@ describe("combat role behavior", () => {
       role: unit.role,
       health: unit.health,
       position: unit.position,
-      routed: unit.routed,
     })))).not.toBeNull();
     expect(state.elapsed).toBeGreaterThanOrEqual(60);
-    expect(state.elapsed).toBeLessThanOrEqual(120);
+    expect(state.elapsed).toBeLessThanOrEqual(100);
     expect(state.units.every((unit) => (
       Number.isFinite(unit.position.x) && Number.isFinite(unit.position.z)
     ))).toBe(true);
@@ -282,6 +332,14 @@ describe("combat role behavior", () => {
 
   it("freezes the simulation after the post-battle presentation window", () => {
     let state = createInitialBattle();
+    const verdantIds = state.units
+      .filter((unit) => unit.faction === "verdant")
+      .map((unit) => unit.id);
+    state = issueAttackMoveCommand(
+      state,
+      verdantIds,
+      axialToWorld(BATTLEFIELD_MAP.crimsonCamp),
+    );
     for (let index = 0; index < 2_400 && !state.winner; index += 1) {
       state = stepBattle(state, 0.05);
     }

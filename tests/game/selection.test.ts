@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   applySelection,
   normalizeScreenRect,
+  resolveFieldClickIntent,
+  selectLivingFriendlyRole,
   selectFriendlyUnitsInRect,
 } from "../../src/game/selection";
 
@@ -31,5 +33,36 @@ describe("RTS unit selection", () => {
   it("replaces or toggles the authoritative selection", () => {
     expect(applySelection(["v-1"], ["v-2", "v-3"], "replace")).toEqual(["v-2", "v-3"]);
     expect(applySelection(["v-1", "v-2"], ["v-2", "v-3"], "toggle")).toEqual(["v-1", "v-3"]);
+  });
+
+  it("selects every living friendly unit with the clicked unit's role", () => {
+    const units = [
+      { id: "v-ranger-1", faction: "verdant" as const, role: "ranger" as const, health: 80 },
+      { id: "v-ranger-2", faction: "verdant" as const, role: "ranger" as const, health: 40 },
+      { id: "v-ranger-dead", faction: "verdant" as const, role: "ranger" as const, health: 0 },
+      { id: "v-knight", faction: "verdant" as const, role: "knight" as const, health: 140 },
+      { id: "c-ranger", faction: "crimson" as const, role: "ranger" as const, health: 80 },
+    ];
+
+    expect(selectLivingFriendlyRole(units, "v-ranger-1")).toEqual([
+      "v-ranger-1",
+      "v-ranger-2",
+    ]);
+  });
+
+  it("prioritizes an enemy target over an overlapping friendly when units are selected", () => {
+    expect(resolveFieldClickIntent({
+      canIssueCommands: true,
+      hasCommandableSelection: true,
+      friendlyId: "v-1",
+      enemyId: "c-1",
+    })).toEqual({ type: "attack", targetId: "c-1" });
+
+    expect(resolveFieldClickIntent({
+      canIssueCommands: true,
+      hasCommandableSelection: false,
+      friendlyId: "v-1",
+      enemyId: "c-1",
+    })).toEqual({ type: "select", unitId: "v-1" });
   });
 });

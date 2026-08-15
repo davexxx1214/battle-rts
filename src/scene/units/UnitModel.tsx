@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef } from "react";
 
 import type { BattleUnit, UnitRole, WorldPoint } from "../../game/battle";
 import { terrainHeightAt } from "../../map/battlefield";
+import { FACTION_SCENE_COLORS, UNIT_BASE_RING_GEOMETRY } from "../assets";
 import { CatapultUnitModel } from "./CatapultUnitModel";
 
 const MODEL_URLS: Readonly<Record<Exclude<UnitRole, "catapult">, string>> = {
@@ -33,6 +34,7 @@ const ANIMATION_URLS = [
 ] as const;
 
 const CHARACTER_SCALE = 0.27;
+const FAR_ANIMATION_STEP_SECONDS = 1 / 15;
 
 export function UnitModel({
   ...props
@@ -83,6 +85,7 @@ function CharacterUnitModel({
   );
   const mixer = useMemo(() => new AnimationMixer(model), [model]);
   const modelMaterials = useMemo(() => collectModelMaterials(model), [model]);
+  const animationAccumulator = useRef(0);
   const animationName = resolveAnimation(unit);
   const damageAge = damageTime === undefined ? Number.POSITIVE_INFINITY : battleTime - damageTime;
 
@@ -108,7 +111,15 @@ function CharacterUnitModel({
     mixer.stopAllAction();
   }, [mixer]);
   useFrame(({ camera }, delta) => {
-    mixer.update(delta);
+    const isNearCamera = Math.hypot(
+      camera.position.x - unit.position.x,
+      camera.position.z - unit.position.z,
+    ) <= 12;
+    animationAccumulator.current += delta;
+    if (isNearCamera || animationAccumulator.current >= FAR_ANIMATION_STEP_SECONDS) {
+      mixer.update(animationAccumulator.current);
+      animationAccumulator.current = 0;
+    }
     const damageProgress = MathUtils.clamp(damageAge / 0.2, 0, 1);
     const recoilStrength = damageAge < 0.2 ? Math.sin(damageProgress * Math.PI) * 0.18 : 0;
     const recoilDirection = damageSourcePosition
@@ -149,7 +160,8 @@ function CharacterUnitModel({
   });
 
   const healthRatio = Math.max(0, unit.health / unit.maxHealth);
-  const factionColor = unit.faction === "verdant" ? "#50d88e" : "#df4c4f";
+  const factionColors = FACTION_SCENE_COLORS[unit.faction];
+  const baseRing = UNIT_BASE_RING_GEOMETRY.character;
   const healthWidth = 0.76 * healthRatio;
   return (
     <group
@@ -159,9 +171,16 @@ function CharacterUnitModel({
     >
       <primitive object={model} />
       {unit.health > 0 && (
-        <mesh position={[0, 0.035, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <circleGeometry args={[0.42, 24]} />
-          <meshBasicMaterial color={unit.faction === "verdant" ? "#194d34" : "#5d2024"} transparent opacity={0.72} />
+        <mesh position={[0, 0.035, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry
+            args={[baseRing.innerRadius, baseRing.outerRadius, baseRing.segments]}
+          />
+          <meshBasicMaterial
+            color={factionColors.accent}
+            transparent
+            opacity={0.9}
+            depthWrite={false}
+          />
         </mesh>
       )}
       {selected && unit.health > 0 && (
@@ -170,11 +189,8 @@ function CharacterUnitModel({
           <meshBasicMaterial color="#f1cf6a" transparent opacity={0.95} depthWrite={false} />
         </mesh>
       )}
-      {attackSequence !== undefined && unit.health > 0 && !unit.routed && (
+      {attackSequence !== undefined && unit.health > 0 && (
         <AttackPulse role={unit.role} key={attackSequence} />
-      )}
-      {unit.routed && unit.routedAt !== null && battleTime - unit.routedAt < 2 && (
-        <RetreatMarker age={battleTime - unit.routedAt} />
       )}
       {unit.health > 0 && healthRatio < 0.55 && (
         <group ref={healthRoot} position={[0, 2.02, 0]}>
@@ -184,7 +200,7 @@ function CharacterUnitModel({
           </mesh>
           <mesh position={[-(0.76 - healthWidth) / 2, 0, 0.006]}>
             <planeGeometry args={[healthWidth, 0.064]} />
-            <meshBasicMaterial color={factionColor} depthTest={false} />
+            <meshBasicMaterial color={factionColors.accent} depthTest={false} />
           </mesh>
         </group>
       )}
@@ -220,11 +236,11 @@ function AttackPulse({ role }: { readonly role: UnitRole }) {
 
 function prepareCharacterModel(source: Object3D, faction: BattleUnit["faction"]): Object3D {
   const model = cloneSkeleton(source);
-  const tint = new Color(faction === "verdant" ? "#65d591" : "#db5555");
+  const tint = new Color(FACTION_SCENE_COLORS[faction].tint);
   model.scale.setScalar(CHARACTER_SCALE);
   model.traverse((object) => {
     if (!(object instanceof Mesh)) return;
-    object.castShadow = true;
+    object.castShadow = false;
     object.receiveShadow = true;
     if (Array.isArray(object.material)) {
       object.material = object.material.map((material) => tintMaterial(material, tint));
@@ -261,7 +277,6 @@ function collectModelMaterials(model: Object3D): MeshStandardMaterial[] {
 
 function resolveAnimation(unit: BattleUnit): string {
   if (unit.status === "dead") return "Death_A";
-  if (unit.status === "routing") return "Running_A";
   if (unit.status === "moving") return unit.role === "ranger" ? "Running_A" : "Walking_A";
   if (unit.status === "attacking") {
     if (unit.role === "knight") return "Melee_1H_Attack_Chop";
@@ -269,27 +284,6 @@ function resolveAnimation(unit: BattleUnit): string {
     return "Ranged_Magic_Shoot";
   }
   return "Idle_A";
-}
-
-function RetreatMarker({ age }: { readonly age: number }) {
-  const root = useRef<Object3D>(null);
-  const material = useRef<MeshBasicMaterial>(null);
-  useFrame(({ clock }) => {
-    if (root.current) root.current.position.y = 2.28 + Math.sin(clock.elapsedTime * 8) * 0.08;
-    if (material.current) material.current.opacity = Math.max(0, 0.9 * (1 - age / 2));
-  });
-  return (
-    <group ref={root} position={[0, 2.28, 0]}>
-      <mesh rotation={[0, 0, Math.PI]}>
-        <coneGeometry args={[0.2, 0.42, 3]} />
-        <meshBasicMaterial ref={material} color="#f4b04f" transparent depthTest={false} />
-      </mesh>
-      <mesh position={[0, 0.28, 0]} rotation={[0, 0, Math.PI]}>
-        <coneGeometry args={[0.14, 0.3, 3]} />
-        <meshBasicMaterial color="#ffe4a0" transparent opacity={0.82} depthTest={false} />
-      </mesh>
-    </group>
-  );
 }
 
 function normalizedDirection(origin: WorldPoint, destination: WorldPoint): WorldPoint {

@@ -50,11 +50,6 @@ export type BattleEventInput =
       readonly type: "unit-died";
       readonly unitId: string;
       readonly killerId: string | null;
-    }
-  | {
-      readonly type: "squad-routed";
-      readonly squadId: string;
-      readonly faction: Faction;
     };
 
 export type BattleEvent = BattleEventInput & BattleEventBase;

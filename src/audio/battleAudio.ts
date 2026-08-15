@@ -160,7 +160,6 @@ function eventCues(event: BattleEvent): string[] {
     return [event.role === "mage" ? "mage.impact" : "ranger.impact"];
   }
   if (event.type === "unit-died") return ["unit.death"];
-  if (event.type === "squad-routed") return ["battle.retreat"];
   if (event.type === "damage-applied") {
     const cues = event.sourceRole === "knight" ? ["knight.impact"] : [];
     cues.push("unit.hurt");

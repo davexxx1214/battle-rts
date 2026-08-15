@@ -105,11 +105,6 @@ export const sounds = [
     prompt: "One short medieval battlefield victory horn signal, two confident brass notes with natural outdoor tail, sound effect not a song, no crowd, no drums, no background music",
   },
   {
-    id: "war_horn_retreat",
-    duration: 2,
-    prompt: "One short medieval retreat horn signal, low urgent falling brass call with natural outdoor tail, sound effect not a song, no crowd, no drums, no background music",
-  },
-  {
     id: "ambient_wind_loop",
     duration: 8,
     prompt: "Seamless quiet wind across an open medieval island battlefield, soft grass movement and distant airy gusts, restrained neutral ambience, no birds, no voices, no combat, no melody, no music",
@@ -192,12 +187,6 @@ export const playbackCatalog = {
     "battle.victory": {
       bus: "horns",
       variants: ["war_horn_victory"],
-      gain: [0.82, 0.82],
-      pitch: [1, 1],
-    },
-    "battle.retreat": {
-      bus: "horns",
-      variants: ["war_horn_retreat"],
       gain: [0.82, 0.82],
       pitch: [1, 1],
     },

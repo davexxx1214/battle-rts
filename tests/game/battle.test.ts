@@ -11,6 +11,7 @@ import {
   issueMoveCommand,
   stepBattle,
 } from "../../src/game/battle";
+import { getBattlefieldCell, worldToAxial } from "../../src/map/battlefield";
 
 describe("RTS battle simulation", () => {
   it("starts both armies with infantry, ranged troops, mages, and one mobile catapult", () => {
@@ -31,6 +32,14 @@ describe("RTS battle simulation", () => {
       attackMode: "projectile",
       rangeResponse: "stand",
     });
+  });
+
+  it("keeps every initial unit on walkable terrain in front of the fortified camps", () => {
+    const state = createInitialBattle();
+
+    expect(state.units.every((unit) => (
+      getBattlefieldCell(worldToAxial(unit.position))?.walkable
+    ))).toBe(true);
   });
 
   it("fans selected units into a formation around a move destination", () => {
@@ -67,6 +76,42 @@ describe("RTS battle simulation", () => {
     let resolved = early;
     for (let index = 0; index < 20; index += 1) resolved = stepBattle(resolved, 0.1);
     expect(resolved.units.find((unit) => unit.id === target.id)?.health).toBeLessThan(target.health);
+  });
+
+  it("switches an engaged unit to a newly clicked enemy", () => {
+    const firstTarget = createBattleUnit({
+      id: "c-first",
+      faction: "crimson",
+      role: "knight",
+      position: { x: 1, z: 0 },
+    });
+    const newTarget = createBattleUnit({
+      id: "c-new",
+      faction: "crimson",
+      role: "knight",
+      position: { x: 2, z: 0 },
+    });
+    const attacker = {
+      ...createBattleUnit({
+        id: "v-attacker",
+        faction: "verdant",
+        role: "knight",
+        position: { x: 0, z: 0 },
+      }),
+      order: { type: "attack", targetId: firstTarget.id } as const,
+      currentTargetId: firstTarget.id,
+      status: "attacking" as const,
+    };
+
+    const redirected = issueAttackCommand(
+      createBattleState([attacker, firstTarget, newTarget]),
+      [attacker.id],
+      newTarget.id,
+    );
+    const redirectedAttacker = redirected.units.find((unit) => unit.id === attacker.id);
+
+    expect(redirectedAttacker?.order).toEqual({ type: "attack", targetId: newTarget.id });
+    expect(redirectedAttacker?.currentTargetId).toBe(newTarget.id);
   });
 
   it("gives the player a short deployment window before enemy AI advances", () => {
@@ -113,14 +158,20 @@ describe("RTS battle simulation", () => {
     );
 
     let fired = commanded;
-    for (let index = 0; index < 6; index += 1) {
+    for (let index = 0; index < 20; index += 1) {
       fired = stepBattle(fired, 0.1);
       if (fired.events.some((event) => event.type === "attack-started")) break;
     }
     const firedRanger = fired.units.find((unit) => unit.id === ranger.id);
 
     expect(fired.units.find((unit) => unit.id === target.id)?.health).toBe(target.health);
-    expect(firedRanger?.position.z).toBeGreaterThan(ranger.position.z);
+    expect(Math.hypot(
+      target.position.x - firedRanger!.position.x,
+      target.position.z - firedRanger!.position.z,
+    )).toBeGreaterThanOrEqual(Math.hypot(
+      target.position.x - ranger.position.x,
+      target.position.z - ranger.position.z,
+    ));
     expect(fired.events.some((event) => (
       event.type === "attack-started" && event.targetId === target.id
     ))).toBe(true);
@@ -268,5 +319,39 @@ describe("RTS battle simulation", () => {
     expect(next.winner).toBe("verdant");
     expect(next.units.find((unit) => unit.id === survivor.id)?.health).toBe(survivor.health);
     expect(next.units.find((unit) => unit.id === deadEnemy.id)?.position).toEqual(deadEnemy.position);
+  });
+
+  it("keeps the first elimination result final and discards unresolved projectiles", () => {
+    const survivor = {
+      ...createBattleUnit({ id: "v-1", faction: "verdant", role: "knight", position: { x: 0, z: 0 } }),
+      health: 1,
+    };
+    const defeated = {
+      ...createBattleUnit({ id: "c-1", faction: "crimson", role: "mage", position: { x: 1, z: 0 } }),
+      health: 0,
+      status: "dead" as const,
+    };
+    const initial = createBattleState([survivor, defeated]);
+    const resolved = {
+      ...initial,
+      projectiles: [{
+        id: "late-projectile",
+        attackerId: defeated.id,
+        targetId: survivor.id,
+        role: "mage" as const,
+        origin: { ...defeated.position },
+        position: { ...survivor.position },
+        destination: { ...survivor.position },
+        speed: 8,
+        damage: 99,
+        splashRadius: 0,
+      }],
+    };
+
+    const next = stepBattle(resolved, 0.1);
+
+    expect(next.winner).toBe("verdant");
+    expect(next.units.find((unit) => unit.id === survivor.id)?.health).toBe(1);
+    expect(next.projectiles).toEqual([]);
   });
 });

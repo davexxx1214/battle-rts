@@ -1,6 +1,7 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { MathUtils, OrthographicCamera, Vector3 } from "three";
 import { useEffect, useRef } from "react";
+import type { CameraViewSnapshot } from "./cameraViewStore";
 
 export interface CameraShakeImpulse {
   readonly sequence: number;
@@ -10,11 +11,13 @@ export interface CameraShakeImpulse {
 export function BattleCamera({
   resetToken,
   shake,
+  onViewChange,
 }: {
   readonly resetToken: number;
   readonly shake: CameraShakeImpulse | null;
+  readonly onViewChange?: (view: CameraViewSnapshot) => void;
 }) {
-  const { camera } = useThree();
+  const { camera, size } = useThree();
   const target = useRef(new Vector3(0, 0, 0));
   const keys = useRef(new Set<string>());
   const yaw = useRef(0.68);
@@ -22,6 +25,8 @@ export function BattleCamera({
   const lastPointerX = useRef(0);
   const shakeEnergy = useRef(0);
   const shakePhase = useRef(0);
+  const viewReportDelay = useRef(0);
+  const lastViewSignature = useRef("");
 
   useEffect(() => {
     target.current.set(0, 0, 0);
@@ -31,6 +36,8 @@ export function BattleCamera({
       camera.zoom = 32;
       camera.updateProjectionMatrix();
     }
+    viewReportDelay.current = 0.1;
+    lastViewSignature.current = "";
   }, [camera, resetToken]);
 
   useEffect(() => {
@@ -96,6 +103,31 @@ export function BattleCamera({
     );
     camera.lookAt(target.current);
     camera.updateMatrixWorld();
+    viewReportDelay.current += delta;
+    if (
+      onViewChange
+      && camera instanceof OrthographicCamera
+      && viewReportDelay.current >= 0.08
+    ) {
+      viewReportDelay.current = 0;
+      const view = {
+        center: { x: target.current.x, z: target.current.z },
+        width: size.width / camera.zoom,
+        height: size.height / camera.zoom,
+        yaw: yaw.current,
+      };
+      const signature = [
+        view.center.x.toFixed(2),
+        view.center.z.toFixed(2),
+        view.width.toFixed(2),
+        view.height.toFixed(2),
+        view.yaw.toFixed(2),
+      ].join(":");
+      if (signature !== lastViewSignature.current) {
+        lastViewSignature.current = signature;
+        onViewChange(view);
+      }
+    }
   });
   return null;
 }

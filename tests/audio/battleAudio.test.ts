@@ -76,17 +76,13 @@ describe("battle audio", () => {
     expect(random).toHaveBeenCalledTimes(2);
   });
 
-  it("consumes death and retreat events once even when the event window is rendered again", () => {
+  it("consumes death events once even when the event window is rendered again", () => {
     const router = new BattleAudioEventRouter();
     const events = [
       stampBattleEvent({ type: "unit-died", unitId: "v-1", killerId: "c-1" }, 4, 1),
-      stampBattleEvent({ type: "squad-routed", squadId: "v-squad", faction: "verdant" }, 5, 1.1),
     ];
 
-    expect(router.consume(events).map(({ cue }) => cue)).toEqual([
-      "unit.death",
-      "battle.retreat",
-    ]);
+    expect(router.consume(events).map(({ cue }) => cue)).toEqual(["unit.death"]);
     expect(router.consume(events)).toEqual([]);
   });
 
