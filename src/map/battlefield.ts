@@ -21,6 +21,13 @@ export interface BattlefieldMap {
   readonly radius: number;
 }
 
+export interface BattlefieldWorldBounds {
+  readonly minX: number;
+  readonly maxX: number;
+  readonly minZ: number;
+  readonly maxZ: number;
+}
+
 export type BattlefieldStructureKind =
   | "castle"
   | "blacksmith"
@@ -80,12 +87,33 @@ const STRUCTURE_FOOTPRINT_KEYS = new Set(
 );
 
 export const BATTLEFIELD_MAP: BattlefieldMap = createBattlefieldMap();
+export const BATTLEFIELD_WORLD_BOUNDS: BattlefieldWorldBounds = battlefieldWorldBounds(
+  BATTLEFIELD_MAP,
+);
 
 export function axialToWorld(coordinate: HexCoordinate): WorldPoint {
   return {
     x: 2 * coordinate.q + coordinate.r,
     z: Math.sqrt(3) * coordinate.r,
   };
+}
+
+export function battlefieldWorldBounds(map: BattlefieldMap): BattlefieldWorldBounds {
+  if (map.cells.length === 0) return { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };
+  return map.cells.reduce<BattlefieldWorldBounds>((bounds, cell) => {
+    const point = axialToWorld(cell);
+    return {
+      minX: Math.min(bounds.minX, point.x),
+      maxX: Math.max(bounds.maxX, point.x),
+      minZ: Math.min(bounds.minZ, point.z),
+      maxZ: Math.max(bounds.maxZ, point.z),
+    };
+  }, {
+    minX: Number.POSITIVE_INFINITY,
+    maxX: Number.NEGATIVE_INFINITY,
+    minZ: Number.POSITIVE_INFINITY,
+    maxZ: Number.NEGATIVE_INFINITY,
+  });
 }
 
 export function worldToAxial(point: WorldPoint): HexCoordinate {

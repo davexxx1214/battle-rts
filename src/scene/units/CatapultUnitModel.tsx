@@ -202,7 +202,7 @@ export function CatapultUnitModel({
           <meshBasicMaterial color="#f1cf6a" transparent opacity={0.95} depthWrite={false} />
         </mesh>
       )}
-      {attackSequence !== undefined && unit.health > 0 && !unit.routed && (
+      {attackSequence !== undefined && unit.health > 0 && (
         <SiegePulse key={attackSequence} />
       )}
       {unit.health > 0 && healthRatio < 0.7 && (

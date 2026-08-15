@@ -141,7 +141,6 @@
 .audioToggle,
 .selectAllButton,
 .roleButton,
-.commandButton,
 .victoryBanner button,
 .engagementOrder {
   border: 1px solid var(--line-strong);
@@ -155,13 +154,21 @@
 .audioToggle:hover,
 .selectAllButton:hover,
 .roleButton:hover,
-.commandButton:hover:not(:disabled),
 .victoryBanner button:hover,
 .engagementOrder:hover {
   border-color: var(--amber);
   color: var(--amber);
   background: #222117;
   transform: translateY(-1px);
+}
+
+.restartButton:focus-visible,
+.audioToggle:focus-visible,
+.selectAllButton:focus-visible,
+.roleButton:focus-visible,
+.victoryBanner button:focus-visible {
+  outline: 2px solid var(--parchment);
+  outline-offset: 2px;
 }
 
 .headerActions {
@@ -210,21 +217,27 @@
 }
 
 .warTable {
+  position: relative;
   height: calc(100% - 76px);
-  display: grid;
-  grid-template-columns: 238px minmax(0, 1fr) 58px;
+  overflow: hidden;
 }
 
 .leftRail {
-  position: relative;
-  z-index: 8;
+  position: absolute;
+  z-index: 20;
+  top: 14px;
+  left: 14px;
+  width: 202px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 18px 14px 16px;
-  border-right: 1px solid var(--line-strong);
-  background: linear-gradient(90deg, #171713 0%, rgb(20 20 16 / 96%) 82%, rgb(20 20 16 / 78%));
-  box-shadow: 18px 0 38px rgb(0 0 0 / 22%);
+  gap: 8px;
+  padding: 11px;
+  border: 1px solid var(--line-strong);
+  border-left: 2px solid rgb(90 174 255 / 56%);
+  background:
+    linear-gradient(135deg, rgb(90 174 255 / 8%), transparent 46%),
+    rgb(18 19 16 / 89%);
+  box-shadow: 12px 14px 38px rgb(0 0 0 / 28%);
   animation: railEnter 300ms 80ms ease-out both;
 }
 
@@ -238,7 +251,6 @@
 
 .railHeading span,
 .enemyRail > span,
-.selectionSummary > span,
 .objectiveFlag span {
   color: var(--muted);
   font-size: 8px;
@@ -252,7 +264,7 @@
 }
 
 .selectAllButton {
-  min-height: 40px;
+  min-height: 34px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -273,7 +285,7 @@
 }
 
 .roleButton {
-  min-height: 70px;
+  min-height: 48px;
   display: grid;
   grid-template-columns: 34px 1fr auto;
   gap: 8px;
@@ -320,7 +332,7 @@
 }
 
 .roleButton small {
-  margin-top: 5px;
+  margin-top: 3px;
   color: var(--muted);
   font-size: 7px;
 }
@@ -331,72 +343,10 @@
   font-style: normal;
 }
 
-.commandStrip {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 5px;
-}
-
-.commandButton {
-  min-width: 0;
-  min-height: 44px;
-  display: grid;
-  place-items: center;
-  gap: 3px;
-  padding: 5px 3px;
-}
-
-.commandButton strong {
-  font-size: 8px;
-  white-space: nowrap;
-}
-
-.commandButton kbd {
-  color: var(--muted);
-  font-family: var(--text);
-  font-size: 7px;
-}
-
-.commandButton[aria-pressed="true"] {
-  border-color: #e59b45;
-  color: #f1c77d;
-  background: rgb(125 72 27 / 38%);
-  box-shadow: inset 0 0 18px rgb(229 155 69 / 12%);
-}
-
-.commandButton:disabled {
-  cursor: not-allowed;
-  opacity: 0.42;
-}
-
-.selectionSummary {
-  margin-top: auto;
-  min-height: 104px;
-  padding: 14px 12px;
-  border-top: 1px solid var(--line-strong);
-  background: linear-gradient(135deg, rgb(115 212 155 / 7%), transparent 60%);
-}
-
-.selectionSummary strong,
-.selectionSummary small {
-  display: block;
-}
-
-.selectionSummary strong {
-  margin-top: 8px;
-  font-family: var(--display);
-  font-size: 16px;
-}
-
-.selectionSummary small {
-  margin-top: 8px;
-  color: var(--muted);
-  font-size: 8px;
-  line-height: 1.55;
-}
-
 .battlefield {
-  position: relative;
+  position: absolute;
+  z-index: 1;
+  inset: 0;
   min-width: 0;
   overflow: hidden;
   cursor: crosshair;
@@ -427,7 +377,7 @@
 .fieldCaption {
   position: absolute;
   z-index: 7;
-  left: 18px;
+  right: 18px;
   bottom: 14px;
   display: flex;
   gap: 16px;
@@ -443,11 +393,12 @@
   position: absolute;
   z-index: 7;
   top: 16px;
-  left: 18px;
+  left: 50%;
   padding: 10px 14px 10px 11px;
   border-left: 3px solid var(--amber);
   background: rgb(14 14 12 / 82%);
   pointer-events: none;
+  transform: translateX(-50%);
 }
 
 .objectiveFlag strong {
@@ -554,14 +505,20 @@
 }
 
 .enemyRail {
-  position: relative;
-  z-index: 8;
+  position: absolute;
+  z-index: 20;
+  top: 14px;
+  right: 14px;
+  width: 56px;
+  height: 254px;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 18px 7px;
-  border-left: 1px solid var(--line-strong);
-  background: #171713;
+  border: 1px solid var(--line-strong);
+  border-right: 2px solid rgb(224 88 86 / 54%);
+  background: rgb(18 19 16 / 89%);
+  box-shadow: -12px 14px 38px rgb(0 0 0 / 25%);
 }
 
 .enemyRail > span {
@@ -627,7 +584,11 @@
   }
 
   .warTable {
-    grid-template-columns: 176px minmax(0, 1fr);
+    display: block;
+  }
+
+  .leftRail {
+    width: 176px;
   }
 
   .enemyRail {
@@ -687,7 +648,6 @@
 
   .warTable {
     height: calc(100% - 64px);
-    grid-template-columns: 1fr;
   }
 
   .engagementOrder {
@@ -707,6 +667,7 @@
   .leftRail {
     position: absolute;
     z-index: 20;
+    top: auto;
     left: 8px;
     bottom: 46px;
     width: calc(100% - 16px);
@@ -718,17 +679,12 @@
     background: rgb(20 20 16 / 91%);
   }
 
-  .railHeading,
-  .selectionSummary {
+  .railHeading {
     display: none;
   }
 
   .selectAllButton {
     min-width: 96px;
-  }
-
-  .commandStrip {
-    grid-column: 1 / -1;
   }
 
   .roleList {

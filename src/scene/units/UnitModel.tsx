@@ -179,11 +179,8 @@ function CharacterUnitModel({
           <meshBasicMaterial color="#f1cf6a" transparent opacity={0.95} depthWrite={false} />
         </mesh>
       )}
-      {attackSequence !== undefined && unit.health > 0 && !unit.routed && (
+      {attackSequence !== undefined && unit.health > 0 && (
         <AttackPulse role={unit.role} key={attackSequence} />
-      )}
-      {unit.routed && unit.routedAt !== null && battleTime - unit.routedAt < 2 && (
-        <RetreatMarker age={battleTime - unit.routedAt} />
       )}
       {unit.health > 0 && healthRatio < 0.55 && (
         <group ref={healthRoot} position={[0, 2.02, 0]}>
@@ -270,7 +267,6 @@ function collectModelMaterials(model: Object3D): MeshStandardMaterial[] {
 
 function resolveAnimation(unit: BattleUnit): string {
   if (unit.status === "dead") return "Death_A";
-  if (unit.status === "routing") return "Running_A";
   if (unit.status === "moving") return unit.role === "ranger" ? "Running_A" : "Walking_A";
   if (unit.status === "attacking") {
     if (unit.role === "knight") return "Melee_1H_Attack_Chop";
@@ -278,27 +274,6 @@ function resolveAnimation(unit: BattleUnit): string {
     return "Ranged_Magic_Shoot";
   }
   return "Idle_A";
-}
-
-function RetreatMarker({ age }: { readonly age: number }) {
-  const root = useRef<Object3D>(null);
-  const material = useRef<MeshBasicMaterial>(null);
-  useFrame(({ clock }) => {
-    if (root.current) root.current.position.y = 2.28 + Math.sin(clock.elapsedTime * 8) * 0.08;
-    if (material.current) material.current.opacity = Math.max(0, 0.9 * (1 - age / 2));
-  });
-  return (
-    <group ref={root} position={[0, 2.28, 0]}>
-      <mesh rotation={[0, 0, Math.PI]}>
-        <coneGeometry args={[0.2, 0.42, 3]} />
-        <meshBasicMaterial ref={material} color="#f4b04f" transparent depthTest={false} />
-      </mesh>
-      <mesh position={[0, 0.28, 0]} rotation={[0, 0, Math.PI]}>
-        <coneGeometry args={[0.14, 0.3, 3]} />
-        <meshBasicMaterial color="#ffe4a0" transparent opacity={0.82} depthTest={false} />
-      </mesh>
-    </group>
-  );
 }
 
 function normalizedDirection(origin: WorldPoint, destination: WorldPoint): WorldPoint {

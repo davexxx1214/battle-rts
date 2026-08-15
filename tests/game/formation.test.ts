@@ -48,7 +48,7 @@ describe("squad formations", () => {
     }
   });
 
-  it("stops selected units and clears their navigation path", () => {
+  it("stops selected units, clears navigation, and prevents immediate auto-engagement", () => {
     const initial = createInitialBattle();
     const selectedIds = initial.units
       .filter((unit) => unit.faction === "verdant")
@@ -58,10 +58,17 @@ describe("squad formations", () => {
     const stopped = issueStopCommand(moving, selectedIds);
 
     for (const unit of stopped.units.filter((candidate) => selectedIds.includes(candidate.id))) {
-      expect(unit.order).toEqual({ type: "idle" });
+      expect(unit.order).toEqual({ type: "stop" });
       expect(unit.waypoints).toEqual([]);
       expect(unit.status).toBe("idle");
     }
+
+    const next = stepBattle(stopped, 0.1);
+    expect(next.units.filter((candidate) => selectedIds.includes(candidate.id)))
+      .toEqual(stopped.units.filter((candidate) => selectedIds.includes(candidate.id)));
+    expect(next.events.some((event) => (
+      event.type === "attack-started" && selectedIds.includes(event.attackerId)
+    ))).toBe(false);
   });
 
   it("attack-moves toward a destination while hold units never chase", () => {
@@ -93,6 +100,77 @@ describe("squad formations", () => {
     expect(next.units.find((unit) => unit.id === attacker.id)?.position.z).toBeLessThan(5);
     expect(next.units.find((unit) => unit.id === holder.id)?.position).toEqual(holder.position);
     expect(next.units.find((unit) => unit.id === holder.id)?.order.type).toBe("hold");
+  });
+
+  it("keeps actively fighting units on their current target during an attack-move command", () => {
+    const target = createBattleUnit({
+      id: "c-target",
+      faction: "crimson",
+      role: "knight",
+      position: { x: 6.5, z: 0 },
+    });
+    const fighter = createBattleUnit({
+      id: "v-fighter",
+      faction: "verdant",
+      role: "ranger",
+      position: { x: 0, z: 0 },
+    });
+    const reserve = createBattleUnit({
+      id: "v-reserve",
+      faction: "verdant",
+      role: "knight",
+      position: { x: 2, z: 0 },
+    });
+
+    const engaged = stepBattle(createBattleState([fighter, reserve, target]), 0.1);
+    expect(engaged.units.find((unit) => unit.id === fighter.id)?.status).toBe("attacking");
+    expect(engaged.units.find((unit) => unit.id === fighter.id)?.order.type).toBe("idle");
+
+    const commanded = issueAttackMoveCommand(
+      engaged,
+      [fighter.id, reserve.id],
+      { x: 8, z: 3 },
+    );
+
+    const fighterOrder = commanded.units.find((unit) => unit.id === fighter.id)?.order;
+    expect(fighterOrder).toMatchObject({
+      type: "attack-move",
+      targetId: target.id,
+    });
+    expect(commanded.units.find((unit) => unit.id === reserve.id)?.order.type).toBe("attack-move");
+
+    const fighting = stepBattle(commanded, 0.1);
+    expect(fighting.units.find((unit) => unit.id === fighter.id)?.position)
+      .toEqual(engaged.units.find((unit) => unit.id === fighter.id)?.position);
+
+    const targetDefeated = {
+      ...fighting,
+      units: fighting.units.map((unit) => unit.id === target.id
+        ? { ...unit, health: 0, status: "dead" as const, order: { type: "idle" as const } }
+        : unit),
+    };
+    const resumed = stepBattle(targetDefeated, 0.1);
+    expect(resumed.units.find((unit) => unit.id === fighter.id)?.position)
+      .not.toEqual(fighting.units.find((unit) => unit.id === fighter.id)?.position);
+  });
+
+  it("preserves a locked attack-move target when cloning battle state", () => {
+    const unit = {
+      ...createBattleUnit({
+        id: "v-locked",
+        faction: "verdant",
+        role: "ranger",
+        position: { x: 0, z: 0 },
+      }),
+      order: {
+        type: "attack-move",
+        destination: { x: 5, z: 2 },
+        startsAt: 0,
+        targetId: "c-target",
+      } as const,
+    };
+
+    expect(createBattleState([unit]).units[0]?.order).toEqual(unit.order);
   });
 
   it("deterministically separates overlapping living allies", () => {

@@ -189,20 +189,6 @@
         1
       ]
     },
-    "battle.retreat": {
-      "bus": "horns",
-      "variants": [
-        "war_horn_retreat.wav"
-      ],
-      "gain": [
-        0.82,
-        0.82
-      ],
-      "pitch": [
-        1,
-        1
-      ]
-    },
     "ambience.wind": {
       "bus": "ambience",
       "variants": [

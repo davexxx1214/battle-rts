@@ -7,8 +7,6 @@ export interface BattleSquad {
   readonly role: UnitRole;
   readonly memberIds: readonly string[];
   readonly initialSize: number;
-  readonly routed: boolean;
-  readonly routedAt: number | null;
 }
 
 export function buildSquads(units: readonly BattleUnit[]): BattleSquad[] {
@@ -30,8 +28,6 @@ export function buildSquads(units: readonly BattleUnit[]): BattleSquad[] {
       role: unit.role,
       memberIds: [unit.id],
       initialSize: 1,
-      routed: false,
-      routedAt: null,
     });
   }
 

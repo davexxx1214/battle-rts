@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   BATTLEFIELD_MAP,
+  BATTLEFIELD_WORLD_BOUNDS,
   BATTLEFIELD_DECORATIONS,
   BATTLEFIELD_STRUCTURES,
   axialToWorld,
@@ -179,5 +180,15 @@ describe("battlefield island", () => {
     ]) {
       expect(worldToAxial(axialToWorld(coordinate))).toEqual(coordinate);
     }
+  });
+
+  it("derives the minimap world bounds from the battlefield cells", () => {
+    const points = BATTLEFIELD_MAP.cells.map(axialToWorld);
+    expect(BATTLEFIELD_WORLD_BOUNDS).toEqual({
+      minX: Math.min(...points.map((point) => point.x)),
+      maxX: Math.max(...points.map((point) => point.x)),
+      minZ: Math.min(...points.map((point) => point.z)),
+      maxZ: Math.max(...points.map((point) => point.z)),
+    });
   });
 });
