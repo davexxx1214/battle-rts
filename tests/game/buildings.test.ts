@@ -105,6 +105,7 @@ describe("building simulation", () => {
         targetId: mine.id,
         amount: mine.maxHealth,
         sourceId: "enemy",
+        sourceType: "unit",
       }],
     });
     const advanced = advanceBuildings({
@@ -230,6 +231,7 @@ describe("building simulation", () => {
         targetId: mine.id,
         amount: 1,
         sourceId: "enemy",
+        sourceType: "unit",
       }],
     });
 

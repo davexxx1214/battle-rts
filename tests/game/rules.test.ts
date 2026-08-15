@@ -66,6 +66,24 @@ describe("central game rules", () => {
       .toBe("knight");
   });
 
+  it("keeps castle range at least as long as archers and mages without matching catapults", () => {
+    expect(GAME_RULES.castle.attackRange).toBeGreaterThanOrEqual(
+      Math.max(UNIT_SPECS.ranger.attackRange, UNIT_SPECS.mage.attackRange),
+    );
+    expect(GAME_RULES.castle.attackRange).toBeLessThan(UNIT_SPECS.catapult.attackRange);
+
+    const invalid: GameRules = {
+      ...GAME_RULES,
+      castle: {
+        ...GAME_RULES.castle,
+        attackRange: UNIT_SPECS.ranger.attackRange - 0.1,
+      },
+    };
+    expect(validateGameRules(invalid)).toContain(
+      "castle.attackRange must reach ranger and mage attack ranges",
+    );
+  });
+
   it("rejects invalid balance edits without restricting values to literal baselines", () => {
     const tunable: GameRules = {
       ...GAME_RULES,

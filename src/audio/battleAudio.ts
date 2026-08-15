@@ -154,6 +154,7 @@ function eventCues(event: BattleEvent): string[] {
   }
   if (event.type === "deployment-succeeded") return ["command.move"];
   if (event.type === "attack-started") {
+    if (event.role === "castle") return ["ranger.attack"];
     if (event.role === "knight") return ["knight.attack"];
     if (event.role === "ranger") return ["ranger.attack"];
     if (event.role === "catapult") return [];

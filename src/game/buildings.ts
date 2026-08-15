@@ -22,6 +22,11 @@ import type { Faction, UnitRole, WorldPoint } from "./types";
 export type BattleBuildingKind = BuildingKind | "castle";
 export type BattleBuildingStatus = "active" | "destroyed";
 
+export interface CastleCombatState {
+  readonly activatedAt: number | null;
+  readonly cooldownRemaining: number;
+}
+
 export interface BattleBuilding extends CombatTarget {
   readonly targetType: "building";
   readonly id: string;
@@ -33,6 +38,7 @@ export interface BattleBuilding extends CombatTarget {
   readonly createdAt: number;
   readonly lifetimeSeconds: number | null;
   readonly productionSequence: number;
+  readonly castleCombat: CastleCombatState | null;
   readonly status: BattleBuildingStatus;
   readonly diedAt: number | null;
   readonly removeAt: number | null;
@@ -122,12 +128,34 @@ export interface AdvanceBuildingsResult {
   readonly newlyFullFactions: readonly Faction[];
 }
 
+export interface SettleBuildingHealthInput {
+  readonly buildings: readonly BattleBuilding[];
+  readonly occupancy: BuildingOccupancy;
+  readonly elapsedSeconds: number;
+  readonly deltaSeconds: number;
+  readonly damageIntents: readonly CombatDamageIntent[];
+}
+
+export interface BuildingHealthSettlement {
+  readonly buildings: readonly BattleBuilding[];
+  readonly occupancy: BuildingOccupancy;
+  readonly pendingProduction: readonly BuildingProductionAction[];
+  readonly destructionEvents: readonly BuildingSimulationEvent[];
+}
+
+export interface AdvanceBuildingProductionInput {
+  readonly settlement: BuildingHealthSettlement;
+  readonly economy: EconomyState;
+  readonly map: BattlefieldMap;
+  readonly units: readonly BuildingSpawnBlocker[];
+}
+
 export interface BuildingCleanupResult {
   readonly buildings: readonly BattleBuilding[];
   readonly occupancy: BuildingOccupancy;
 }
 
-type ProductionAction =
+export type BuildingProductionAction =
   | {
       readonly type: "produce-gold";
       readonly building: BattleBuilding;
@@ -148,7 +176,7 @@ interface DestructionAction {
   readonly cause: "expired" | "damage" | "combined";
 }
 
-type BuildingAction = ProductionAction | DestructionAction;
+type BuildingAction = BuildingProductionAction | DestructionAction;
 
 interface BuildingSettlement {
   readonly building: BattleBuilding;
@@ -193,6 +221,9 @@ export function createBattleBuilding(
     health: spec.maxHealth,
     lifetimeSeconds: spec.lifetimeSeconds,
     productionSequence: 0,
+    castleCombat: input.kind === "castle"
+      ? { activatedAt: null, cooldownRemaining: 0 }
+      : null,
     status: "active",
     diedAt: null,
     removeAt: null,
@@ -202,16 +233,34 @@ export function createBattleBuilding(
 export function advanceBuildings(
   input: AdvanceBuildingsInput,
 ): AdvanceBuildingsResult {
+  const settlement = settleBuildingHealth({
+    buildings: input.buildings,
+    occupancy: input.occupancy,
+    elapsedSeconds: input.elapsedSeconds,
+    deltaSeconds: input.deltaSeconds,
+    damageIntents: input.damageIntents,
+  });
+  return advanceBuildingProduction({
+    settlement,
+    economy: input.economy,
+    map: input.map,
+    units: input.units,
+  });
+}
+
+export function settleBuildingHealth(
+  input: SettleBuildingHealthInput,
+): BuildingHealthSettlement {
   if (
     !Number.isFinite(input.elapsedSeconds)
     || input.elapsedSeconds < 0
     || !Number.isFinite(input.deltaSeconds)
     || input.deltaSeconds <= 0
   ) {
-    return unchangedResult(input);
+    return unchangedHealthSettlement(input);
   }
   const end = input.elapsedSeconds + input.deltaSeconds;
-  if (!Number.isFinite(end)) return unchangedResult(input);
+  if (!Number.isFinite(end)) return unchangedHealthSettlement(input);
   const damageByBuildingId = collectDamage(input.damageIntents);
   const settlements = input.buildings.map((building) => settleBuilding(
     building,
@@ -222,13 +271,35 @@ export function advanceBuildings(
   const actions = settlements
     .flatMap((settlement) => settlement.actions)
     .sort(compareActions);
+  const cleanup = removeDestroyedBuildingsAt(
+    settlements.map((settlement) => settlement.building),
+    input.occupancy,
+    end,
+  );
+  return {
+    buildings: cleanup.buildings,
+    occupancy: cleanup.occupancy,
+    pendingProduction: actions.filter((action): action is BuildingProductionAction => (
+      action.type !== "destroy"
+    )),
+    destructionEvents: actions
+      .filter((action): action is DestructionAction => action.type === "destroy")
+      .map(destructionEvent),
+  };
+}
+
+export function advanceBuildingProduction(
+  input: AdvanceBuildingProductionInput,
+): AdvanceBuildingsResult {
   const spawnedCoordinateKeys = new Set<string>();
   const unitSpawns: BuildingUnitSpawn[] = [];
   const events: BuildingSimulationEvent[] = [];
   const newlyFullFactions = new Set<Faction>();
   let economy = input.economy;
+  const sequenceByBuildingId = new Map<string, number>();
 
-  for (const action of actions) {
+  for (const action of input.settlement.pendingProduction) {
+    sequenceByBuildingId.set(action.building.id, action.sequence);
     if (action.type === "produce-gold") {
       const producedAmount = GAME_RULES.buildings.goldMine.goldPerProduction;
       const grant = grantGold(economy, action.building.faction, producedAmount);
@@ -250,7 +321,7 @@ export function advanceBuildings(
       const position = resolveSpawnPosition(
         action.building,
         input.map,
-        input.occupancy,
+        input.settlement.occupancy,
         input.units,
         spawnedCoordinateKeys,
       );
@@ -278,33 +349,19 @@ export function advanceBuildings(
       };
       unitSpawns.push(spawn);
       events.push({ type: "building-unit-spawned", ...spawn });
-      continue;
     }
-    events.push({
-      type: "building-destroyed",
-      buildingId: action.building.id,
-      faction: action.building.faction,
-      kind: action.building.kind,
-      scheduledAt: action.scheduledAt,
-      coordinate: { ...action.building.coordinate },
-      position: { ...action.building.position },
-      removeAt: normalizeSimulationTime(
-        action.scheduledAt + GAME_RULES.buildings.destructionSeconds,
-      ),
-      cause: action.cause,
-    });
   }
-
-  const cleanup = removeDestroyedBuildingsAt(
-    settlements.map((settlement) => settlement.building),
-    input.occupancy,
-    end,
-  );
+  events.push(...input.settlement.destructionEvents);
+  events.sort(compareSimulationEvents);
 
   return {
-    buildings: cleanup.buildings,
+    buildings: input.settlement.buildings.map((building) => ({
+      ...building,
+      productionSequence: sequenceByBuildingId.get(building.id)
+        ?? building.productionSequence,
+    })),
     economy,
-    occupancy: cleanup.occupancy,
+    occupancy: input.settlement.occupancy,
     unitSpawns,
     events,
     newlyFullFactions: FACTIONS.filter((faction) => newlyFullFactions.has(faction)),
@@ -371,7 +428,7 @@ function settleBuilding(
   const cause = naturallyDestroyed
     ? appliedDirectDamage > 0 ? "combined" : "expired"
     : naturalDamage > 0 && appliedDirectDamage > 0 ? "combined" : "damage";
-  const actions: BuildingAction[] = [...production.actions];
+  const actions: BuildingAction[] = [...production];
   if (destroyed) {
     actions.push({ type: "destroy", building, scheduledAt: deathAt, cause });
   }
@@ -380,7 +437,7 @@ function settleBuilding(
     building: {
       ...building,
       health: destroyed ? 0 : health,
-      productionSequence: production.sequence,
+      productionSequence: building.productionSequence,
       status: destroyed ? "destroyed" : "active",
       diedAt: destroyed ? deathAt : null,
       removeAt: destroyed
@@ -393,10 +450,8 @@ function settleBuilding(
 function collectProductionActions(
   building: BattleBuilding,
   cutoff: number,
-): { readonly actions: readonly ProductionAction[]; readonly sequence: number } {
-  if (building.kind === "castle") {
-    return { actions: [], sequence: building.productionSequence };
-  }
+): readonly BuildingProductionAction[] {
+  if (building.kind === "castle") return [];
   const config = building.kind === "gold-mine"
     ? {
         first: GAME_RULES.buildings.goldMine.firstProductionSeconds,
@@ -410,7 +465,7 @@ function collectProductionActions(
         maximum: GAME_RULES.buildings.barracks.spawnCount,
         type: "spawn-unit" as const,
       };
-  const actions: ProductionAction[] = [];
+  const actions: BuildingProductionAction[] = [];
   let sequence = building.productionSequence;
   while (sequence < config.maximum) {
     const nextSequence = sequence + 1;
@@ -424,7 +479,7 @@ function collectProductionActions(
     });
     sequence = nextSequence;
   }
-  return { actions, sequence };
+  return actions;
 }
 
 function resolveSpawnPosition(
@@ -483,6 +538,45 @@ function compareActions(first: BuildingAction, second: BuildingAction): number {
   return firstSequence - secondSequence;
 }
 
+function destructionEvent(action: DestructionAction): BuildingSimulationEvent {
+  return {
+    type: "building-destroyed",
+    buildingId: action.building.id,
+    faction: action.building.faction,
+    kind: action.building.kind,
+    scheduledAt: action.scheduledAt,
+    coordinate: { ...action.building.coordinate },
+    position: { ...action.building.position },
+    removeAt: normalizeSimulationTime(
+      action.scheduledAt + GAME_RULES.buildings.destructionSeconds,
+    ),
+    cause: action.cause,
+  };
+}
+
+function compareSimulationEvents(
+  first: BuildingSimulationEvent,
+  second: BuildingSimulationEvent,
+): number {
+  const time = first.scheduledAt - second.scheduledAt;
+  if (Math.abs(time) > TIME_EPSILON) return time;
+  const priority = Number(first.type === "building-destroyed")
+    - Number(second.type === "building-destroyed");
+  if (priority !== 0) return priority;
+  const building = first.buildingId.localeCompare(second.buildingId);
+  if (building !== 0) return building;
+  return simulationEventSequence(first) - simulationEventSequence(second);
+}
+
+function simulationEventSequence(event: BuildingSimulationEvent): number {
+  if (event.type === "building-gold-produced") return event.productionSequence;
+  if (
+    event.type === "building-unit-spawned"
+    || event.type === "building-unit-spawn-skipped"
+  ) return event.spawnSequence;
+  return Number.POSITIVE_INFINITY;
+}
+
 function actionPriority(action: BuildingAction): number {
   return action.type === "destroy" ? 1 : 0;
 }
@@ -504,13 +598,13 @@ function normalizeSimulationTime(time: number): number {
   return Number(time.toFixed(9));
 }
 
-function unchangedResult(input: AdvanceBuildingsInput): AdvanceBuildingsResult {
+function unchangedHealthSettlement(
+  input: SettleBuildingHealthInput,
+): BuildingHealthSettlement {
   return {
     buildings: input.buildings,
-    economy: input.economy,
     occupancy: input.occupancy,
-    unitSpawns: [],
-    events: [],
-    newlyFullFactions: [],
+    pendingProduction: [],
+    destructionEvents: [],
   };
 }

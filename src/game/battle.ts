@@ -44,8 +44,10 @@ import {
   type BuildingOccupancy,
 } from "./deployment";
 import {
-  advanceBuildings,
+  advanceBuildingProduction,
+  createBattleBuilding,
   removeDestroyedBuildingsAt,
+  settleBuildingHealth,
   type BattleBuilding,
 } from "./buildings";
 import type {
@@ -58,6 +60,10 @@ import {
   selectAutomaticTarget,
   type AutomaticCombatTarget,
 } from "./autoCombat";
+import {
+  activateCastlesFromDamage,
+  advanceCastleAttacks,
+} from "./castleCombat";
 
 export type { Faction, UnitRole, WorldPoint } from "./types";
 export { UNIT_SPECS } from "./rules";
@@ -150,7 +156,7 @@ export function createBattleState(units: readonly BattleUnit[]): BattleState {
     events: [],
     economy: createEconomyState(),
     matchElapsed: 0,
-    buildings: [],
+    buildings: createInitialCastles(),
     buildingOccupancy: createBuildingOccupancy(),
     nextDeploymentSequence: 0,
     nextEventSequence: 0,
@@ -211,9 +217,6 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
   };
   const matchIsActive = state.winner === null
     && getBattleMatchClock(state).remainingSeconds > 0;
-  const economyStep = matchIsActive
-    ? advanceEconomy(state.economy, state.matchElapsed, deltaSeconds)
-    : { state: state.economy, newlyFullFactions: [] };
   const matchElapsed = matchIsActive
     ? getMatchClock(state.matchElapsed + deltaSeconds).elapsedSeconds
     : state.matchElapsed;
@@ -291,26 +294,73 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     ),
   }));
   const damagedUnits = applyDamageIntents(separatedUnits, damage, elapsed, emit);
-  const buildingStep = matchIsActive && activeMatchDeltaSeconds > 0
-    ? advanceBuildings({
-        buildings: state.buildings,
-        economy: economyStep.state,
+  const castleActivationStep = matchIsActive && activeMatchDeltaSeconds > 0
+    ? activateCastlesFromDamage(state.buildings, damage, elapsed)
+    : { buildings: state.buildings, events: [] };
+  for (const event of castleActivationStep.events) emit(event);
+  const buildingHealthSettlement = matchIsActive && activeMatchDeltaSeconds > 0
+    ? settleBuildingHealth({
+        buildings: castleActivationStep.buildings,
         occupancy: state.buildingOccupancy,
-        map: BATTLEFIELD_MAP,
-        units: damagedUnits,
         elapsedSeconds: state.matchElapsed,
         deltaSeconds: activeMatchDeltaSeconds,
         damageIntents: damage,
       })
     : {
-        buildings: state.buildings,
-        economy: economyStep.state,
+        buildings: castleActivationStep.buildings,
         occupancy: state.buildingOccupancy,
+        pendingProduction: [],
+        destructionEvents: [],
+      };
+  const castleWinnerAfterBuildingHealth = resolveCastleWinner(
+    buildingHealthSettlement.buildings,
+  );
+  const economyStep = castleWinnerAfterBuildingHealth === null && matchIsActive
+    ? advanceEconomy(state.economy, state.matchElapsed, activeMatchDeltaSeconds)
+    : { state: state.economy, newlyFullFactions: [] };
+  const buildingStep = castleWinnerAfterBuildingHealth === null
+    ? advanceBuildingProduction({
+        settlement: buildingHealthSettlement,
+        economy: economyStep.state,
+        map: BATTLEFIELD_MAP,
+        units: damagedUnits,
+      })
+    : {
+        buildings: buildingHealthSettlement.buildings,
+        economy: state.economy,
+        occupancy: buildingHealthSettlement.occupancy,
         unitSpawns: [],
-        events: [],
+        events: buildingHealthSettlement.destructionEvents,
         newlyFullFactions: [],
       };
   for (const event of buildingStep.events) emit(event);
+  const castleAttackStep = castleWinnerAfterBuildingHealth === null
+    && matchIsActive
+    && activeMatchDeltaSeconds > 0
+    ? advanceCastleAttacks(
+        buildingStep.buildings,
+        damagedUnits,
+        activeMatchDeltaSeconds,
+      )
+    : { buildings: buildingStep.buildings, attacks: [], damageIntents: [] };
+  for (const attack of castleAttackStep.attacks) {
+    emit({
+      type: "attack-started",
+      attackerId: attack.castleId,
+      targetId: attack.targetId,
+      targetType: "unit",
+      role: "castle",
+      origin: attack.origin,
+      targetPosition: attack.targetPosition,
+    });
+  }
+  const unitsAfterCastleAttacks = applyDamageIntents(
+    damagedUnits,
+    castleAttackStep.damageIntents,
+    elapsed,
+    emit,
+    castleAttackStep.buildings,
+  );
   const newlyFullFactions = new Set([
     ...economyStep.newlyFullFactions,
     ...buildingStep.newlyFullFactions,
@@ -330,14 +380,13 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     position: spawn.position,
   }));
   const buildingCleanup = removeDestroyedBuildingsAt(
-    buildingStep.buildings,
+    castleAttackStep.buildings,
     buildingStep.occupancy,
     elapsed,
   );
-  const units = [...damagedUnits, ...producedUnits];
-  const winner = getMatchClock(matchElapsed).remainingSeconds <= 0
-    ? "draw" as const
-    : null;
+  const units = [...unitsAfterCastleAttacks, ...producedUnits];
+  const winner = castleWinnerAfterBuildingHealth
+    ?? (getMatchClock(matchElapsed).remainingSeconds <= 0 ? "draw" as const : null);
   return {
     units,
     squads: appendUnitsToSquads(state.squads, producedUnits),
@@ -437,6 +486,7 @@ function advanceUnit(
   if (spec.attackMode === "melee") {
     damage.push({
       sourceId: next.id,
+      sourceType: "unit",
       targetId: target.id,
       targetType: target.targetType,
       amount: spec.damage,
@@ -558,6 +608,7 @@ function resolveProjectileImpact(
 
   damage.push({
     sourceId: projectile.attackerId,
+    sourceType: "unit",
     targetId: target.id,
     targetType: projectile.targetType,
     amount: projectile.damage,
@@ -572,6 +623,7 @@ function resolveProjectileImpact(
     ) continue;
     damage.push({
       sourceId: projectile.attackerId,
+      sourceType: "unit",
       targetId: candidate.id,
       targetType: "unit",
       amount: projectile.damage * 0.55,
@@ -584,23 +636,27 @@ function applyDamageIntents(
   intents: readonly CombatDamageIntent[],
   elapsed: number,
   emit: EmitBattleEvent,
+  buildingSources: readonly BattleBuilding[] = [],
 ): BattleUnit[] {
   const livingIds = new Set(
     units.filter((unit) => unit.health > 0).map((unit) => unit.id),
   );
   const unitsById = new Map(units.map((unit) => [unit.id, unit] as const));
+  const buildingsById = new Map(buildingSources.map((building) => [building.id, building] as const));
   const totals = new Map<string, { amount: number; killerId: string }>();
 
   for (const intent of intents) {
     if (intent.targetType !== "unit") continue;
     if (intent.amount <= 0 || !livingIds.has(intent.targetId)) continue;
-    const source = unitsById.get(intent.sourceId);
+    const source = intent.sourceType === "unit"
+      ? unitsById.get(intent.sourceId)
+      : buildingsById.get(intent.sourceId);
     const target = unitsById.get(intent.targetId);
     if (!source || !target) continue;
     emit({
       type: "damage-applied",
       sourceId: intent.sourceId,
-      sourceRole: source.role,
+      sourceRole: source.targetType === "unit" ? source.role : "castle",
       sourcePosition: { ...source.position },
       targetId: intent.targetId,
       targetType: "unit",
@@ -623,6 +679,24 @@ function applyDamageIntents(
     }
     return damaged;
   });
+}
+
+function resolveCastleWinner(
+  buildings: readonly BattleBuilding[],
+): Faction | "draw" | null {
+  const verdant = buildings.find((building) => (
+    building.kind === "castle" && building.faction === "verdant"
+  ));
+  const crimson = buildings.find((building) => (
+    building.kind === "castle" && building.faction === "crimson"
+  ));
+  if (!verdant || !crimson) return null;
+  const verdantDestroyed = verdant.health <= 0 || verdant.status === "destroyed";
+  const crimsonDestroyed = crimson.health <= 0 || crimson.status === "destroyed";
+  if (verdantDestroyed && crimsonDestroyed) return "draw";
+  if (verdantDestroyed) return "crimson";
+  if (crimsonDestroyed) return "verdant";
+  return null;
 }
 
 function applyDamage(unit: BattleUnit, amount: number, elapsed: number): BattleUnit {
@@ -781,6 +855,16 @@ function createArmy(faction: Faction): BattleUnit[] {
       })
     ));
   });
+}
+
+function createInitialCastles(): BattleBuilding[] {
+  return (["verdant", "crimson"] as const).map((faction) => createBattleBuilding({
+    id: `${faction}-castle`,
+    kind: "castle",
+    faction,
+    coordinate: BATTLEFIELD_MAP.castles[faction],
+    createdAt: 0,
+  }));
 }
 
 function moveToward(origin: WorldPoint, destination: WorldPoint, maximumDistance: number): WorldPoint {

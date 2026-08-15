@@ -3,6 +3,7 @@ import type { BuildingSimulationEvent } from "./buildings";
 import type { DeployableKind } from "./rules";
 import type { HexCoordinate } from "../map/battlefield";
 import type { CombatTargetType } from "./combat";
+import type { CastleActivationEvent } from "./castleCombat";
 
 interface BattleEventBase {
   readonly sequence: number;
@@ -11,6 +12,7 @@ interface BattleEventBase {
 
 export type BattleEventInput =
   | BuildingSimulationEvent
+  | CastleActivationEvent
   | {
       readonly type: "gold-full";
       readonly faction: Faction;
@@ -29,7 +31,7 @@ export type BattleEventInput =
       readonly attackerId: string;
       readonly targetId: string;
       readonly targetType: CombatTargetType;
-      readonly role: UnitRole;
+      readonly role: UnitRole | "castle";
       readonly origin: WorldPoint;
       readonly targetPosition: WorldPoint;
     }
@@ -56,7 +58,7 @@ export type BattleEventInput =
   | {
       readonly type: "damage-applied";
       readonly sourceId: string;
-      readonly sourceRole: UnitRole;
+      readonly sourceRole: UnitRole | "castle";
       readonly sourcePosition: WorldPoint;
       readonly targetId: string;
       readonly targetType: CombatTargetType;

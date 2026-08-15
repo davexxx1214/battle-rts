@@ -17,6 +17,7 @@ export interface CombatTarget {
 
 export interface CombatDamageIntent {
   readonly sourceId: string;
+  readonly sourceType: CombatTargetType;
   readonly targetId: string;
   readonly targetType: CombatTargetType;
   readonly amount: number;

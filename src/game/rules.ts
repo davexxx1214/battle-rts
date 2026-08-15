@@ -301,6 +301,9 @@ export function validateGameRules(rules: GameRules): string[] {
     "attackRange",
     "attackCooldown",
   ]);
+  if (castle.attackRange < Math.max(units.ranger.attackRange, units.mage.attackRange)) {
+    errors.push("castle.attackRange must reach ranger and mage attack ranges");
+  }
 
   for (const [role, spec] of Object.entries(units)) {
     validatePositiveGroup(errors, `units.${role}`, spec, [
