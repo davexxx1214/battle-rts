@@ -41,7 +41,9 @@ import {
 } from "./economy";
 import {
   createBuildingOccupancy,
+  createDeploymentCounts,
   type BuildingOccupancy,
+  type DeploymentCounts,
 } from "./deployment";
 import {
   advanceBuildingProduction,
@@ -101,6 +103,7 @@ export interface BattleState {
   readonly matchElapsed: number;
   readonly buildings: readonly BattleBuilding[];
   readonly buildingOccupancy: BuildingOccupancy;
+  readonly deploymentCounts: DeploymentCounts;
   readonly nextDeploymentSequence: number;
   readonly nextEventSequence: number;
   readonly elapsed: number;
@@ -158,6 +161,7 @@ export function createBattleState(units: readonly BattleUnit[]): BattleState {
     matchElapsed: 0,
     buildings: createInitialCastles(),
     buildingOccupancy: createBuildingOccupancy(),
+    deploymentCounts: createDeploymentCounts(),
     nextDeploymentSequence: 0,
     nextEventSequence: 0,
     elapsed: 0,
@@ -401,6 +405,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     matchElapsed,
     buildings: buildingCleanup.buildings,
     buildingOccupancy: buildingCleanup.occupancy,
+    deploymentCounts: state.deploymentCounts,
     nextDeploymentSequence: state.nextDeploymentSequence,
     nextEventSequence,
     elapsed,

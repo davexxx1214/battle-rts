@@ -95,6 +95,7 @@ describe("atomic battle deployment", () => {
     expect(result.state.battle.buildingOccupancy[coordinateKey(VERDANT_BUILDING_CELL)])
       .toMatchObject({ buildingId: result.entityId });
     expect(result.state.battle.nextDeploymentSequence).toBe(1);
+    expect(result.state.battle.deploymentCounts.verdant["gold-mine"]).toBe(1);
     expect(result.state.battle.events.at(-1)).toMatchObject({
       type: "deployment-succeeded",
       entityId: result.entityId,
@@ -112,6 +113,7 @@ describe("atomic battle deployment", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.reason);
+    expect(result.state.battle.deploymentCounts.verdant.mage).toBe(1);
     expect(result.state.battle.economy.accounts.verdant.gold).toBe(600);
     expect(result.state.battle.units).toContainEqual(expect.objectContaining({
       id: "verdant-mage-1",

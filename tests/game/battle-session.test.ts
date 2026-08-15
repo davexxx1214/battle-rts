@@ -52,4 +52,27 @@ describe("battle session gate", () => {
     expect(engaged.battle.units.find((unit) => unit.id === friendly.id)?.behavior)
       .toBe("charging");
   });
+
+  it("runs opponent decisions on simulated-time boundaries", () => {
+    const initial = createBattleState([]);
+
+    const advanced = advanceBattleSession(initial, "engaged", 120, 0.05);
+
+    expect(advanced.matchElapsed).toBeCloseTo(6);
+    expect(advanced.buildings).toContainEqual(expect.objectContaining({
+      faction: "crimson",
+      kind: "gold-mine",
+    }));
+    expect(advanced.economy.accounts.crimson.gold).toBe(0);
+  });
+
+  it("keeps opponent decisions identical across render-frame batching", () => {
+    const initial = createBattleState([]);
+
+    const continuous = advanceBattleSession(initial, "engaged", 120, 0.05);
+    const firstHalf = advanceBattleSession(initial, "engaged", 60, 0.05);
+    const split = advanceBattleSession(firstHalf, "engaged", 60, 0.05);
+
+    expect(split).toEqual(continuous);
+  });
 });

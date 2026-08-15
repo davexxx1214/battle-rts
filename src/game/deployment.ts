@@ -1,5 +1,9 @@
 import { findHexPath } from "./navigation";
-import type { BuildingKind } from "./rules";
+import {
+  DEPLOYABLE_CATEGORIES,
+  type BuildingKind,
+  type DeployableKind,
+} from "./rules";
 import type { Faction, WorldPoint } from "./types";
 import {
   coordinateKey,
@@ -17,6 +21,9 @@ export interface OccupiedBuildingHex {
 }
 
 export type BuildingOccupancy = Readonly<Record<string, OccupiedBuildingHex>>;
+export type DeploymentCounts = Readonly<
+  Record<Faction, Readonly<Record<DeployableKind, number>>>
+>;
 
 export type BuildingPlacementFailureReason =
   | "outside-battlefield"
@@ -48,6 +55,30 @@ export type BuildingPlacementResult =
 
 export function createBuildingOccupancy(): BuildingOccupancy {
   return {};
+}
+
+export function createDeploymentCounts(): DeploymentCounts {
+  const emptyFactionCounts = () => Object.fromEntries(
+    Object.keys(DEPLOYABLE_CATEGORIES).map((kind) => [kind, 0]),
+  ) as Record<DeployableKind, number>;
+  return {
+    verdant: emptyFactionCounts(),
+    crimson: emptyFactionCounts(),
+  };
+}
+
+export function recordSuccessfulDeployment(
+  counts: DeploymentCounts,
+  faction: Faction,
+  kind: DeployableKind,
+): DeploymentCounts {
+  return {
+    ...counts,
+    [faction]: {
+      ...counts[faction],
+      [kind]: counts[faction][kind] + 1,
+    },
+  };
 }
 
 export function requestBuildingPlacement(

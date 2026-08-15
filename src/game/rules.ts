@@ -44,6 +44,14 @@ export interface GameRules {
   readonly deployment: {
     readonly costs: Readonly<Record<DeployableKind, number>>;
   };
+  readonly opponentAi: {
+    readonly decisionIntervalSeconds: number;
+    readonly buildingGoals: readonly {
+      readonly kind: BuildingKind;
+      readonly desiredActive: number;
+    }[];
+    readonly troopCycle: readonly TroopKind[];
+  };
   readonly targeting: {
     readonly routeCorridorWidth: number;
   };
@@ -157,6 +165,14 @@ export const GAME_RULES = {
       barracks: BARRACKS_COST,
     },
   },
+  opponentAi: {
+    decisionIntervalSeconds: 1,
+    buildingGoals: [
+      { kind: "gold-mine", desiredActive: 1 },
+      { kind: "barracks", desiredActive: 1 },
+    ],
+    troopCycle: ["swordsman", "archer", "mage", "catapult"],
+  },
   targeting: {
     routeCorridorWidth: 3,
   },
@@ -202,7 +218,16 @@ export function isBuildingDeployable(kind: DeployableKind): kind is BuildingKind
 
 export function validateGameRules(rules: GameRules): string[] {
   const errors: string[] = [];
-  const { match, economy, deployment, targeting, buildings, castle, units } = rules;
+  const {
+    match,
+    economy,
+    deployment,
+    opponentAi,
+    targeting,
+    buildings,
+    castle,
+    units,
+  } = rules;
 
   if (!isPositive(match.durationSeconds)) errors.push("match.durationSeconds must be positive");
   if (
@@ -245,6 +270,28 @@ export function validateGameRules(rules: GameRules): string[] {
   }
   if (deployment.costs.barracks !== buildings.barracks.cost) {
     errors.push("barracks deployment and building costs must match");
+  }
+  validatePositiveGroup(errors, "opponentAi", opponentAi, ["decisionIntervalSeconds"]);
+  if (opponentAi.troopCycle.length === 0) {
+    errors.push("opponentAi.troopCycle must not be empty");
+  }
+  const activeLimitByBuilding = {
+    "gold-mine": buildings.goldMine.maximumActivePerFaction,
+    barracks: buildings.barracks.maximumActivePerFaction,
+  } satisfies Readonly<Record<BuildingKind, number>>;
+  const seenBuildingGoals = new Set<BuildingKind>();
+  for (const goal of opponentAi.buildingGoals) {
+    if (!Number.isInteger(goal.desiredActive) || goal.desiredActive <= 0) {
+      errors.push("opponent AI desired active building counts must be positive integers");
+    }
+    const maximum = activeLimitByBuilding[goal.kind];
+    if (goal.desiredActive > maximum) {
+      errors.push("opponent AI preferred buildings must not exceed active limits");
+    }
+    if (seenBuildingGoals.has(goal.kind)) {
+      errors.push("opponentAi.buildingGoals must not repeat a building kind");
+    }
+    seenBuildingGoals.add(goal.kind);
   }
   for (const kind of ["swordsman", "archer", "mage"] as const) {
     const cost = deployment.costs[kind];

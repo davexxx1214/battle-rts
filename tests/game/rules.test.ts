@@ -84,6 +84,31 @@ describe("central game rules", () => {
     );
   });
 
+  it("keeps the first opponent AI strategy tunable in central rules", () => {
+    expect(GAME_RULES.opponentAi).toEqual({
+      decisionIntervalSeconds: 1,
+      buildingGoals: [
+        { kind: "gold-mine", desiredActive: 1 },
+        { kind: "barracks", desiredActive: 1 },
+      ],
+      troopCycle: ["swordsman", "archer", "mage", "catapult"],
+    });
+
+    const unreachable: GameRules = {
+      ...GAME_RULES,
+      opponentAi: {
+        ...GAME_RULES.opponentAi,
+        buildingGoals: [{
+          kind: "gold-mine",
+          desiredActive: GAME_RULES.buildings.goldMine.maximumActivePerFaction + 1,
+        }],
+      },
+    };
+    expect(validateGameRules(unreachable)).toContain(
+      "opponent AI preferred buildings must not exceed active limits",
+    );
+  });
+
   it("rejects invalid balance edits without restricting values to literal baselines", () => {
     const tunable: GameRules = {
       ...GAME_RULES,

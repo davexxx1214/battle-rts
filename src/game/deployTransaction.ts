@@ -2,10 +2,11 @@ import {
   appendUnitsToSquads,
   createBattleUnit,
 } from "./battle";
-import type { BattleSessionState } from "./battleSession";
+import type { BattleSessionState } from "./battleSessionState";
 import { createBattleBuilding } from "./buildings";
 import {
   hasBuildableHex,
+  recordSuccessfulDeployment,
   requestBuildingPlacement,
   resolveWorldHex,
   type BuildingPlacementFailureReason,
@@ -225,6 +226,11 @@ export function deployBattleSessionEntity(
         squads,
         buildings,
         buildingOccupancy: occupancy,
+        deploymentCounts: recordSuccessfulDeployment(
+          state.deploymentCounts,
+          request.faction,
+          request.kind,
+        ),
         economy: spend.state,
         events: [...state.events, deploymentEvent],
         nextDeploymentSequence: sequence,
