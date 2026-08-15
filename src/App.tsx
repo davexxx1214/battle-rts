@@ -1,5 +1,7 @@
 import {
+  type Dispatch,
   type PointerEvent as ReactPointerEvent,
+  type SetStateAction,
   type WheelEvent as ReactWheelEvent,
   useCallback,
   useEffect,
@@ -18,19 +20,24 @@ import {
   createInitialBattle,
   issueAttackMoveCommand,
   issueAttackCommand,
-  issueHoldCommand,
-  issueMoveCommand,
-  issueStopCommand,
 } from "./game/battle";
 import {
   advanceBattleSession,
+  beginBattleSession,
   getBattlePhaseAccess,
   type BattlePhase,
+  type BattleSessionState,
 } from "./game/battleSession";
+import {
+  queuePlannedCommand,
+  type PlannedCommand,
+} from "./game/battlePlans";
 import {
   type SelectionMode,
   applySelection,
   normalizeScreenRect,
+  resolveFieldClickIntent,
+  selectLivingFriendlyRole,
   selectFriendlyUnitsInRect,
 } from "./game/selection";
 import {
@@ -38,6 +45,13 @@ import {
   createSceneInteractionBridge,
   type CommandMarker,
 } from "./scene/BattlefieldCanvas";
+import {
+  createCameraViewStore,
+  DEFAULT_CAMERA_VIEW,
+} from "./scene/camera/cameraViewStore";
+import { TacticalHudPanel } from "./ui/TacticalHudPanel";
+import { shouldStartFieldPointerInteraction } from "./ui/fieldInput";
+import type { BenchmarkSnapshot } from "./game/benchmark";
 
 interface DragState {
   readonly pointerId: number;
@@ -61,23 +75,32 @@ const ROLE_LABELS: Readonly<Record<UnitRole, string>> = {
 };
 
 export function App() {
-  const [battle, setBattle] = useState<BattleState>(() => createInitialBattle());
+  const benchmarkMode = useMemo(() => (
+    new URLSearchParams(window.location.search).get("benchmark") === "80"
+  ), []);
+  const [session, setSession] = useState<BattleSessionState>(() => ({
+    battle: createInitialBattle(),
+    phase: benchmarkMode ? "engaged" : "briefing",
+    plannedCommands: [],
+  }));
+  const { battle, phase: battlePhase, plannedCommands } = session;
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [commandMarker, setCommandMarker] = useState<CommandMarker | null>(null);
-  const [commandMode, setCommandMode] = useState<"move" | "attack-move">("move");
   const [cameraResetToken, setCameraResetToken] = useState(0);
   const [battleInstanceRevision, setBattleInstanceRevision] = useState(0);
   const [audioEnabled, setAudioEnabled] = useState(false);
-  const [battlePhase, setBattlePhase] = useState<BattlePhase>("briefing");
+  const [benchmark, setBenchmark] = useState<BenchmarkSnapshot | null>(null);
   const battleAccess = getBattlePhaseAccess(battlePhase);
   const bridgeRef = useRef(createSceneInteractionBridge());
+  const commandRevision = useRef(0);
+  const cameraViewStore = useMemo(createCameraViewStore, []);
   const livingUnitKey = battle.units
     .filter((unit) => unit.health > 0)
     .map((unit) => unit.id)
     .join("\u0000");
 
-  useBattleLoop(setBattle, battlePhase);
+  useBattleLoop(setSession, battlePhase);
   useEffect(() => {
     const living = new Set(livingUnitKey ? livingUnitKey.split("\u0000") : []);
     setSelectedIds((current) => {
@@ -90,18 +113,38 @@ export function App() {
     () => battle.units.filter((unit) => selectedIds.includes(unit.id) && unit.health > 0),
     [battle.units, selectedIds],
   );
+  const commandableSelectedIds = useMemo(
+    () => selectedUnits.map((unit) => unit.id),
+    [selectedUnits],
+  );
   const armyCounts = useMemo(() => countArmies(battle), [battle]);
   const selectedCounts = useMemo(() => countRoles(selectedUnits), [selectedUnits]);
+  const plannedCommandMarkers = useMemo<CommandMarker[]>(() => plannedCommands.map(
+    (command, index) => command.kind === "attack"
+      ? {
+          kind: "attack",
+          revision: index,
+          x: 0,
+          z: 0,
+          targetId: command.targetId,
+          unitIds: command.unitIds,
+          persistent: true,
+        }
+      : plannedAttackMoveMarker(command, index, battle),
+  ), [battle.units, plannedCommands]);
 
   const resetBattle = useCallback(() => {
-    setBattle(createInitialBattle());
+    setSession({
+      battle: createInitialBattle(),
+      phase: "briefing",
+      plannedCommands: [],
+    });
     setSelectedIds([]);
     setCommandMarker(null);
-    setCommandMode("move");
     setCameraResetToken((current) => current + 1);
+    cameraViewStore.publish(DEFAULT_CAMERA_VIEW);
     setBattleInstanceRevision((current) => current + 1);
-    setBattlePhase("briefing");
-  }, []);
+  }, [cameraViewStore]);
 
   const selectRole = useCallback((role?: UnitRole) => {
     setSelectedIds(battle.units
@@ -114,7 +157,10 @@ export function App() {
   }, [battle.units]);
 
   const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!battleAccess.inspectField || event.button !== 0) return;
+    if (
+      !battleAccess.inspectField
+      || !shouldStartFieldPointerInteraction(event.button, event.target as Element)
+    ) return;
     const point = localPointer(event);
     event.currentTarget.setPointerCapture(event.pointerId);
     setDrag({
@@ -149,23 +195,112 @@ export function App() {
         setSelectedIds((current) => applySelection(current, incoming, completed.mode));
       }
     } else {
-      const picked = pickProjectedUnit(
+      const friendlyId = pickProjectedUnit(
         bridgeRef.current.projectedUnits,
         "verdant",
         completed.endX,
         completed.endY,
       );
-      setSelectedIds((current) => applySelection(
-        current,
-        picked ? [picked] : [],
-        completed.mode,
-      ));
+      const enemyId = pickProjectedUnit(
+        bridgeRef.current.projectedUnits,
+        "crimson",
+        completed.endX,
+        completed.endY,
+      );
+      const intent = resolveFieldClickIntent({
+        canIssueCommands: (battleAccess.issueCommands || battleAccess.planCommands) && !battle.winner,
+        hasCommandableSelection: commandableSelectedIds.length > 0,
+        friendlyId,
+        enemyId,
+      });
+      if (intent.type === "select") {
+        const roleIds = selectLivingFriendlyRole(battle.units, intent.unitId);
+        setSelectedIds((current) => applySelection(
+          current,
+          roleIds,
+          completed.mode,
+        ));
+      } else if (intent.type === "attack") {
+        if (battleAccess.planCommands) {
+          setSession((current) => ({
+            ...current,
+            plannedCommands: queuePlannedCommand(current.plannedCommands, {
+              kind: "attack",
+              unitIds: commandableSelectedIds,
+              targetId: intent.targetId,
+            }),
+          }));
+        } else {
+          setSession((current) => ({
+            ...current,
+            battle: issueAttackCommand(
+              current.battle,
+              commandableSelectedIds,
+              intent.targetId,
+            ),
+          }));
+        }
+        const enemy = battle.units.find((unit) => unit.id === intent.targetId);
+        if (enemy && battleAccess.issueCommands) {
+          commandRevision.current += 1;
+          setCommandMarker({
+            ...enemy.position,
+            kind: "attack",
+            revision: commandRevision.current,
+            targetId: intent.targetId,
+          });
+        }
+      } else if (intent.type === "advance") {
+        const destination = bridgeRef.current.screenToWorld(completed.endX, completed.endY);
+        if (destination) {
+          if (battleAccess.planCommands) {
+            setSession((current) => ({
+              ...current,
+              plannedCommands: queuePlannedCommand(current.plannedCommands, {
+                kind: "attack-move",
+                unitIds: commandableSelectedIds,
+                destination,
+              }),
+            }));
+          } else {
+            setSession((current) => ({
+              ...current,
+              battle: issueAttackMoveCommand(
+                current.battle,
+                commandableSelectedIds,
+                destination,
+              ),
+            }));
+            commandRevision.current += 1;
+            setCommandMarker({
+              ...destination,
+              kind: "attack-move",
+              revision: commandRevision.current,
+              facing: commandFacing(
+                selectedUnits.map((unit) => unit.position),
+                destination,
+              ),
+              unitIds: [...commandableSelectedIds],
+            });
+          }
+        }
+      } else {
+        setSelectedIds((current) => applySelection(current, [], completed.mode));
+      }
     }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     setDrag(null);
-  }, [drag]);
+  }, [
+    battle.units,
+    battle.winner,
+    battleAccess.issueCommands,
+    battleAccess.planCommands,
+    commandableSelectedIds,
+    selectedUnits,
+    drag,
+  ]);
 
   const handlePointerCancel = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -173,60 +308,6 @@ export function App() {
     }
     setDrag(null);
   }, []);
-
-  const handleCommand = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    if (!battleAccess.issueCommands || selectedIds.length === 0 || battle.winner) return;
-    const point = localPointer(event);
-    const enemyId = pickProjectedUnit(
-      bridgeRef.current.projectedUnits,
-      "crimson",
-      point.x,
-      point.y,
-    );
-    if (enemyId) {
-      setBattle((current) => issueAttackCommand(current, selectedIds, enemyId));
-      const enemy = battle.units.find((unit) => unit.id === enemyId);
-      if (enemy) setCommandMarker({ ...enemy.position, kind: "attack", revision: battle.revision });
-      return;
-    }
-    const destination = bridgeRef.current.screenToWorld(point.x, point.y);
-    if (!destination) return;
-    setBattle((current) => commandMode === "attack-move"
-      ? issueAttackMoveCommand(current, selectedIds, destination)
-      : issueMoveCommand(current, selectedIds, destination));
-    setCommandMarker({ ...destination, kind: commandMode, revision: battle.revision });
-  }, [battle.revision, battle.units, battle.winner, battleAccess.issueCommands, commandMode, selectedIds]);
-
-  const stopSelected = useCallback(() => {
-    if (!battleAccess.issueCommands || selectedIds.length === 0 || battle.winner) return;
-    setBattle((current) => issueStopCommand(current, selectedIds));
-    setCommandMode("move");
-  }, [battle.winner, battleAccess.issueCommands, selectedIds]);
-
-  const holdSelected = useCallback(() => {
-    if (!battleAccess.issueCommands || selectedIds.length === 0 || battle.winner) return;
-    setBattle((current) => issueHoldCommand(current, selectedIds));
-    setCommandMode("move");
-  }, [battle.winner, battleAccess.issueCommands, selectedIds]);
-
-  useEffect(() => {
-    const handleCommandKey = (event: KeyboardEvent) => {
-      if (
-        !battleAccess.issueCommands
-        || event.repeat
-        || event.ctrlKey
-        || event.metaKey
-        || event.altKey
-      ) return;
-      if (event.key.toLowerCase() === "a") setCommandMode("attack-move");
-      if (event.key.toLowerCase() === "m" || event.key === "Escape") setCommandMode("move");
-      if (event.key.toLowerCase() === "s") stopSelected();
-      if (event.key.toLowerCase() === "h") holdSelected();
-    };
-    window.addEventListener("keydown", handleCommandKey);
-    return () => window.removeEventListener("keydown", handleCommandKey);
-  }, [battleAccess.issueCommands, holdSelected, stopSelected]);
 
   const handleWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -239,6 +320,11 @@ export function App() {
     width: Math.abs(drag.endX - drag.startX),
     height: Math.abs(drag.endY - drag.startY),
   } : undefined;
+
+  const engageBattle = useCallback(() => {
+    setSession(beginBattleSession);
+    setCommandMarker(null);
+  }, []);
 
   return (
     <main className={styles.appShell}>
@@ -272,7 +358,7 @@ export function App() {
             aria-hidden={battlePhase !== "briefing"}
             inert={battlePhase !== "briefing"}
             autoFocus
-            onClick={() => setBattlePhase("engaged")}
+            onClick={engageBattle}
           >
             <span>ISSUE ORDER</span>
             <strong><b aria-hidden="true">⚔</b> 交战</strong>
@@ -321,43 +407,6 @@ export function App() {
               </button>
             ))}
           </div>
-          <div className={styles.commandStrip} aria-label="部队命令">
-            <button
-              type="button"
-              className={styles.commandButton}
-              aria-pressed={commandMode === "attack-move"}
-              disabled={!battleAccess.issueCommands || selectedUnits.length === 0}
-              onClick={() => setCommandMode((current) => (
-                current === "attack-move" ? "move" : "attack-move"
-              ))}
-            >
-              <strong>攻击移动</strong>
-              <kbd>A</kbd>
-            </button>
-            <button
-              type="button"
-              className={styles.commandButton}
-              disabled={!battleAccess.issueCommands || selectedUnits.length === 0}
-              onClick={holdSelected}
-            >
-              <strong>坚守</strong>
-              <kbd>H</kbd>
-            </button>
-            <button
-              type="button"
-              className={styles.commandButton}
-              disabled={!battleAccess.issueCommands || selectedUnits.length === 0}
-              onClick={stopSelected}
-            >
-              <strong>停止</strong>
-              <kbd>S</kbd>
-            </button>
-          </div>
-          <div className={styles.selectionSummary}>
-            <span>当前编队</span>
-            <strong>{selectedUnits.length > 0 ? `${selectedUnits.length} 名单位` : "尚未选兵"}</strong>
-            <small>{selectedUnits.length > 0 ? "右键地面移动 · 右键敌军集火" : "左键点选，或拖动框选己方单位"}</small>
-          </div>
         </aside>
 
         <div
@@ -366,7 +415,7 @@ export function App() {
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerCancel}
-          onContextMenu={handleCommand}
+          onContextMenu={(event) => event.preventDefault()}
           onWheel={handleWheel}
         >
           <BattlefieldCanvas
@@ -374,19 +423,35 @@ export function App() {
             selectedIds={selectedIds}
             bridgeRef={bridgeRef}
             commandMarker={commandMarker}
+            plannedCommandMarkers={plannedCommandMarkers}
             cameraResetToken={cameraResetToken}
+            cameraViewStore={cameraViewStore}
+            onBenchmarkUpdate={benchmarkMode ? setBenchmark : undefined}
           />
+          {benchmarkMode && (
+            <output className={styles.benchmarkPanel} data-complete={benchmark?.complete ?? false}>
+              <strong>BENCHMARK 80 · {benchmark?.complete ? "完成" : "采样中"}</strong>
+              <span>中位 FPS：{benchmark?.medianFps ?? "—"}</span>
+              <span>1% LOW：{benchmark?.onePercentLowFps ?? "—"}</span>
+              <span>Draw calls：{benchmark?.drawCalls ?? "—"}</span>
+              <span>Triangles：{benchmark?.triangles.toLocaleString() ?? "—"}</span>
+              <small>{benchmark?.frames ?? 0} frames / 10 sec</small>
+            </output>
+          )}
           {drag && <div className={styles.selectionBox} style={dragStyle} />}
           <div className={styles.fieldCaption}>
             <span>方向键平移</span>
             <span>滚轮缩放</span>
             <span>中键旋转</span>
-            <span>左键选择</span>
-            <span>右键下令</span>
+            <span>左键 / 触屏：选择或进攻</span>
           </div>
           <div className={styles.objectiveFlag}>
             <span>41 对 41 · 战斗目标</span>
-            <strong>{commandMode === "attack-move" ? "选择攻击移动落点" : "击溃猩红军团"}</strong>
+            <strong>{battlePhase === "briefing"
+              ? plannedCommands.length > 0
+                ? `已预设 ${plannedCommands.length} 路军令 · 可继续调整`
+                : "选兵后点击敌军或空地预设军令"
+              : "选兵后点击战场下令"}</strong>
           </div>
           <div
             className={styles.victoryBanner}
@@ -399,6 +464,12 @@ export function App() {
             <button type="button" onClick={resetBattle}>再次交锋</button>
           </div>
         </div>
+
+        <TacticalHudPanel
+          battle={battle}
+          selectedIds={selectedIds}
+          cameraViewStore={cameraViewStore}
+        />
 
         <aside className={styles.enemyRail} aria-label="敌军状态">
           <span>ENEMY HOST</span>
@@ -415,7 +486,7 @@ export function App() {
 }
 
 function useBattleLoop(
-  setBattle: (update: (state: BattleState) => BattleState) => void,
+  setSession: Dispatch<SetStateAction<BattleSessionState>>,
   phase: BattlePhase,
 ): void {
   useEffect(() => {
@@ -429,18 +500,21 @@ function useBattleLoop(
       if (accumulator >= SIMULATION_STEP_SECONDS) {
         const steps = Math.min(4, Math.floor(accumulator / SIMULATION_STEP_SECONDS));
         accumulator -= steps * SIMULATION_STEP_SECONDS;
-        setBattle((current) => advanceBattleSession(
-          current,
-          phase,
-          steps,
-          SIMULATION_STEP_SECONDS,
-        ));
+        setSession((current) => ({
+          ...current,
+          battle: advanceBattleSession(
+            current.battle,
+            current.phase,
+            steps,
+            SIMULATION_STEP_SECONDS,
+          ),
+        }));
       }
       animationFrame = requestAnimationFrame(frame);
     };
     animationFrame = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(animationFrame);
-  }, [phase, setBattle]);
+  }, [phase, setSession]);
 }
 
 function localPointer(event: Pick<ReactPointerEvent<HTMLDivElement>, "clientX" | "clientY" | "currentTarget">) {
@@ -499,10 +573,38 @@ function formatTime(seconds: number): string {
 }
 
 function winnerLabel(winner: BattleState["winner"]): string {
-  if (winner === "verdant") return "翠绿军团获胜";
+  if (winner === "verdant") return "苍蓝军团获胜";
   if (winner === "crimson") return "猩红军团获胜";
   if (winner === "draw") return "双方同归于尽";
   return "";
+}
+
+function commandFacing(points: readonly WorldPoint[], destination: WorldPoint): number {
+  if (points.length === 0) return 0;
+  const total = points.reduce(
+    (sum, point) => ({ x: sum.x + point.x, z: sum.z + point.z }),
+    { x: 0, z: 0 },
+  );
+  const center = { x: total.x / points.length, z: total.z / points.length };
+  return Math.atan2(destination.x - center.x, destination.z - center.z);
+}
+
+function plannedAttackMoveMarker(
+  command: Extract<PlannedCommand, { readonly kind: "attack-move" }>,
+  revision: number,
+  battle: BattleState,
+): CommandMarker {
+  const units = battle.units.filter((unit) => (
+    command.unitIds.includes(unit.id)
+    && unit.health > 0
+  ));
+  return {
+    ...command.destination,
+    kind: "attack-move",
+    revision,
+    facing: commandFacing(units.map((unit) => unit.position), command.destination),
+    persistent: true,
+  };
 }
 
 export type { WorldPoint };

@@ -1,4 +1,4 @@
-import type { Faction, UnitRole, WorldPoint } from "./types";
+import type { UnitRole, WorldPoint } from "./types";
 
 interface BattleEventBase {
   readonly sequence: number;
@@ -45,11 +45,6 @@ export type BattleEventInput =
       readonly type: "unit-died";
       readonly unitId: string;
       readonly killerId: string | null;
-    }
-  | {
-      readonly type: "squad-routed";
-      readonly squadId: string;
-      readonly faction: Faction;
     };
 
 export type BattleEvent = BattleEventInput & BattleEventBase;

@@ -17,7 +17,12 @@ import { useEffect, useMemo, useRef } from "react";
 
 import type { BattleUnit, WorldPoint } from "../../game/battle";
 import { terrainHeightAt } from "../../map/battlefield";
-import { MOBILE_CATAPULT_PARTS, SCENE_MODEL_URLS } from "../assets";
+import {
+  FACTION_SCENE_COLORS,
+  MOBILE_CATAPULT_PARTS,
+  SCENE_MODEL_URLS,
+  UNIT_BASE_RING_GEOMETRY,
+} from "../assets";
 import {
   catapultMotionPose,
   operatorAnimationForStatus,
@@ -171,6 +176,7 @@ export function CatapultUnitModel({
 
   const healthRatio = Math.max(0, unit.health / unit.maxHealth);
   const healthWidth = 1.22 * healthRatio;
+  const baseRing = UNIT_BASE_RING_GEOMETRY.catapult;
   return (
     <group
       ref={root}
@@ -181,12 +187,13 @@ export function CatapultUnitModel({
         <primitive object={catapult.model} />
         <primitive object={operator} position={[0.72, 0, -0.62]} rotation={[0, -0.16, 0]} />
       </group>
-      <mesh position={[0, 0.045, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <circleGeometry args={[0.82, 28]} />
+      <mesh position={[0, 0.045, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[baseRing.innerRadius, baseRing.outerRadius, baseRing.segments]} />
         <meshBasicMaterial
-          color={unit.faction === "verdant" ? "#194d34" : "#5d2024"}
+          color={FACTION_SCENE_COLORS[unit.faction].accent}
           transparent
-          opacity={0.72}
+          opacity={0.9}
+          depthWrite={false}
         />
       </mesh>
       {selected && unit.health > 0 && (
@@ -195,7 +202,7 @@ export function CatapultUnitModel({
           <meshBasicMaterial color="#f1cf6a" transparent opacity={0.95} depthWrite={false} />
         </mesh>
       )}
-      {attackSequence !== undefined && unit.health > 0 && !unit.routed && (
+      {attackSequence !== undefined && unit.health > 0 && (
         <SiegePulse key={attackSequence} />
       )}
       {unit.health > 0 && healthRatio < 0.7 && (
@@ -207,7 +214,7 @@ export function CatapultUnitModel({
           <mesh position={[-(1.22 - healthWidth) / 2, 0, 0.006]}>
             <planeGeometry args={[healthWidth, 0.076]} />
             <meshBasicMaterial
-              color={unit.faction === "verdant" ? "#50d88e" : "#df4c4f"}
+              color={FACTION_SCENE_COLORS[unit.faction].accent}
               depthTest={false}
             />
           </mesh>
@@ -243,11 +250,11 @@ function prepareCatapult(
   faction: BattleUnit["faction"],
 ): PreparedCatapult {
   const model = source.clone(true);
-  const tint = new Color(faction === "verdant" ? "#65d591" : "#db5555");
+  const tint = new Color(FACTION_SCENE_COLORS[faction].tint);
   model.scale.setScalar(2.2);
   model.traverse((object) => {
     if (!(object instanceof Mesh)) return;
-    object.castShadow = true;
+    object.castShadow = false;
     object.receiveShadow = true;
     const materials = Array.isArray(object.material) ? object.material : [object.material];
     const tinted = materials.map((material) => tintMaterial(material, tint, 0.12));
@@ -265,11 +272,11 @@ function prepareCatapult(
 
 function prepareOperator(source: Object3D, faction: BattleUnit["faction"]): Object3D {
   const model = cloneSkeleton(source);
-  const tint = new Color(faction === "verdant" ? "#65d591" : "#db5555");
+  const tint = new Color(FACTION_SCENE_COLORS[faction].tint);
   model.scale.setScalar(0.25);
   model.traverse((object) => {
     if (!(object instanceof Mesh)) return;
-    object.castShadow = true;
+    object.castShadow = false;
     object.receiveShadow = true;
     const materials = Array.isArray(object.material) ? object.material : [object.material];
     const tinted = materials.map((material) => tintMaterial(material, tint, 0.34));

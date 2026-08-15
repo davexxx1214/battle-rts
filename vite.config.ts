@@ -23,6 +23,20 @@ export default defineConfig({
     host: "127.0.0.1",
     port: 4174,
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [{
+            name: "vendor",
+            test: /node_modules[\\/]/,
+            maxSize: 400_000,
+            priority: 10,
+          }],
+        },
+      },
+    },
+  },
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],

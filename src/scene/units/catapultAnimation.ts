@@ -1,4 +1,4 @@
-export type CatapultPresentationStatus = "idle" | "moving" | "attacking" | "routing" | "dead";
+export type CatapultPresentationStatus = "idle" | "moving" | "attacking" | "dead";
 
 export interface CatapultMotionPose {
   readonly armRotation: number;
@@ -51,7 +51,7 @@ export function wheelRotationForTravel(distance: number, wheelRadius = 0.31): nu
 
 export function operatorAnimationForStatus(status: CatapultPresentationStatus): string {
   if (status === "dead") return "Death_A";
-  if (status === "moving" || status === "routing") return "Walking_A";
+  if (status === "moving") return "Walking_A";
   if (status === "attacking") return "Working_B";
   return "Idle_A";
 }

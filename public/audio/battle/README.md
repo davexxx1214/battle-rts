@@ -15,7 +15,7 @@ Generated with Fal model `sonilo/v1.1/text-to-sound-effects`. These files contai
 | Occasional `damage-applied` reaction | `unit_hurt_armor_01`, `unit_hurt_armor_02` |
 | `unit-died` | `unit_death_armor_01`, `unit_death_armor_02` |
 | Player move or attack command | `command_move`, `command_attack` |
-| Victory or future squad retreat | `war_horn_victory`, `war_horn_retreat` |
+| Victory | `war_horn_victory` |
 | Quiet battlefield ambience | `ambient_wind_loop` |
 
 Do not play a hurt reaction for every damage event in a large battle. Use probability and concurrency limits so the mix stays readable. The versioned `cues.json` file is the runtime contract for event mappings, gain ranges, and simultaneous limits.
