@@ -1,3 +1,5 @@
+import type { BattlefieldSceneryKind } from "../map/battlefieldScenery";
+
 export const SCENE_MODEL_URLS = {
   mobileCatapult: "/assets/generated/tripo/runtime/mobile-catapult.glb",
   catapultOperator: "/assets/kaykit/adventurers/characters/Knight.glb",
@@ -33,6 +35,44 @@ export const UNIT_BASE_RING_GEOMETRY = {
     segments: 36,
   },
 } as const;
+
+export const SCENERY_SCENE_ASSETS = {
+  tree: {
+    url: "/assets/kaykit/medieval-hex/decoration/nature/tree_single_A.gltf",
+    scale: 1.34,
+  },
+  bush: {
+    url: "/assets/kaykit/forest-nature/forage/Bush_1_B_Color1.gltf",
+    scale: 0.9,
+  },
+  stone: {
+    url: "/assets/kaykit/medieval-hex/decoration/props/resource_stone.gltf",
+    scale: 2.35,
+  },
+  iron: {
+    url: "/assets/kaykit/resource-bits/iron/Iron_Nuggets.gltf",
+    scale: 0.92,
+  },
+  tent: {
+    url: "/assets/kaykit/medieval-hex/decoration/props/tent.gltf",
+    scale: 2.2,
+  },
+  wheelbarrow: {
+    url: "/assets/kaykit/medieval-hex/decoration/props/wheelbarrow.gltf",
+    scale: 1.9,
+  },
+  "farm-dirt": {
+    url: "/assets/kaykit/medieval-hex/buildings/neutral/building_dirt.gltf",
+    scale: 0.96,
+  },
+  "farm-grain": {
+    url: "/assets/kaykit/medieval-hex/buildings/neutral/building_grain.gltf",
+    scale: 0.96,
+  },
+} as const satisfies Readonly<Record<
+  BattlefieldSceneryKind,
+  { readonly url: string; readonly scale: number }
+>>;
 
 export const STRUCTURE_SCENE_ASSETS = {
   verdant: {

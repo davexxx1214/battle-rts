@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   FACTION_SCENE_COLORS,
+  SCENERY_SCENE_ASSETS,
   SCENE_MODEL_URLS,
   STRUCTURE_SCENE_ASSETS,
   UNIT_BASE_RING_GEOMETRY,
@@ -42,6 +43,24 @@ describe("scene asset presentation", () => {
       "wall_straight_gate_door_left",
       "wall_straight_gate_door_right",
     ]);
+  });
+
+  it("maps every battlefield scenery kind to a local KayKit model", () => {
+    expect(Object.keys(SCENERY_SCENE_ASSETS).sort()).toEqual([
+      "bush",
+      "farm-dirt",
+      "farm-grain",
+      "iron",
+      "stone",
+      "tent",
+      "tree",
+      "wheelbarrow",
+    ]);
+    for (const asset of Object.values(SCENERY_SCENE_ASSETS)) {
+      expect(asset.url).toContain("/assets/kaykit/");
+      expect(asset.url).toMatch(/\.gltf$/);
+      expect(asset.scale).toBeGreaterThan(0);
+    }
   });
 
   it("defines hollow faction rings for character and catapult bases", () => {

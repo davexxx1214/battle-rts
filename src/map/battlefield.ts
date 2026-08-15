@@ -1,11 +1,18 @@
 import type { Faction, WorldPoint } from "../game/types";
+import { BLOCKING_SCENERY_KEYS } from "./battlefieldScenery";
+import {
+  BATTLEFIELD_RADIUS,
+  battlefieldCoordinates,
+  battlefieldSurfaceAt,
+  type TerrainSurface,
+} from "./battlefieldLayout";
+
+export type { TerrainSurface } from "./battlefieldLayout";
 
 export interface HexCoordinate {
   readonly q: number;
   readonly r: number;
 }
-
-export type TerrainSurface = "grass" | "water" | "bridge" | "forest" | "camp" | "rock";
 
 export interface BattlefieldCell extends HexCoordinate {
   readonly height: number;
@@ -65,7 +72,6 @@ export type BattlefieldDecoration =
       readonly rotationY: number;
     };
 
-const HEX_RADIUS = 9;
 const HEIGHT_LOW = 0;
 const HEIGHT_MIDDLE = 0.36;
 const HEIGHT_HIGH = 0.72;
@@ -150,48 +156,22 @@ export function hexDistance(first: HexCoordinate, second: HexCoordinate): number
 }
 
 function createBattlefieldMap(): BattlefieldMap {
-  const cells: BattlefieldCell[] = [];
-  for (let q = -HEX_RADIUS; q <= HEX_RADIUS; q += 1) {
-    const minimumR = Math.max(-HEX_RADIUS, -q - HEX_RADIUS);
-    const maximumR = Math.min(HEX_RADIUS, -q + HEX_RADIUS);
-    for (let r = minimumR; r <= maximumR; r += 1) {
-      cells.push(createCell(q, r));
-    }
-  }
+  const cells = battlefieldCoordinates().map(([q, r]) => createCell(q, r));
   return {
     cells,
     verdantCamp: { q: -3, r: 6 },
     crimsonCamp: { q: 3, r: -6 },
     center: { q: 0, r: 0 },
-    radius: HEX_RADIUS,
+    radius: BATTLEFIELD_RADIUS,
   };
 }
 
 function createCell(q: number, r: number): BattlefieldCell {
   const distance = hexDistance({ q, r }, { q: 0, r: 0 });
-  const isWater = Math.abs(r) <= 1 && Math.abs(q) >= 3 && Math.abs(q) <= 7;
-  const isBridge = Math.abs(r) <= 1 && Math.abs(q) <= 2;
-  const isCamp = Math.abs(r) >= 6 && Math.abs(2 * q + r) <= 4;
-  const isForest = distance >= 6
-    && Math.abs(q) >= 4
-    && positiveModulo(q * 11 + r * 7, 5) <= 1;
-  const isRock = distance >= 7
-    && !isCamp
-    && positiveModulo(q * 5 - r * 13, 11) === 0;
-  const surface: TerrainSurface = isWater
-    ? "water"
-    : isBridge
-      ? "bridge"
-      : isCamp
-        ? "camp"
-        : isForest
-          ? "forest"
-          : isRock
-            ? "rock"
-            : "grass";
-  const height = isWater
+  const surface = battlefieldSurfaceAt(q, r);
+  const height = surface === "water"
     ? -0.26
-    : isCamp
+    : surface === "camp"
       ? HEIGHT_HIGH
       : distance <= 3
         ? HEIGHT_MIDDLE
@@ -206,7 +186,8 @@ function createCell(q: number, r: number): BattlefieldCell {
     walkable: surface !== "water"
       && surface !== "forest"
       && surface !== "rock"
-      && !STRUCTURE_FOOTPRINT_KEYS.has(`${q},${r}`),
+      && !STRUCTURE_FOOTPRINT_KEYS.has(`${q},${r}`)
+      && !BLOCKING_SCENERY_KEYS.has(`${q},${r}`),
   };
 }
 
@@ -228,10 +209,6 @@ function roundAxial(q: number, r: number): HexCoordinate {
   }
   void roundedS;
   return { q: roundedQ, r: roundedR };
-}
-
-function positiveModulo(value: number, divisor: number): number {
-  return ((value % divisor) + divisor) % divisor;
 }
 
 function createCampStructures(faction: Faction): BattlefieldStructure[] {

@@ -11,7 +11,7 @@ import {
 } from "three";
 import type { Material } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { Suspense, useLayoutEffect, useMemo, useRef } from "react";
 
 import {
   BATTLEFIELD_DECORATIONS,
@@ -23,12 +23,16 @@ import {
   type BattlefieldDecoration,
   type BattlefieldStructure,
 } from "../../map/battlefield";
-import { STRUCTURE_SCENE_ASSETS } from "../assets";
+import {
+  BATTLEFIELD_SCENERY,
+  BATTLEFIELD_SCENERY_KINDS,
+  type BattlefieldSceneryKind,
+} from "../../map/battlefieldScenery";
+import { SCENERY_SCENE_ASSETS, STRUCTURE_SCENE_ASSETS } from "../assets";
 import { miningCartPose } from "./miningCartMotion";
 
 const GRASS_TILE_URL = "/assets/kaykit/medieval-hex/tiles/base/hex_grass.gltf";
 const WATER_TILE_URL = "/assets/kaykit/medieval-hex/tiles/base/hex_water.gltf";
-const TREE_URL = "/assets/kaykit/medieval-hex/decoration/nature/tree_single_A.gltf";
 const EMPTY_HIDDEN_NODES: readonly string[] = [];
 
 export function BattlefieldTerrain() {
@@ -36,6 +40,9 @@ export function BattlefieldTerrain() {
     <>
       <HexArena />
       <BattlefieldProps />
+      <Suspense fallback={null}>
+        <BattlefieldSceneryLayer />
+      </Suspense>
     </>
   );
 }
@@ -73,6 +80,16 @@ function HexArena() {
         <cylinderGeometry args={[22, 23.5, 1.5, 54]} />
         <meshStandardMaterial color="#4b8fa4" roughness={0.62} metalness={0.04} />
       </mesh>
+    </group>
+  );
+}
+
+function BattlefieldSceneryLayer() {
+  return (
+    <group>
+      {BATTLEFIELD_SCENERY_KINDS.map((kind) => (
+        <SceneryInstances kind={kind} key={kind} />
+      ))}
     </group>
   );
 }
@@ -131,40 +148,11 @@ function TileInstances({
 }
 
 function BattlefieldProps() {
-  const forestCells = BATTLEFIELD_MAP.cells.filter((cell) => cell.surface === "forest");
-  const rockCells = BATTLEFIELD_MAP.cells.filter((cell) => cell.surface === "rock");
   const structuresById = new Map(
     BATTLEFIELD_STRUCTURES.map((structure) => [structure.id, structure] as const),
   );
   return (
     <group>
-      {forestCells.map((cell, index) => {
-        const world = axialToWorld(cell);
-        return (
-          <StaticAsset
-            url={TREE_URL}
-            position={[world.x, cell.height + 0.02, world.z]}
-            scale={0.76 + (index % 4) * 0.08}
-            rotationY={(index % 6) * Math.PI / 3}
-            key={`tree-${cell.q}-${cell.r}`}
-          />
-        );
-      })}
-      {rockCells.map((cell) => {
-        const world = axialToWorld(cell);
-        return (
-          <mesh
-            castShadow
-            receiveShadow
-            position={[world.x, cell.height + 0.48, world.z]}
-            rotation={[0.1, (cell.q - cell.r) * 0.4, -0.08]}
-            key={`rock-${cell.q}-${cell.r}`}
-          >
-            <dodecahedronGeometry args={[0.64, 0]} />
-            <meshStandardMaterial color="#59615a" roughness={0.96} />
-          </mesh>
-        );
-      })}
       {BATTLEFIELD_STRUCTURES.map((structure) => {
         const world = axialToWorld(structure.coordinate);
         const asset = sceneAssetForStructure(structure);
@@ -187,6 +175,45 @@ function BattlefieldProps() {
         />
       ))}
     </group>
+  );
+}
+
+function SceneryInstances({ kind }: { readonly kind: BattlefieldSceneryKind }) {
+  const asset = SCENERY_SCENE_ASSETS[kind];
+  const gltf = useLoader(GLTFLoader, asset.url);
+  const template = useMemo(() => extractGroundedMeshTemplate(gltf.scene), [gltf.scene]);
+  const items = useMemo(
+    () => BATTLEFIELD_SCENERY.filter((item) => item.kind === kind),
+    [kind],
+  );
+  const instances = useRef<InstancedMesh>(null);
+  useLayoutEffect(() => {
+    const mesh = instances.current;
+    if (!mesh) return;
+    const transform = new Object3D();
+    for (const [index, item] of items.entries()) {
+      const center = axialToWorld(item.coordinate);
+      const scale = asset.scale * item.scale;
+      transform.position.set(
+        center.x + item.offset.x,
+        terrainHeightAt(center) + 0.02,
+        center.z + item.offset.z,
+      );
+      transform.rotation.set(0, item.rotationY, 0);
+      transform.scale.setScalar(scale);
+      transform.updateMatrix();
+      mesh.setMatrixAt(index, transform.matrix);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+  }, [asset.scale, items]);
+  return (
+    <instancedMesh
+      ref={instances}
+      args={[template.geometry, template.material, items.length]}
+      castShadow
+      receiveShadow
+      frustumCulled={false}
+    />
   );
 }
 
@@ -333,6 +360,16 @@ function extractMeshTemplate(source: Object3D): TileTemplate {
     : tileMesh.material.clone();
   if (!material) throw new Error("Tile GLTF does not contain a material.");
   return { geometry, material };
+}
+
+function extractGroundedMeshTemplate(source: Object3D): TileTemplate {
+  const template = extractMeshTemplate(source);
+  template.geometry.computeBoundingBox();
+  const minimumY = template.geometry.boundingBox?.min.y;
+  if (minimumY !== undefined && Number.isFinite(minimumY)) {
+    template.geometry.translate(0, -minimumY, 0);
+  }
+  return template;
 }
 
 function createOuterWaterRing(radius: number): BattlefieldCell[] {
