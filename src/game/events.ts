@@ -7,6 +7,11 @@ interface BattleEventBase {
 
 export type BattleEventInput =
   | {
+      readonly type: "gold-full";
+      readonly faction: Faction;
+      readonly promptSequence: number;
+    }
+  | {
       readonly type: "attack-started";
       readonly attackerId: string;
       readonly targetId: string;

@@ -34,6 +34,18 @@ describe("battlefield island", () => {
     }
   });
 
+  it("keeps a complete attack route from each camp to the enemy castle approach", () => {
+    const routes = [
+      [BATTLEFIELD_MAP.verdantCamp, BATTLEFIELD_MAP.castleApproaches.crimson],
+      [BATTLEFIELD_MAP.crimsonCamp, BATTLEFIELD_MAP.castleApproaches.verdant],
+    ] as const;
+    for (const [start, goal] of routes) {
+      const path = findHexPath(BATTLEFIELD_MAP, start, goal);
+      expect(path.length).toBeGreaterThan(1);
+      expect(path.every((coordinate) => getBattlefieldCell(coordinate)?.walkable)).toBe(true);
+    }
+  });
+
   it("marks every battlefield structure footprint as blocked terrain", () => {
     expect(BATTLEFIELD_STRUCTURES).toHaveLength(2);
     for (const structure of BATTLEFIELD_STRUCTURES) {
@@ -51,5 +63,31 @@ describe("battlefield island", () => {
     ]) {
       expect(worldToAxial(axialToWorld(coordinate))).toEqual(coordinate);
     }
+  });
+
+  it("assigns fixed territories while keeping the river and bridge neutral", () => {
+    const verdantCells = BATTLEFIELD_MAP.cells.filter((cell) => cell.territory === "verdant");
+    const crimsonCells = BATTLEFIELD_MAP.cells.filter((cell) => cell.territory === "crimson");
+
+    expect(verdantCells.length).toBeGreaterThan(0);
+    expect(crimsonCells.length).toBe(verdantCells.length);
+    expect(verdantCells.every((cell) => cell.r >= 2)).toBe(true);
+    expect(crimsonCells.every((cell) => cell.r <= -2)).toBe(true);
+    expect(BATTLEFIELD_MAP.cells.filter((cell) => Math.abs(cell.r) <= 1)
+      .every((cell) => cell.territory === null)).toBe(true);
+  });
+
+  it("marks reserved routes, obstacles, bridges, and castle cells as unbuildable", () => {
+    const reserved = BATTLEFIELD_MAP.cells.filter((cell) => cell.reservedForPath);
+    expect(reserved.length).toBeGreaterThan(0);
+    expect(reserved.every((cell) => !cell.buildable)).toBe(true);
+    expect(BATTLEFIELD_MAP.cells.filter((cell) => (
+      cell.surface === "water"
+      || cell.surface === "bridge"
+      || cell.surface === "forest"
+      || cell.surface === "rock"
+    )).every((cell) => !cell.buildable)).toBe(true);
+    expect(getBattlefieldCell(BATTLEFIELD_MAP.castles.verdant)?.buildable).toBe(false);
+    expect(getBattlefieldCell(BATTLEFIELD_MAP.castles.crimson)?.buildable).toBe(false);
   });
 });

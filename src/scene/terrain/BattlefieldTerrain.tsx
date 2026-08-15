@@ -254,7 +254,16 @@ function createOuterWaterRing(radius: number): BattlefieldCell[] {
     for (let r = minimumR; r <= maximumR; r += 1) {
       const distance = (Math.abs(q) + Math.abs(r) + Math.abs(-q - r)) / 2;
       if (distance === radius) {
-        cells.push({ q, r, height: -0.34, surface: "water", walkable: false });
+        cells.push({
+          q,
+          r,
+          height: -0.34,
+          surface: "water",
+          walkable: false,
+          territory: null,
+          buildable: false,
+          reservedForPath: false,
+        });
       }
     }
   }

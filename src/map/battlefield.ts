@@ -11,6 +11,9 @@ export interface BattlefieldCell extends HexCoordinate {
   readonly height: number;
   readonly surface: TerrainSurface;
   readonly walkable: boolean;
+  readonly territory: Faction | null;
+  readonly buildable: boolean;
+  readonly reservedForPath: boolean;
 }
 
 export interface BattlefieldMap {
@@ -18,6 +21,8 @@ export interface BattlefieldMap {
   readonly verdantCamp: HexCoordinate;
   readonly crimsonCamp: HexCoordinate;
   readonly center: HexCoordinate;
+  readonly castles: Readonly<Record<Faction, HexCoordinate>>;
+  readonly castleApproaches: Readonly<Record<Faction, HexCoordinate>>;
   readonly radius: number;
 }
 
@@ -34,6 +39,22 @@ const HEX_RADIUS = 9;
 const HEIGHT_LOW = 0;
 const HEIGHT_MIDDLE = 0.36;
 const HEIGHT_HIGH = 0.72;
+const CASTLE_COORDINATES: Readonly<Record<Faction, HexCoordinate>> = {
+  verdant: { q: 0, r: 7 },
+  crimson: { q: 0, r: -7 },
+};
+const CASTLE_APPROACHES: Readonly<Record<Faction, HexCoordinate>> = {
+  verdant: { q: -1, r: 8 },
+  crimson: { q: 1, r: -8 },
+};
+const CASTLE_ROUTE_BRANCH_KEYS = new Set([
+  "-3,8",
+  "-2,8",
+  "-1,8",
+  "3,-8",
+  "2,-8",
+  "1,-8",
+]);
 
 export const BATTLEFIELD_STRUCTURES: readonly BattlefieldStructure[] = [
   {
@@ -73,6 +94,10 @@ export function worldToAxial(point: WorldPoint): HexCoordinate {
   const fractionalR = point.z / Math.sqrt(3);
   const fractionalQ = (point.x - fractionalR) / 2;
   return roundAxial(fractionalQ, fractionalR);
+}
+
+export function coordinateKey(coordinate: HexCoordinate): string {
+  return `${coordinate.q},${coordinate.r}`;
 }
 
 export function getBattlefieldCell(
@@ -116,6 +141,8 @@ function createBattlefieldMap(): BattlefieldMap {
     verdantCamp: { q: -3, r: 7 },
     crimsonCamp: { q: 3, r: -7 },
     center: { q: 0, r: 0 },
+    castles: CASTLE_COORDINATES,
+    castleApproaches: CASTLE_APPROACHES,
     radius: HEX_RADIUS,
   };
 }
@@ -125,11 +152,15 @@ function createCell(q: number, r: number): BattlefieldCell {
   const isWater = Math.abs(r) <= 1 && Math.abs(q) >= 3 && Math.abs(q) <= 7;
   const isBridge = Math.abs(r) <= 1 && Math.abs(q) <= 2;
   const isCamp = Math.abs(r) >= 6 && Math.abs(2 * q + r) <= 4;
+  const isReservedRoute = Math.abs(2 * q + r) <= 1
+    || CASTLE_ROUTE_BRANCH_KEYS.has(coordinateKey({ q, r }));
   const isForest = distance >= 6
     && Math.abs(q) >= 4
+    && !isReservedRoute
     && positiveModulo(q * 11 + r * 7, 5) <= 1;
   const isRock = distance >= 7
     && !isCamp
+    && !isReservedRoute
     && positiveModulo(q * 5 - r * 13, 11) === 0;
   const surface: TerrainSurface = isWater
     ? "water"
@@ -151,15 +182,28 @@ function createCell(q: number, r: number): BattlefieldCell {
         : distance <= 6
           ? HEIGHT_LOW
           : HEIGHT_MIDDLE;
+  const walkable = surface !== "water"
+    && surface !== "forest"
+    && surface !== "rock"
+    && !STRUCTURE_FOOTPRINT_KEYS.has(coordinateKey({ q, r }));
+  const territory: Faction | null = r >= 2
+    ? "verdant"
+    : r <= -2
+      ? "crimson"
+      : null;
+  const reservedForPath = walkable && isReservedRoute;
   return {
     q,
     r,
     height,
     surface,
-    walkable: surface !== "water"
-      && surface !== "forest"
-      && surface !== "rock"
-      && !STRUCTURE_FOOTPRINT_KEYS.has(`${q},${r}`),
+    walkable,
+    territory,
+    reservedForPath,
+    buildable: territory !== null
+      && walkable
+      && surface !== "bridge"
+      && !reservedForPath,
   };
 }
 

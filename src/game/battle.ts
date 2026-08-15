@@ -31,8 +31,21 @@ import {
   worldToAxial,
 } from "../map/battlefield";
 import type { Faction, UnitRole, WorldPoint } from "./types";
+import { UNIT_SPECS } from "./rules";
+import {
+  advanceEconomy,
+  createEconomyState,
+  getMatchClock,
+  type EconomyState,
+  type MatchClock,
+} from "./economy";
+import {
+  createBuildingOccupancy,
+  type BuildingOccupancy,
+} from "./deployment";
 
 export type { Faction, UnitRole, WorldPoint } from "./types";
+export { UNIT_SPECS } from "./rules";
 export type UnitStatus = "idle" | "moving" | "attacking" | "routing" | "dead";
 
 export type UnitOrder =
@@ -47,19 +60,7 @@ export type UnitOrder =
   | { readonly type: "hold"; readonly position: WorldPoint }
   | { readonly type: "retreat"; readonly destination: WorldPoint };
 
-export interface UnitSpec {
-  readonly attackMode: "melee" | "projectile";
-  readonly rangeResponse: "stand" | "skirmish";
-  readonly maxHealth: number;
-  readonly damage: number;
-  readonly attackRange: number;
-  readonly minimumRange: number;
-  readonly attackCooldown: number;
-  readonly moveSpeed: number;
-  readonly aggroRange: number;
-  readonly splashRadius: number;
-  readonly projectileSpeed: number;
-}
+export type { UnitSpec } from "./rules";
 
 export interface BattleUnit {
   readonly id: string;
@@ -86,6 +87,9 @@ export interface BattleState {
   readonly squads: readonly BattleSquad[];
   readonly projectiles: readonly BattleProjectile[];
   readonly events: readonly BattleEvent[];
+  readonly economy: EconomyState;
+  readonly matchElapsed: number;
+  readonly buildingOccupancy: BuildingOccupancy;
   readonly nextEventSequence: number;
   readonly elapsed: number;
   readonly winner: Faction | "draw" | null;
@@ -117,61 +121,6 @@ const EVENT_WINDOW_SECONDS = 2;
 const RANGED_PRESSURE_DISTANCE = 2.35;
 const POST_BATTLE_PRESENTATION_SECONDS = 8;
 
-export const UNIT_SPECS = {
-  knight: {
-    attackMode: "melee",
-    rangeResponse: "stand",
-    maxHealth: 220,
-    damage: 5.25,
-    attackRange: 1.22,
-    minimumRange: 0,
-    attackCooldown: 1.1,
-    moveSpeed: 3.25,
-    aggroRange: 7.5,
-    splashRadius: 0,
-    projectileSpeed: 0,
-  },
-  ranger: {
-    attackMode: "projectile",
-    rangeResponse: "skirmish",
-    maxHealth: 122,
-    damage: 4,
-    attackRange: 7,
-    minimumRange: 5.5,
-    attackCooldown: 1.4,
-    moveSpeed: 3.55,
-    aggroRange: 9,
-    splashRadius: 0,
-    projectileSpeed: 14,
-  },
-  mage: {
-    attackMode: "projectile",
-    rangeResponse: "skirmish",
-    maxHealth: 102,
-    damage: 5,
-    attackRange: 6.2,
-    minimumRange: 4.5,
-    attackCooldown: 2,
-    moveSpeed: 3.05,
-    aggroRange: 8.5,
-    splashRadius: 2.25,
-    projectileSpeed: 8,
-  },
-  catapult: {
-    attackMode: "projectile",
-    rangeResponse: "stand",
-    maxHealth: 360,
-    damage: 42,
-    attackRange: 13.5,
-    minimumRange: 0,
-    attackCooldown: 4,
-    moveSpeed: 1.65,
-    aggroRange: 13,
-    splashRadius: 2.8,
-    projectileSpeed: 7,
-  },
-} as const satisfies Readonly<Record<UnitRole, UnitSpec>>;
-
 export function createBattleUnit(input: CreateBattleUnitInput): BattleUnit {
   const spec = UNIT_SPECS[input.role];
   return {
@@ -201,6 +150,9 @@ export function createBattleState(units: readonly BattleUnit[]): BattleState {
     squads: buildSquads(clonedUnits),
     projectiles: [],
     events: [],
+    economy: createEconomyState(),
+    matchElapsed: 0,
+    buildingOccupancy: createBuildingOccupancy(),
     nextEventSequence: 0,
     elapsed: 0,
     winner,
@@ -355,6 +307,10 @@ export function issueAttackCommand(
   return changed ? { ...state, units, revision: state.revision + 1 } : state;
 }
 
+export function getBattleMatchClock(state: BattleState): MatchClock {
+  return getMatchClock(state.matchElapsed);
+}
+
 export function stepBattle(state: BattleState, requestedDeltaSeconds: number): BattleState {
   if (!Number.isFinite(requestedDeltaSeconds) || requestedDeltaSeconds <= 0) {
     return state;
@@ -375,6 +331,21 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     emitted.push(event);
     return event;
   };
+  const matchIsActive = state.winner === null
+    && getBattleMatchClock(state).remainingSeconds > 0;
+  const economyStep = matchIsActive
+    ? advanceEconomy(state.economy, state.matchElapsed, deltaSeconds)
+    : { state: state.economy, newlyFullFactions: [] };
+  const matchElapsed = matchIsActive
+    ? getMatchClock(state.matchElapsed + deltaSeconds).elapsedSeconds
+    : state.matchElapsed;
+  for (const faction of economyStep.newlyFullFactions) {
+    emit({
+      type: "gold-full",
+      faction,
+      promptSequence: economyStep.state.accounts[faction].fullPromptSequence,
+    });
+  }
   const projectileStep = advanceProjectiles(
     state.projectiles,
     livingAtStart,
@@ -434,6 +405,9 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       ...pruneBattleEvents(state.events, elapsed - EVENT_WINDOW_SECONDS),
       ...emitted,
     ],
+    economy: economyStep.state,
+    matchElapsed,
+    buildingOccupancy: state.buildingOccupancy,
     nextEventSequence,
     elapsed,
     winner,
