@@ -305,7 +305,7 @@ describe("battlefield island", () => {
     const crimsonCells = BATTLEFIELD_MAP.cells.filter((cell) => cell.territory === "crimson");
 
     expect(verdantCells.length).toBeGreaterThan(0);
-    expect(verdantCells).toHaveLength(92);
+    expect(verdantCells).toHaveLength(84);
     expect(crimsonCells).toHaveLength(108);
     expect(verdantCells.every((cell) => cell.r >= 2)).toBe(true);
     expect(crimsonCells.every((cell) => cell.r <= -2)).toBe(true);

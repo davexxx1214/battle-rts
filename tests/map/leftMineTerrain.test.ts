@@ -30,7 +30,7 @@ describe("left mine terrain", () => {
   it("removes the two westernmost columns from the battlefield island", () => {
     const coordinates = battlefieldCoordinates();
 
-    expect(coordinates).toHaveLength(250);
+    expect(coordinates).toHaveLength(242);
     expect(coordinates.some(([q]) => q === -9 || q === -8)).toBe(false);
     expect(BATTLEFIELD_MAP.cells.some(({ q }) => q === -9 || q === -8)).toBe(false);
     expect(Math.min(...BATTLEFIELD_MAP.cells.map(({ q }) => q))).toBe(-7);

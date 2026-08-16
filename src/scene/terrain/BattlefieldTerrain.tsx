@@ -31,6 +31,7 @@ import {
 import {
   SCENERY_SCENE_ASSETS,
   STRUCTURE_SCENE_ASSETS,
+  type ScenerySceneAsset,
 } from "../assets";
 import { miningCartPose } from "./miningCartMotion";
 import {
@@ -103,10 +104,38 @@ function BattlefieldSceneryLayer() {
   return (
     <group>
       {BATTLEFIELD_SCENERY_KINDS.map((kind) => (
-        <SceneryInstances kind={kind} key={kind} />
+        sceneryAssetUsesFullScene(kind)
+          ? <DetailedSceneryAssets kind={kind} key={kind} />
+          : <SceneryInstances kind={kind} key={kind} />
       ))}
     </group>
   );
+}
+
+function sceneryAssetUsesFullScene(kind: BattlefieldSceneryKind): boolean {
+  const asset: ScenerySceneAsset = SCENERY_SCENE_ASSETS[kind];
+  return asset.renderMode === "full-scene";
+}
+
+function DetailedSceneryAssets({ kind }: { readonly kind: BattlefieldSceneryKind }) {
+  const asset = SCENERY_SCENE_ASSETS[kind];
+  const items = BATTLEFIELD_SCENERY.filter((item) => item.kind === kind);
+  return items.map((item) => {
+    const world = axialToWorld(item.coordinate);
+    return (
+      <StaticAsset
+        key={item.id}
+        url={asset.url}
+        position={[
+          world.x + item.offset.x,
+          terrainHeightAt(world) + 0.02,
+          world.z + item.offset.z,
+        ]}
+        scale={asset.scale * item.scale}
+        rotationY={item.rotationY}
+      />
+    );
+  });
 }
 
 interface TileTemplate {

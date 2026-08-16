@@ -87,10 +87,16 @@ describe("scene asset presentation", () => {
 
   it("maps every battlefield scenery kind to a local KayKit model", () => {
     expect(Object.keys(SCENERY_SCENE_ASSETS).sort()).toEqual([
+      "bay-ship",
       "bush",
       "castle-rock",
+      "farm-cargo-wagon",
       "farm-dirt",
       "farm-grain",
+      "farm-home-a",
+      "farm-home-b",
+      "farm-watermill",
+      "farm-windmill",
       "grove-a",
       "grove-b",
       "hill-grove",

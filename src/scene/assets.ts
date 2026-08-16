@@ -10,6 +10,12 @@ export interface BattleBuildingDetailAsset {
   readonly rotationY: number;
 }
 
+export interface ScenerySceneAsset {
+  readonly url: string;
+  readonly scale: number;
+  readonly renderMode?: "full-scene" | "instanced";
+}
+
 export const SCENE_MODEL_URLS = {
   mobileCatapult: "/assets/generated/tripo/runtime/mobile-catapult.glb",
   catapultOperator: "/assets/kaykit/adventurers/characters/Knight.glb",
@@ -59,6 +65,11 @@ export const SCENERY_SCENE_ASSETS = {
   bush: {
     url: "/assets/kaykit/forest-nature/forage/Bush_1_B_Color1.gltf",
     scale: 0.9,
+  },
+  "bay-ship": {
+    url: "/assets/kaykit/medieval-hex/units/blue/ship_blue_accent.gltf",
+    scale: 1.28,
+    renderMode: "full-scene",
   },
   "grove-a": {
     url: "/assets/kaykit/medieval-hex/decoration/nature/trees_A_medium.gltf",
@@ -124,6 +135,31 @@ export const SCENERY_SCENE_ASSETS = {
     url: "/assets/kaykit/medieval-hex/buildings/neutral/building_grain.gltf",
     scale: 0.96,
   },
+  "farm-cargo-wagon": {
+    url: "/assets/kaykit/medieval-hex/units/blue/cart_merchant_blue_accent.gltf",
+    scale: 1.15,
+    renderMode: "full-scene",
+  },
+  "farm-windmill": {
+    url: "/assets/kaykit/medieval-hex/buildings/blue/building_windmill_blue.gltf",
+    scale: 1.15,
+    renderMode: "full-scene",
+  },
+  "farm-home-a": {
+    url: "/assets/kaykit/medieval-hex/buildings/blue/building_home_A_blue.gltf",
+    scale: 1.25,
+    renderMode: "full-scene",
+  },
+  "farm-home-b": {
+    url: "/assets/kaykit/medieval-hex/buildings/blue/building_home_B_blue.gltf",
+    scale: 1.15,
+    renderMode: "full-scene",
+  },
+  "farm-watermill": {
+    url: "/assets/kaykit/medieval-hex/buildings/blue/building_watermill_blue.gltf",
+    scale: 1.2,
+    renderMode: "full-scene",
+  },
   "village-house": {
     url: "/assets/kenney/hexagon-kit/building-house.glb",
     scale: 0.82,
@@ -138,7 +174,7 @@ export const SCENERY_SCENE_ASSETS = {
   },
 } as const satisfies Readonly<Record<
   BattlefieldSceneryKind,
-  { readonly url: string; readonly scale: number }
+  ScenerySceneAsset
 >>;
 
 export const STRUCTURE_SCENE_ASSETS = {

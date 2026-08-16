@@ -1,9 +1,12 @@
 import {
   BATTLEFIELD_CASTLE_ROCK_COORDINATES,
+  BATTLEFIELD_RIGHT_FARM_COORDINATES,
   BATTLEFIELD_VERDANT_MATCHED_FOREST_COORDINATES,
   battlefieldCoordinates,
   battlefieldLeftMineAt,
   battlefieldOuterFlankAt,
+  battlefieldRightFarmAt,
+  battlefieldRightFarmPassageAt,
   battlefieldSurfaceAt,
   battlefieldVerdantMineAt,
 } from "./battlefieldLayout";
@@ -11,6 +14,7 @@ import {
 export const BATTLEFIELD_SCENERY_KINDS = [
   "tree",
   "bush",
+  "bay-ship",
   "grove-a",
   "grove-b",
   "hill-grove",
@@ -27,6 +31,11 @@ export const BATTLEFIELD_SCENERY_KINDS = [
   "wheelbarrow",
   "farm-dirt",
   "farm-grain",
+  "farm-cargo-wagon",
+  "farm-windmill",
+  "farm-home-a",
+  "farm-home-b",
+  "farm-watermill",
   "village-house",
   "village-market",
   "village-farm",
@@ -38,6 +47,7 @@ export type BattlefieldSceneryZone =
   | "wild"
   | "outskirts"
   | "left-mine"
+  | "right-farm"
   | "verdant-camp"
   | "crimson-camp";
 
@@ -69,6 +79,11 @@ export const BLOCKING_SCENERY_KINDS: ReadonlySet<BattlefieldSceneryKind> = new S
   "wheelbarrow",
   "farm-dirt",
   "farm-grain",
+  "farm-cargo-wagon",
+  "farm-windmill",
+  "farm-home-a",
+  "farm-home-b",
+  "farm-watermill",
   "village-house",
   "village-market",
   "village-farm",
@@ -111,6 +126,8 @@ const OUTER_FLANK_CELLS = battlefieldCoordinates()
     battlefieldOuterFlankAt(q, r)
     && battlefieldSurfaceAt(q, r) === "grass"
     && !battlefieldVerdantMineAt(q, r)
+    && !battlefieldRightFarmAt(q, r)
+    && !battlefieldRightFarmPassageAt(q, r)
     && !CAMP_FARM_KEYS.has(`${q},${r}`)
   ));
 
@@ -125,16 +142,31 @@ export const BATTLEFIELD_SCENERY: readonly BattlefieldScenery[] = [
   ...FOREST_CLUSTER_CELLS.flatMap(([q, r], index) => createForestCluster(q, r, index)),
   ...ROCK_CLUSTER_CELLS.flatMap(([q, r], index) => createRockCluster(q, r, index)),
   ...LEFT_MINE_CELLS.flatMap(([q, r], index) => createLeftMineCluster(q, r, index)),
-  ...OUTER_FLANK_CELLS.flatMap(([q, r], index) => createOuterFlankCluster(q, r, index)),
-  ...RIVERBANK_DETAILS.map((detail, index) => scenery(
-    `riverbank-bush-${index}`,
-    "bush",
+  ...createRightFarmScenery(),
+  scenery(
+    "right-bay-ship",
+    "bay-ship",
     "wild",
-    detail.q,
-    detail.r,
-    detail.offset,
-    0.72 + (index % 2) * 0.08,
-    detail.rotationY,
+    5,
+    0,
+    { x: 0, z: 0 },
+    1.18,
+    Math.PI / 2,
+  ),
+  ...OUTER_FLANK_CELLS.flatMap(([q, r], index) => createOuterFlankCluster(q, r, index)),
+  ...RIVERBANK_DETAILS.flatMap((detail, index) => (
+    battlefieldRightFarmAt(detail.q, detail.r)
+      ? []
+      : [scenery(
+          `riverbank-bush-${index}`,
+          "bush",
+          "wild",
+          detail.q,
+          detail.r,
+          detail.offset,
+          0.72 + (index % 2) * 0.08,
+          detail.rotationY,
+        )]
   )),
   ...createCampScenery("verdant"),
   ...createCampScenery("crimson"),
@@ -362,6 +394,88 @@ function createOuterFlankCluster(q: number, r: number, index: number): Battlefie
   return detail ? [primary, detail] : [primary];
 }
 
+function createRightFarmScenery(): BattlefieldScenery[] {
+  const landmarkKeys = new Set(["-1,7", "0,7", "1,6", "2,5", "3,2", "3,4"]);
+  const grainCoordinates = BATTLEFIELD_RIGHT_FARM_COORDINATES.filter(({ q, r }) => (
+    !landmarkKeys.has(`${q},${r}`)
+  ));
+  const landmarks = [
+    scenery(
+      "right-farm-cargo-wagon",
+      "farm-cargo-wagon",
+      "right-farm",
+      -1,
+      7,
+      { x: -0.04, z: 0.02 },
+      0.9,
+      Math.PI / 3,
+    ),
+    scenery(
+      "right-farm-home-a",
+      "farm-home-a",
+      "right-farm",
+      0,
+      7,
+      { x: -0.08, z: 0.04 },
+      1,
+      -Math.PI / 6,
+    ),
+    scenery(
+      "right-farm-dirt",
+      "farm-dirt",
+      "right-farm",
+      1,
+      6,
+      { x: 0, z: 0 },
+      0.94,
+      Math.PI / 3,
+    ),
+    scenery(
+      "right-farm-windmill",
+      "farm-windmill",
+      "right-farm",
+      2,
+      5,
+      { x: 0.04, z: -0.08 },
+      1,
+      Math.PI / 6,
+    ),
+    scenery(
+      "right-farm-home-b",
+      "farm-home-b",
+      "right-farm",
+      3,
+      4,
+      { x: 0.06, z: 0.02 },
+      1,
+      Math.PI / 3,
+    ),
+    scenery(
+      "right-farm-watermill",
+      "farm-watermill",
+      "right-farm",
+      3,
+      2,
+      { x: 0, z: -0.26 },
+      1,
+      0,
+    ),
+  ];
+  return [
+    ...grainCoordinates.map(({ q, r }, index) => scenery(
+      `right-farm-grain-${index}`,
+      "farm-grain",
+      "right-farm",
+      q,
+      r,
+      { x: 0, z: 0 },
+      0.96,
+      (index % 3) * Math.PI / 3,
+    )),
+    ...landmarks,
+  ];
+}
+
 function createCampScenery(faction: "verdant" | "crimson"): BattlefieldScenery[] {
   const mirror = faction === "verdant" ? 1 : -1;
   const zone = `${faction}-camp` as const;
@@ -387,31 +501,33 @@ function createCampScenery(faction: "verdant" | "crimson"): BattlefieldScenery[]
   const dirtFarm = CAMP_FARM_LAYOUT.dirt;
   const grainFarm = CAMP_FARM_LAYOUT.grain;
   return [
-    campItem(
-      dirtFarm.id,
-      dirtFarm.kind,
-      dirtFarm.q,
-      dirtFarm.r,
-      { x: 0, z: 0 },
-      0.94,
-    ),
-    campItem(
-      grainFarm.id,
-      grainFarm.kind,
-      grainFarm.q,
-      grainFarm.r,
-      { x: 0, z: 0 },
-      0.94,
-    ),
-    campItem(
-      "field-bush",
-      "bush",
-      grainFarm.q,
-      grainFarm.r,
-      { x: 0.72, z: 0.5 },
-      0.78,
-      0.35,
-    ),
+    ...(faction === "crimson" ? [
+      campItem(
+        dirtFarm.id,
+        dirtFarm.kind,
+        dirtFarm.q,
+        dirtFarm.r,
+        { x: 0, z: 0 },
+        0.94,
+      ),
+      campItem(
+        grainFarm.id,
+        grainFarm.kind,
+        grainFarm.q,
+        grainFarm.r,
+        { x: 0, z: 0 },
+        0.94,
+      ),
+      campItem(
+        "field-bush",
+        "bush",
+        grainFarm.q,
+        grainFarm.r,
+        { x: 0.72, z: 0.5 },
+        0.78,
+        0.35,
+      ),
+    ] : []),
     campItem("camp-tent", "tent", 0, 6, { x: -0.18, z: 0.08 }, 1.04, -0.16),
     campItem("camp-wheelbarrow", "wheelbarrow", 0, 6, { x: 0.66, z: -0.32 }, 0.86, 0.54),
     campItem("camp-bush", "bush", 0, 6, { x: -0.72, z: -0.46 }, 0.84, -0.25),
