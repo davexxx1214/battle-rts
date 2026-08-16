@@ -80,6 +80,26 @@ export const SCENERY_SCENE_ASSETS = {
     url: "/assets/kaykit/medieval-hex/decoration/nature/mountain_A_grass.gltf",
     scale: 1.08,
   },
+  "mine-mountain-a": {
+    url: "/assets/kaykit/medieval-hex/decoration/nature/mountain_A.gltf",
+    scale: 1.45,
+  },
+  "mine-mountain-b": {
+    url: "/assets/kaykit/medieval-hex/decoration/nature/mountain_B.gltf",
+    scale: 1.36,
+  },
+  "mine-mountain-c": {
+    url: "/assets/kaykit/medieval-hex/decoration/nature/mountain_C.gltf",
+    scale: 1.42,
+  },
+  "mine-rock-c": {
+    url: "/assets/kaykit/medieval-hex/decoration/nature/rock_single_C.gltf",
+    scale: 4.8,
+  },
+  "mine-rock-e": {
+    url: "/assets/kaykit/medieval-hex/decoration/nature/rock_single_E.gltf",
+    scale: 4.4,
+  },
   stone: {
     url: "/assets/kaykit/medieval-hex/decoration/props/resource_stone.gltf",
     scale: 2.35,

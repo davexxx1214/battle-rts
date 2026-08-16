@@ -140,9 +140,9 @@ describe("battlefield island", () => {
         (decoration) => decoration.faction === faction,
       );
       expect(factionDecorations.filter((decoration) => decoration.kind === "mining-cart"))
-        .toHaveLength(1);
+        .toHaveLength(faction === "verdant" ? 0 : 1);
       expect(factionDecorations.filter((decoration) => decoration.kind === "ore-pile"))
-        .toHaveLength(1);
+        .toHaveLength(faction === "verdant" ? 0 : 1);
     }
     for (const structure of BATTLEFIELD_STATIC_STRUCTURES.concat(
       BATTLEFIELD_BATTLE_STRUCTURES.filter((candidate) => candidate.kind === "castle"),
@@ -227,7 +227,10 @@ describe("battlefield island", () => {
       expect(interior).toBeDefined();
       expect(findHexPath(BATTLEFIELD_MAP, interior!, BATTLEFIELD_MAP[`${faction}Camp`]))
         .toContainEqual(gate!.coordinate);
-      for (const kind of ["barracks", "mine"] as const) {
+      const outerBuildingKinds = faction === "verdant"
+        ? ["mine"] as const
+        : ["barracks", "mine"] as const;
+      for (const kind of outerBuildingKinds) {
         const outerBuilding = structures.find((candidate) => candidate.kind === kind);
         expect(hexDistance(castle.coordinate, outerBuilding!.coordinate)).toBeGreaterThan(2);
       }
@@ -297,12 +300,13 @@ describe("battlefield island", () => {
     }
   });
 
-  it("assigns fixed territories while keeping the river and bridge neutral", () => {
+  it("assigns fixed territories while keeping the trimmed left edge and river neutral", () => {
     const verdantCells = BATTLEFIELD_MAP.cells.filter((cell) => cell.territory === "verdant");
     const crimsonCells = BATTLEFIELD_MAP.cells.filter((cell) => cell.territory === "crimson");
 
     expect(verdantCells.length).toBeGreaterThan(0);
-    expect(crimsonCells.length).toBe(verdantCells.length);
+    expect(verdantCells).toHaveLength(92);
+    expect(crimsonCells).toHaveLength(108);
     expect(verdantCells.every((cell) => cell.r >= 2)).toBe(true);
     expect(crimsonCells.every((cell) => cell.r <= -2)).toBe(true);
     expect(BATTLEFIELD_MAP.cells.filter((cell) => Math.abs(cell.r) <= 1)

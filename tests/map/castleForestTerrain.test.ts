@@ -8,11 +8,7 @@ import {
 import { BATTLEFIELD_SCENERY } from "../../src/map/battlefieldScenery";
 
 const CASTLE_FOREST_COORDINATES = [
-  { q: -5, r: 4 },
-  { q: -5, r: 5 },
-  { q: -5, r: 6 },
-  { q: -5, r: 7 },
-  { q: -6, r: 8 },
+  { q: -7, r: 8 },
   { q: 5, r: -4 },
   { q: 5, r: -5 },
   { q: 5, r: -6 },
@@ -21,7 +17,7 @@ const CASTLE_FOREST_COORDINATES = [
 ] as const;
 
 describe("castle forest barrier", () => {
-  it("turns the five marked cells and their enemy mirrors into blocked forest", () => {
+  it("keeps the castle forest cells outside the new left mine blocked", () => {
     for (const coordinate of CASTLE_FOREST_COORDINATES) {
       expect(getBattlefieldCell(coordinate)).toMatchObject({
         territory: coordinate.r > 0 ? "verdant" : "crimson",
@@ -32,7 +28,7 @@ describe("castle forest barrier", () => {
     }
   });
 
-  it("places one KayKit grove on every new forest cell", () => {
+  it("places one KayKit grove on every remaining castle forest cell", () => {
     const groveKinds = new Set(["grove-a", "grove-b", "hill-grove"]);
 
     for (const coordinate of CASTLE_FOREST_COORDINATES) {

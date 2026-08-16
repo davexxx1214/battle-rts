@@ -1,8 +1,11 @@
 import {
   BATTLEFIELD_CASTLE_ROCK_COORDINATES,
+  BATTLEFIELD_VERDANT_MATCHED_FOREST_COORDINATES,
   battlefieldCoordinates,
+  battlefieldLeftMineAt,
   battlefieldOuterFlankAt,
   battlefieldSurfaceAt,
+  battlefieldVerdantMineAt,
 } from "./battlefieldLayout";
 
 export const BATTLEFIELD_SCENERY_KINDS = [
@@ -12,6 +15,11 @@ export const BATTLEFIELD_SCENERY_KINDS = [
   "grove-b",
   "hill-grove",
   "castle-rock",
+  "mine-mountain-a",
+  "mine-mountain-b",
+  "mine-mountain-c",
+  "mine-rock-c",
+  "mine-rock-e",
   "stone",
   "rock-hills",
   "iron",
@@ -29,6 +37,7 @@ export type BattlefieldSceneryKind = typeof BATTLEFIELD_SCENERY_KINDS[number];
 export type BattlefieldSceneryZone =
   | "wild"
   | "outskirts"
+  | "left-mine"
   | "verdant-camp"
   | "crimson-camp";
 
@@ -48,6 +57,11 @@ export const BLOCKING_SCENERY_KINDS: ReadonlySet<BattlefieldSceneryKind> = new S
   "grove-b",
   "hill-grove",
   "castle-rock",
+  "mine-mountain-a",
+  "mine-mountain-b",
+  "mine-mountain-c",
+  "mine-rock-c",
+  "mine-rock-e",
   "stone",
   "rock-hills",
   "iron",
@@ -63,8 +77,22 @@ export const BLOCKING_SCENERY_KINDS: ReadonlySet<BattlefieldSceneryKind> = new S
 const FOREST_CLUSTER_CELLS = battlefieldCoordinates()
   .filter(([q, r]) => battlefieldSurfaceAt(q, r) === "forest");
 
+const VERDANT_MATCHED_FOREST = {
+  targets: BATTLEFIELD_VERDANT_MATCHED_FOREST_COORDINATES,
+  reference: { q: -7, r: 9 },
+} as const;
+
+const VERDANT_MATCHED_FOREST_REFERENCE_INDEX = FOREST_CLUSTER_CELLS.findIndex(([q, r]) => (
+  q === VERDANT_MATCHED_FOREST.reference.q && r === VERDANT_MATCHED_FOREST.reference.r
+));
+
 const ROCK_CLUSTER_CELLS = battlefieldCoordinates()
-  .filter(([q, r]) => battlefieldSurfaceAt(q, r) === "rock");
+  .filter(([q, r]) => (
+    battlefieldSurfaceAt(q, r) === "rock" && !battlefieldLeftMineAt(q, r)
+  ));
+
+const LEFT_MINE_CELLS = battlefieldCoordinates()
+  .filter(([q, r]) => battlefieldLeftMineAt(q, r));
 
 const CAMP_FARM_LAYOUT = {
   dirt: { id: "farm-dirt", kind: "farm-dirt", q: 1, r: 7 },
@@ -82,6 +110,7 @@ const OUTER_FLANK_CELLS = battlefieldCoordinates()
   .filter(([q, r]) => (
     battlefieldOuterFlankAt(q, r)
     && battlefieldSurfaceAt(q, r) === "grass"
+    && !battlefieldVerdantMineAt(q, r)
     && !CAMP_FARM_KEYS.has(`${q},${r}`)
   ));
 
@@ -95,6 +124,7 @@ const RIVERBANK_DETAILS = [
 export const BATTLEFIELD_SCENERY: readonly BattlefieldScenery[] = [
   ...FOREST_CLUSTER_CELLS.flatMap(([q, r], index) => createForestCluster(q, r, index)),
   ...ROCK_CLUSTER_CELLS.flatMap(([q, r], index) => createRockCluster(q, r, index)),
+  ...LEFT_MINE_CELLS.flatMap(([q, r], index) => createLeftMineCluster(q, r, index)),
   ...OUTER_FLANK_CELLS.flatMap(([q, r], index) => createOuterFlankCluster(q, r, index)),
   ...RIVERBANK_DETAILS.map((detail, index) => scenery(
     `riverbank-bush-${index}`,
@@ -127,9 +157,18 @@ export const BLOCKING_SCENERY_KEYS: ReadonlySet<string> = new Set(
 );
 
 function createForestCluster(q: number, r: number, index: number): BattlefieldScenery[] {
-  const alternate = index % 2 === 0;
-  const rotation = (index % 6) * Math.PI / 3;
-  const kind = index % 4 === 0 ? "hill-grove" : alternate ? "grove-a" : "grove-b";
+  const shouldMatchVerdantForest = VERDANT_MATCHED_FOREST.targets.some((target) => (
+    q === target.q && r === target.r
+  ))
+    && VERDANT_MATCHED_FOREST_REFERENCE_INDEX >= 0;
+  const presentationIndex = shouldMatchVerdantForest
+    ? VERDANT_MATCHED_FOREST_REFERENCE_INDEX
+    : index;
+  const alternate = presentationIndex % 2 === 0;
+  const rotation = (presentationIndex % 6) * Math.PI / 3;
+  const kind = presentationIndex % 4 === 0
+    ? "hill-grove"
+    : alternate ? "grove-a" : "grove-b";
   const grove = scenery(
     `forest-${q}-${r}-${kind}`,
     kind,
@@ -137,7 +176,7 @@ function createForestCluster(q: number, r: number, index: number): BattlefieldSc
     q,
     r,
     { x: 0, z: 0 },
-    0.9 + (index % 3) * 0.05,
+    0.9 + (presentationIndex % 3) * 0.05,
     rotation,
   );
   return alternate
@@ -148,7 +187,7 @@ function createForestCluster(q: number, r: number, index: number): BattlefieldSc
         q,
         r,
         { x: 0.02, z: -0.52 },
-        0.9 + (index % 3) * 0.08,
+        0.9 + (presentationIndex % 3) * 0.08,
         rotation * 0.5,
       )]
     : [grove];
@@ -196,6 +235,72 @@ function createRockCluster(q: number, r: number, index: number): BattlefieldScen
           r,
           { x: 0.28, z: 0.48 },
           0.58,
+          rotation - Math.PI / 4,
+        )]
+      : []),
+  ];
+}
+
+function createLeftMineCluster(q: number, r: number, index: number): BattlefieldScenery[] {
+  const rotation = ((r + index) % 6) * Math.PI / 3;
+  const boulderKind = index % 2 === 0 ? "mine-rock-e" : "mine-rock-c";
+  const boulder = scenery(
+    `left-mine-${q}-${r}-${boulderKind}`,
+    boulderKind,
+    "left-mine",
+    q,
+    r,
+    q === -5 ? { x: -0.1, z: 0.02 } : { x: 0.42, z: -0.34 },
+    r === 7
+      ? q === -5 ? 0.84 : 0.58
+      : q === -5 ? 1.08 + (r % 3) * 0.08 : 0.72 + (r % 2) * 0.08,
+    rotation + Math.PI / 5,
+  );
+
+  if (q === -5 || r === 7) {
+    return [
+      boulder,
+      scenery(
+        `left-mine-${q}-${r}-iron`,
+        "iron",
+        "left-mine",
+        q,
+        r,
+        { x: 0.48, z: 0.38 },
+        0.7 + (r % 2) * 0.08,
+        rotation - Math.PI / 6,
+      ),
+    ];
+  }
+
+  const mountainKinds = [
+    "mine-mountain-a",
+    "mine-mountain-b",
+    "mine-mountain-c",
+  ] as const;
+  const mountainKind = mountainKinds[(r + (q === -6 ? 1 : 0)) % mountainKinds.length]!;
+  const campEdgeTaper = r === 6 ? 0.8 : 1;
+  return [
+    scenery(
+      `left-mine-${q}-${r}-${mountainKind}`,
+      mountainKind,
+      "left-mine",
+      q,
+      r,
+      { x: q === -7 ? -0.12 : 0.04, z: (r % 2 === 0 ? -1 : 1) * 0.08 },
+      ((q === -7 ? 1.08 : 0.9) + (r % 3) * 0.04) * campEdgeTaper,
+      rotation,
+    ),
+    boulder,
+    ...(index % 2 === 0
+      ? [scenery(
+          `left-mine-${q}-${r}-iron`,
+          "iron",
+          "left-mine",
+          q,
+          r,
+          { x: -0.46, z: 0.38 },
+          0.6 + (r % 3) * 0.06,
           rotation - Math.PI / 4,
         )]
       : []),

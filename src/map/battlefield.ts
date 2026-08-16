@@ -2,6 +2,7 @@ import type { Faction, WorldPoint } from "../game/types";
 import {
   BATTLEFIELD_RADIUS,
   BATTLEFIELD_BRIDGE_LAYOUTS,
+  BATTLEFIELD_VERDANT_MINE_COORDINATES,
   battlefieldCastleRockAt,
   battlefieldCoordinates,
   battlefieldReservedPathAt,
@@ -125,7 +126,6 @@ export const BATTLEFIELD_STATIC_STRUCTURES: readonly BattlefieldStructure[] = (
 );
 
 export const BATTLEFIELD_DECORATIONS: readonly BattlefieldDecoration[] = [
-  ...createCampDecorations("verdant"),
   ...createCampDecorations("crimson"),
 ];
 
@@ -320,6 +320,18 @@ function createCampStructures(faction: Faction): BattlefieldStructure[] {
     };
   };
 
+  const supportStructures = faction === "verdant"
+    ? BATTLEFIELD_VERDANT_MINE_COORDINATES.map((mineCoordinate, index) => structure(
+        "mine",
+        index === 0 ? "mine-upper" : "mine",
+        mineCoordinate.q,
+        mineCoordinate.r,
+      ))
+    : [
+        structure("barracks", "barracks", -7, 8, 0.12),
+        structure("mine", "mine", -1, 8),
+      ];
+
   return [
     {
       id: `${faction}-castle`,
@@ -329,8 +341,7 @@ function createCampStructures(faction: Faction): BattlefieldStructure[] {
       footprint: [layout.castle],
       rotationY: facing,
     },
-    structure("barracks", "barracks", -7, 8, 0.12),
-    structure("mine", "mine", -1, 8),
+    ...supportStructures,
     structure("arrow-tower", "arrow-tower-left", -4, 6),
     structure("wall-straight", "wall-left", -5, 8, Math.PI / 3),
     structure("wall-corner", "wall-left-corner", -4, 7, Math.PI),

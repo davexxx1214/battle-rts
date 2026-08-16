@@ -31,7 +31,14 @@ describe("battlefield scenery layout", () => {
   });
 
   it("replaces every procedural rock cell with KayKit stone and iron details", () => {
-    const rockCells = BATTLEFIELD_MAP.cells.filter((cell) => cell.surface === "rock");
+    const rockCells = BATTLEFIELD_MAP.cells.filter((cell) => (
+      cell.surface === "rock"
+      && !BATTLEFIELD_SCENERY.some((item) => (
+        item.zone === "left-mine"
+        && item.coordinate.q === cell.q
+        && item.coordinate.r === cell.r
+      ))
+    ));
 
     for (const cell of rockCells) {
       const kinds = BATTLEFIELD_SCENERY
@@ -102,15 +109,21 @@ describe("battlefield scenery layout", () => {
     const blockingKeys = new Set(BATTLEFIELD_SCENERY
       .filter((item) => BLOCKING_SCENERY_KINDS.has(item.kind))
       .map((item) => `${item.coordinate.q},${item.coordinate.r}`));
+    const structureKeys = new Set(BATTLEFIELD_STRUCTURES.flatMap((structure) => (
+      structure.footprint.map(({ q, r }) => `${q},${r}`)
+    )));
     const outerFlanks = BATTLEFIELD_MAP.cells.filter((cell) => (
       cell.territory !== null
       && battlefieldOuterFlankAt(cell.q, cell.r)
     ));
 
-    expect(outerFlanks.length).toBeGreaterThan(100);
+    expect(outerFlanks.length).toBeGreaterThan(90);
     expect(outerFlanks.every((cell) => !cell.walkable)).toBe(true);
     expect(outerFlanks.every((cell) => !cell.buildable)).toBe(true);
-    expect(outerFlanks.every((cell) => blockingKeys.has(`${cell.q},${cell.r}`))).toBe(true);
+    expect(outerFlanks.every((cell) => {
+      const key = `${cell.q},${cell.r}`;
+      return blockingKeys.has(key) || structureKeys.has(key);
+    })).toBe(true);
 
     const outerKinds = new Set(BATTLEFIELD_SCENERY
       .filter((item) => outerFlanks.some((cell) => (

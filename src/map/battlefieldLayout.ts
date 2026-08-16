@@ -17,18 +17,28 @@ export interface BattlefieldBridgeLayout {
 
 export const BATTLEFIELD_RADIUS = 9;
 export const BATTLEFIELD_COMBAT_HALF_WIDTH = 6;
+export const BATTLEFIELD_REMOVED_LEFT_COLUMNS = [-9, -8] as const;
+export const BATTLEFIELD_VERDANT_MINE_COORDINATES = [
+  { q: -7, r: 7 },
+  { q: -6, r: 7 },
+] as const satisfies readonly BattlefieldLayoutCoordinate[];
+export const BATTLEFIELD_VERDANT_MINE_COORDINATE =
+  BATTLEFIELD_VERDANT_MINE_COORDINATES[1]!;
+const BATTLEFIELD_REMOVED_LEFT_COLUMN_KEYS = new Set<number>(
+  BATTLEFIELD_REMOVED_LEFT_COLUMNS,
+);
 export const BATTLEFIELD_CASTLE_ROCK_COORDINATES = [
   { q: -6, r: 9 },
   { q: -2, r: 9 },
   { q: 6, r: -9 },
   { q: 2, r: -9 },
 ] as const satisfies readonly BattlefieldLayoutCoordinate[];
-export const BATTLEFIELD_CASTLE_FOREST_COORDINATES = [
-  { q: -5, r: 4 },
-  { q: -5, r: 5 },
-  { q: -5, r: 6 },
-  { q: -5, r: 7 },
+export const BATTLEFIELD_VERDANT_MATCHED_FOREST_COORDINATES = [
+  { q: -7, r: 8 },
   { q: -6, r: 8 },
+] as const satisfies readonly BattlefieldLayoutCoordinate[];
+export const BATTLEFIELD_CASTLE_FOREST_COORDINATES = [
+  ...BATTLEFIELD_VERDANT_MATCHED_FOREST_COORDINATES,
   { q: 5, r: -4 },
   { q: 5, r: -5 },
   { q: 5, r: -6 },
@@ -64,7 +74,10 @@ export function battlefieldOuterFlankAt(q: number, r: number): boolean {
 
 export function battlefieldStaticObstacleAt(q: number, r: number): boolean {
   const campPropCell = q === 0 && Math.abs(r) === 6;
-  return battlefieldOuterFlankAt(q, r) || campPropCell || battlefieldCastleRockAt(q, r);
+  return battlefieldOuterFlankAt(q, r)
+    || campPropCell
+    || battlefieldCastleRockAt(q, r)
+    || battlefieldLeftMineAt(q, r);
 }
 
 export function battlefieldSurfaceAt(q: number, r: number): TerrainSurface {
@@ -81,6 +94,8 @@ export function battlefieldSurfaceAt(q: number, r: number): TerrainSurface {
     && !battlefieldReservedPathAt(q, r)
     && positiveModulo(q * 5 - r * 13, 11) === 0;
 
+  if (battlefieldVerdantMineAt(q, r)) return "grass";
+  if (battlefieldLeftMineAt(q, r)) return "rock";
   if (battlefieldCastleForestAt(q, r)) return "forest";
   if (battlefieldCastleRockAt(q, r)) return "grass";
   if (isBridge) return "bridge";
@@ -99,11 +114,26 @@ export function battlefieldCastleForestAt(q: number, r: number): boolean {
   return BATTLEFIELD_CASTLE_FOREST_KEYS.has(`${q},${r}`);
 }
 
+export function battlefieldLeftMineAt(q: number, r: number): boolean {
+  return q >= -7 && q <= -5
+    && r >= 2 && r <= 7
+    && !battlefieldVerdantMineAt(q, r);
+}
+
+export function battlefieldVerdantMineAt(q: number, r: number): boolean {
+  return BATTLEFIELD_VERDANT_MINE_COORDINATES.some((coordinate) => (
+    q === coordinate.q && r === coordinate.r
+  ));
+}
+
 export function battlefieldCoordinates(
   radius = BATTLEFIELD_RADIUS,
 ): readonly (readonly [q: number, r: number])[] {
   const coordinates: [number, number][] = [];
   for (let q = -radius; q <= radius; q += 1) {
+    if (radius === BATTLEFIELD_RADIUS && BATTLEFIELD_REMOVED_LEFT_COLUMN_KEYS.has(q)) {
+      continue;
+    }
     const minimumR = Math.max(-radius, -q - radius);
     const maximumR = Math.min(radius, -q + radius);
     for (let r = minimumR; r <= maximumR; r += 1) {
