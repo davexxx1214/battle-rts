@@ -108,11 +108,11 @@ describe("building deployment", () => {
     expect(second.ok).toBe(true);
   });
 
-  it("keeps a reserved route open after every successful placement", () => {
+  it("fills the central buildable area without allowing a route-blocking placement", () => {
     let occupancy = createBuildingOccupancy();
     for (const cell of BATTLEFIELD_MAP.cells.filter((candidate) => (
       candidate.territory === "verdant" && candidate.buildable
-    )).slice(0, 20)) {
+    ))) {
       const result = requestBuildingPlacement(BATTLEFIELD_MAP, occupancy, {
         buildingId: `verdant-${coordinateKey(cell)}`,
         kind: "barracks",
@@ -122,7 +122,7 @@ describe("building deployment", () => {
       expect(result.ok).toBe(true);
       if (result.ok) occupancy = result.occupancy;
     }
-    expect(hasBuildableHex(BATTLEFIELD_MAP, "verdant", occupancy)).toBe(true);
+    expect(hasBuildableHex(BATTLEFIELD_MAP, "verdant", occupancy)).toBe(false);
   });
 
   it("returns no-buildable-hex when every valid cell is occupied", () => {
@@ -172,6 +172,7 @@ describe("building deployment", () => {
       verdantCamp: { q: 0, r: 0 },
       crimsonCamp: { q: 0, r: -2 },
       center: { q: 0, r: -2 },
+      bridges: [],
       castles: { verdant: { q: 0, r: 0 }, crimson: { q: 0, r: -2 } },
       castleApproaches: { verdant: { q: 0, r: 0 }, crimson: { q: 0, r: -2 } },
       radius: 2,

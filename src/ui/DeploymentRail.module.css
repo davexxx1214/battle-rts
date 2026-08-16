@@ -211,6 +211,7 @@
 }
 
 .glyph {
+  position: relative;
   width: 28px;
   height: 28px;
   display: grid;
@@ -219,6 +220,22 @@
   color: var(--amber);
   background: #0d0f0d;
   font-size: 14px;
+}
+
+.squadSize {
+  position: absolute;
+  top: -6px;
+  right: -7px;
+  min-width: 18px;
+  padding: 2px 3px;
+  border: 1px solid rgb(229 184 77 / 72%);
+  color: #17130a;
+  background: var(--amber);
+  font-family: var(--display);
+  font-size: 7px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: center;
 }
 
 .card:disabled .glyph {

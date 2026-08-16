@@ -8,7 +8,9 @@ import {
   stepBattle,
   type BattleState,
 } from "../../src/game/battle";
-import { getBattlefieldCell, worldToAxial } from "../../src/map/battlefield";
+import {
+  axialToWorld,
+} from "../../src/map/battlefield";
 
 function runSteps(initial: BattleState, count: number, delta = 0.1): BattleState {
   let state = initial;
@@ -17,45 +19,62 @@ function runSteps(initial: BattleState, count: number, delta = 0.1): BattleState
 }
 
 describe("automatic battle simulation", () => {
-  it("starts both complete armies charging immediately", () => {
+  it("starts with castles and economy but no pre-deployed troops", () => {
     const initial = createInitialBattle();
 
-    for (const faction of ["verdant", "crimson"] as const) {
-      const units = initial.units.filter((unit) => unit.faction === faction);
-      expect(new Set(units.map((unit) => unit.role)))
-        .toEqual(new Set(["knight", "ranger", "mage", "catapult"]));
-      expect(units).toHaveLength(41);
-      expect(units.filter((unit) => unit.role === "catapult")).toHaveLength(1);
-      expect(units.every((unit) => unit.behavior === "charging")).toBe(true);
-    }
-    const next = stepBattle(initial, 0.1);
-    expect(next.units.some((unit) => (
-      unit.faction === "verdant"
-      && unit.position.z < initial.units.find((candidate) => candidate.id === unit.id)!.position.z
-    ))).toBe(true);
-    expect(next.units.some((unit) => (
-      unit.faction === "crimson"
-      && unit.position.z > initial.units.find((candidate) => candidate.id === unit.id)!.position.z
-    ))).toBe(true);
+    expect(initial.units).toEqual([]);
+    expect(initial.squads).toEqual([]);
+    expect(initial.buildings.filter((building) => building.kind === "castle"))
+      .toHaveLength(2);
   });
 
-  it("keeps every initial unit on walkable terrain", () => {
-    expect(createInitialBattle().units.every((unit) => (
-      getBattlefieldCell(worldToAxial(unit.position))?.walkable
-    ))).toBe(true);
+  it("applies the defender's configured damage reduction to incoming attacks", () => {
+    const attacker = createBattleUnit({
+      id: "v-armorer", faction: "verdant", role: "knight", position: { x: 0, z: 1 },
+    });
+    const defender = createBattleUnit({
+      id: "c-armored", faction: "crimson", role: "knight", position: { x: 0, z: 0 },
+    });
+
+    const next = stepBattle(createBattleState([attacker, defender]), 0.1);
+    const expectedDamage = UNIT_SPECS.knight.damage
+      * (1 - UNIT_SPECS.knight.damageReduction);
+
+    expect(next.units.find((unit) => unit.id === defender.id)?.health)
+      .toBeCloseTo(defender.health - expectedDamage);
+  });
+
+  it("records only health actually removed so arena metrics exclude overkill", () => {
+    const attacker = createBattleUnit({
+      id: "v-overkill", faction: "verdant", role: "catapult", position: { x: 0, z: 4 },
+    });
+    const target = {
+      ...createBattleUnit({
+        id: "c-fragile", faction: "crimson", role: "ranger", position: { x: 0, z: 0 },
+      }),
+      health: 1,
+    };
+    let state = createBattleState([attacker, target]);
+    for (let index = 0; index < 20; index += 1) state = stepBattle(state, 0.1);
+    const damage = state.events.find((event) => (
+      event.type === "damage-applied" && event.targetId === target.id
+    ));
+
+    expect(damage).toMatchObject({ amount: 1 });
   });
 
   it("lets a knight close to melee range before dealing damage", () => {
     const knight = createBattleUnit({
-      id: "v-1", faction: "verdant", role: "knight", position: { x: 0, z: 5 },
+      id: "v-1", faction: "verdant", role: "knight", position: axialToWorld({ q: 2, r: 2 }),
     });
     const target = createBattleUnit({
-      id: "c-1", faction: "crimson", role: "knight", position: { x: 0, z: 1 },
+      id: "c-1", faction: "crimson", role: "knight", position: axialToWorld({ q: 2, r: 0 }),
     });
     const early = stepBattle(createBattleState([knight, target]), 0.1);
 
     expect(early.units.find((unit) => unit.id === target.id)?.health).toBe(target.health);
-    expect(early.units.find((unit) => unit.id === knight.id)?.position.z).toBeLessThan(5);
+    expect(early.units.find((unit) => unit.id === knight.id)?.position.z)
+      .toBeLessThan(knight.position.z);
 
     const resolved = runSteps(early, 20);
     expect(resolved.units.find((unit) => unit.id === target.id)?.health).toBeLessThan(target.health);

@@ -1,4 +1,5 @@
 import type { BattlefieldSceneryKind } from "../map/battlefieldScenery";
+import type { BattleBuildingKind } from "../game/buildings";
 
 export const SCENE_MODEL_URLS = {
   mobileCatapult: "/assets/generated/tripo/runtime/mobile-catapult.glb",
@@ -8,6 +9,11 @@ export const SCENE_MODEL_URLS = {
 export const MOBILE_CATAPULT_PARTS = {
   throwingArm: "tripo_part_3",
   wheels: ["tripo_part_1", "tripo_part_2", "tripo_part_5"],
+} as const;
+
+export const CASTLE_BATTLE_FLAG_ASSET = {
+  url: "/assets/kenney/castle-kit/flag.glb",
+  scale: 1.35,
 } as const;
 
 export const FACTION_SCENE_COLORS = {
@@ -69,6 +75,18 @@ export const SCENERY_SCENE_ASSETS = {
     url: "/assets/kaykit/medieval-hex/buildings/neutral/building_grain.gltf",
     scale: 0.96,
   },
+  "village-house": {
+    url: "/assets/kenney/hexagon-kit/building-house.glb",
+    scale: 0.82,
+  },
+  "village-market": {
+    url: "/assets/kenney/hexagon-kit/building-market.glb",
+    scale: 0.82,
+  },
+  "village-farm": {
+    url: "/assets/kenney/hexagon-kit/building-farm.glb",
+    scale: 0.82,
+  },
 } as const satisfies Readonly<Record<
   BattlefieldSceneryKind,
   { readonly url: string; readonly scale: number }
@@ -116,6 +134,15 @@ export const STRUCTURE_SCENE_ASSETS = {
     },
   },
 } as const;
+
+export const BATTLE_BUILDING_ASSET_KEYS = {
+  castle: "castle",
+  "gold-mine": "mine",
+  barracks: "barracks",
+} as const satisfies Readonly<Record<
+  BattleBuildingKind,
+  "castle" | "mine" | "barracks"
+>>;
 
 function kaykitBuilding(color: "blue" | "red", name: string, scale: number) {
   return {

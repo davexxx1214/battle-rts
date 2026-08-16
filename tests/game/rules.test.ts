@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   GAME_RULES,
+  TROOP_KINDS,
   TROOP_ROLE_BY_DEPLOYABLE,
   UNIT_SPECS,
   validateGameRules,
@@ -19,6 +20,21 @@ describe("central game rules", () => {
       expect(cost).toBeLessThanOrEqual(1000);
       expect(cost % 100).toBe(0);
     }
+  });
+
+  it("stores direct troop purchases as fixed squads instead of single units", () => {
+    expect(GAME_RULES.deployment.costs).toMatchObject({
+      swordsman: 400,
+      archer: 300,
+      mage: 600,
+      catapult: 800,
+    });
+    expect(GAME_RULES.deployment.troopCounts).toEqual({
+      swordsman: 3,
+      archer: 2,
+      mage: 2,
+      catapult: 1,
+    });
   });
 
   it("stores the first playable mine and barracks production baselines", () => {
@@ -50,12 +66,17 @@ describe("central game rules", () => {
     for (const spec of Object.values(UNIT_SPECS)) {
       expect(spec.maxHealth).toBeGreaterThan(0);
       expect(spec.damage).toBeGreaterThan(0);
+      expect(spec.damageReduction).toBeGreaterThanOrEqual(0);
+      expect(spec.damageReduction).toBeLessThan(1);
       expect(spec.attackCooldown).toBeGreaterThan(0);
       expect(spec.moveSpeed).toBeGreaterThan(0);
     }
   });
 
   it("maps every deployable troop name to one existing combat role", () => {
+    expect(new Set(TROOP_KINDS)).toEqual(
+      new Set(["swordsman", "archer", "mage", "catapult"]),
+    );
     expect(TROOP_ROLE_BY_DEPLOYABLE).toEqual({
       swordsman: "knight",
       archer: "ranger",
@@ -114,6 +135,7 @@ describe("central game rules", () => {
       ...GAME_RULES,
       economy: { ...GAME_RULES.economy, maximumGold: 900 },
       deployment: {
+        ...GAME_RULES.deployment,
         costs: { ...GAME_RULES.deployment.costs, swordsman: 400 },
       },
     };
@@ -123,6 +145,7 @@ describe("central game rules", () => {
       ...tunable,
       economy: { ...tunable.economy, maximumGold: 950 },
       deployment: {
+        ...tunable.deployment,
         costs: { ...tunable.deployment.costs, swordsman: 50 },
       },
       targeting: { routeCorridorWidth: 0 },

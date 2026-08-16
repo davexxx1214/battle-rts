@@ -84,6 +84,8 @@ describe("battle audio", () => {
 
     expect(router.consume(events).map(({ cue }) => cue)).toEqual(["unit.death"]);
     expect(router.consume(events)).toEqual([]);
+    router.reset();
+    expect(router.consume(events).map(({ cue }) => cue)).toEqual(["unit.death"]);
   });
 
   it("plays the full-gold prompt once per transition event", () => {
@@ -147,6 +149,68 @@ describe("battle audio", () => {
       }, 9, 2.2),
     ];
 
+    expect(router.consume(events)).toEqual([]);
+  });
+
+  it("routes distinct building economy, spawn, destruction, and castle activation cues", () => {
+    const router = new BattleAudioEventRouter();
+    const events = [
+      stampBattleEvent({
+        type: "building-gold-produced",
+        buildingId: "mine-1",
+        faction: "verdant",
+        scheduledAt: 4,
+        productionSequence: 1,
+        producedAmount: 100,
+        creditedAmount: 100,
+        wastedAmount: 0,
+      }, 10, 4),
+      stampBattleEvent({
+        type: "building-gold-produced",
+        buildingId: "mine-1",
+        faction: "verdant",
+        scheduledAt: 8,
+        productionSequence: 2,
+        producedAmount: 100,
+        creditedAmount: 0,
+        wastedAmount: 100,
+      }, 11, 8),
+      stampBattleEvent({
+        type: "building-unit-spawned",
+        buildingId: "barracks-1",
+        faction: "verdant",
+        unitId: "swordsman-1",
+        role: "knight",
+        position: { x: 0, z: 4 },
+        scheduledAt: 5,
+        spawnSequence: 1,
+      }, 12, 5),
+      stampBattleEvent({
+        type: "building-destroyed",
+        buildingId: "mine-1",
+        faction: "verdant",
+        kind: "gold-mine",
+        scheduledAt: 9,
+        coordinate: { q: 0, r: 3 },
+        position: { x: 3, z: 4 },
+        removeAt: 9.8,
+        cause: "damage",
+      }, 13, 9),
+      stampBattleEvent({
+        type: "castle-activated",
+        castleId: "verdant-castle",
+        faction: "verdant",
+        position: { x: 0, z: 12 },
+      }, 14, 10),
+    ];
+
+    expect(router.consume(events).map(({ cue }) => cue)).toEqual([
+      "building.gold",
+      "building.gold-wasted",
+      "building.spawn",
+      "building.destroy",
+      "castle.activate",
+    ]);
     expect(router.consume(events)).toEqual([]);
   });
 

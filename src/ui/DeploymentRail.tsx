@@ -176,7 +176,14 @@ function DeployableGroup({
               onClick={() => onSelect(item.kind)}
               key={item.kind}
             >
-              <span className={styles.glyph} aria-hidden="true">{item.glyph}</span>
+              <span className={styles.glyph} aria-hidden="true">
+                {item.glyph}
+                {DEPLOYABLE_CATEGORIES[item.kind] === "troop" && (
+                  <b className={styles.squadSize}>
+                    ×{GAME_RULES.deployment.troopCounts[item.kind as TroopKind]}
+                  </b>
+                )}
+              </span>
               <span className={styles.identity}>
                 <strong>{item.name}</strong>
                 <small>{item.detail}</small>

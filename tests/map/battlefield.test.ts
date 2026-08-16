@@ -10,31 +10,89 @@ import {
   hexDistance,
   worldToAxial,
 } from "../../src/map/battlefield";
-import { BATTLEFIELD_DEPLOYMENTS } from "../../src/scenarios/battlefieldScenario";
 import { findHexPath } from "../../src/game/navigation";
 
 describe("battlefield island", () => {
-  it("contains unique cells, three land elevations, and two separated water basins", () => {
+  it("contains unique cells, three land elevations, and a continuous river with two bridges", () => {
     const keys = BATTLEFIELD_MAP.cells.map((cell) => `${cell.q},${cell.r}`);
     const landHeights = new Set(
       BATTLEFIELD_MAP.cells.filter((cell) => cell.walkable).map((cell) => cell.height),
     );
-    const waterSides = new Set(
-      BATTLEFIELD_MAP.cells
-        .filter((cell) => cell.surface === "water")
-        .map((cell) => Math.sign(cell.q)),
-    );
+    const river = BATTLEFIELD_MAP.cells.filter((cell) => Math.abs(cell.r) <= 1);
+    const bridgeKeys = new Set(BATTLEFIELD_MAP.bridges.flatMap((bridge) => (
+      bridge.cells.map((cell) => `${cell.q},${cell.r}`)
+    )));
 
     expect(new Set(keys).size).toBe(keys.length);
     expect(landHeights.size).toBeGreaterThanOrEqual(3);
-    expect(waterSides).toEqual(new Set([-1, 1]));
+    expect(BATTLEFIELD_MAP.bridges).toHaveLength(2);
+    expect(BATTLEFIELD_MAP.bridges.map((bridge) => bridge.center)).toEqual([
+      { q: -2, r: 0 },
+      { q: 2, r: 0 },
+    ]);
+    expect(BATTLEFIELD_MAP.bridges.map((bridge) => bridge.cells)).toEqual([
+      [
+        { q: -2, r: -1 },
+        { q: -2, r: 0 },
+        { q: -2, r: 1 },
+        { q: -1, r: -1 },
+        { q: -1, r: 0 },
+        { q: -1, r: 1 },
+      ],
+      [
+        { q: 2, r: -1 },
+        { q: 2, r: 0 },
+        { q: 2, r: 1 },
+        { q: 1, r: 1 },
+        { q: 1, r: 0 },
+        { q: 1, r: -1 },
+      ],
+    ]);
+    expect(bridgeKeys.size).toBe(12);
+    expect(river.every((cell) => (
+      bridgeKeys.has(`${cell.q},${cell.r}`)
+        ? cell.surface === "bridge" && cell.walkable
+        : cell.surface === "water" && !cell.walkable
+    ))).toBe(true);
+    expect(BATTLEFIELD_MAP.cells.filter((cell) => (
+      Math.abs(cell.r) <= 1 && cell.q >= -1 && cell.q <= 1
+    )).filter((cell) => cell.surface === "water").map((cell) => `${cell.q},${cell.r}`))
+      .toEqual(["0,-1", "0,0", "0,1"]);
   });
 
-  it("keeps both camps connected to the central bridge without crossing blocked cells", () => {
-    for (const camp of [BATTLEFIELD_MAP.verdantCamp, BATTLEFIELD_MAP.crimsonCamp]) {
-      const path = findHexPath(BATTLEFIELD_MAP, camp, BATTLEFIELD_MAP.center);
+  it("keeps both camps connected through each bridge without crossing blocked cells", () => {
+    for (const bridge of BATTLEFIELD_MAP.bridges) {
+      const crossing = findHexPath(
+        BATTLEFIELD_MAP,
+        bridge.approaches.verdant,
+        bridge.approaches.crimson,
+      );
+      const bridgeKeys = new Set(bridge.cells.map((cell) => `${cell.q},${cell.r}`));
+      expect(crossing[0]).toEqual(bridge.approaches.verdant);
+      expect(crossing.at(-1)).toEqual(bridge.approaches.crimson);
+      expect(crossing.slice(1, -1).every((cell) => bridgeKeys.has(`${cell.q},${cell.r}`)))
+        .toBe(true);
+      for (const camp of [BATTLEFIELD_MAP.verdantCamp, BATTLEFIELD_MAP.crimsonCamp]) {
+        const path = findHexPath(BATTLEFIELD_MAP, camp, bridge.center);
+        expect(path.length).toBeGreaterThan(1);
+        expect(path.every((coordinate) => getBattlefieldCell(coordinate)?.walkable)).toBe(true);
+      }
+    }
+  });
+
+  it("forces every complete attack route to cross one of the two bridges", () => {
+    const bridgeKeys = new Set(BATTLEFIELD_MAP.bridges.flatMap((bridge) => (
+      bridge.cells.map((cell) => `${cell.q},${cell.r}`)
+    )));
+    for (const [start, goal] of [
+      [BATTLEFIELD_MAP.verdantCamp, BATTLEFIELD_MAP.castleApproaches.crimson],
+      [BATTLEFIELD_MAP.crimsonCamp, BATTLEFIELD_MAP.castleApproaches.verdant],
+    ] as const) {
+      const path = findHexPath(BATTLEFIELD_MAP, start, goal);
       expect(path.length).toBeGreaterThan(1);
       expect(path.every((coordinate) => getBattlefieldCell(coordinate)?.walkable)).toBe(true);
+      expect(path.some((coordinate) => bridgeKeys.has(`${coordinate.q},${coordinate.r}`)))
+        .toBe(true);
     }
   });
 
@@ -71,7 +129,6 @@ describe("battlefield island", () => {
         .toHaveLength(1);
       expect(factionDecorations.filter((decoration) => decoration.kind === "ore-pile"))
         .toHaveLength(1);
-      expect(BATTLEFIELD_DEPLOYMENTS[faction]).toHaveLength(6);
     }
     for (const structure of BATTLEFIELD_STRUCTURES) {
       for (const coordinate of structure.footprint) {

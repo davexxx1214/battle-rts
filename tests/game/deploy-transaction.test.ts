@@ -12,6 +12,8 @@ import {
   BATTLEFIELD_MAP,
   axialToWorld,
   coordinateKey,
+  getMapCell,
+  worldToAxial,
 } from "../../src/map/battlefield";
 
 const VERDANT_BUILDING_CELL = requiredCell(BATTLEFIELD_MAP.cells.find((cell) => {
@@ -84,26 +86,34 @@ describe("atomic battle deployment", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.reason);
-    expect(result.entityId).toBe("verdant-gold-mine-1");
+    expect(result).toMatchObject({
+      deploymentId: "verdant-gold-mine-1",
+      entityType: "building",
+      buildingId: "verdant-gold-mine-1",
+    });
+    if (result.entityType !== "building") throw new Error("Expected building deployment.");
     expect(result.state.battle.economy.accounts.verdant.gold).toBe(300);
     expect(result.state.battle.buildings).toContainEqual(expect.objectContaining({
-      id: result.entityId,
+      id: result.buildingId,
       kind: "gold-mine",
       faction: "verdant",
       coordinate: { q: VERDANT_BUILDING_CELL.q, r: VERDANT_BUILDING_CELL.r },
     }));
     expect(result.state.battle.buildingOccupancy[coordinateKey(VERDANT_BUILDING_CELL)])
-      .toMatchObject({ buildingId: result.entityId });
+      .toMatchObject({ buildingId: result.buildingId });
     expect(result.state.battle.nextDeploymentSequence).toBe(1);
     expect(result.state.battle.deploymentCounts.verdant["gold-mine"]).toBe(1);
     expect(result.state.battle.events.at(-1)).toMatchObject({
       type: "deployment-succeeded",
-      entityId: result.entityId,
+      deploymentId: result.deploymentId,
+      entityType: "building",
+      buildingId: result.buildingId,
       kind: "gold-mine",
+      quantity: 1,
     });
   });
 
-  it("deploys a troop into its own new squad and deducts exactly once", () => {
+  it("deploys a purchased troop squad atomically and deducts exactly once", () => {
     const session = unresolvedSession();
     const result = deployBattleSessionEntity(session, {
       faction: "verdant",
@@ -113,18 +123,62 @@ describe("atomic battle deployment", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.reason);
-    expect(result.state.battle.deploymentCounts.verdant.mage).toBe(1);
-    expect(result.state.battle.economy.accounts.verdant.gold).toBe(600);
-    expect(result.state.battle.units).toContainEqual(expect.objectContaining({
-      id: "verdant-mage-1",
+    if (result.entityType !== "squad") throw new Error("Expected squad deployment.");
+    expect(result).toMatchObject({
+      deploymentId: "verdant-mage-1",
       squadId: "verdant-mage-1-squad",
-      faction: "verdant",
-      role: "mage",
-    }));
+      unitIds: [
+        "verdant-mage-1-member-1",
+        "verdant-mage-1-member-2",
+      ],
+    });
+    expect(result.state.battle.deploymentCounts.verdant.mage).toBe(1);
+    expect(result.state.battle.economy.accounts.verdant.gold).toBe(400);
+    const deployed = result.state.battle.units.filter((unit) => (
+      unit.squadId === "verdant-mage-1-squad"
+    ));
+    expect(deployed).toHaveLength(2);
+    expect(deployed.map((unit) => unit.id)).toEqual([
+      "verdant-mage-1-member-1",
+      "verdant-mage-1-member-2",
+    ]);
+    expect(deployed.every((unit) => (
+      unit.faction === "verdant" && unit.role === "mage"
+    ))).toBe(true);
+    expect(deployed.every((unit) => {
+      const cell = getMapCell(BATTLEFIELD_MAP, worldToAxial(unit.position));
+      return cell?.walkable && cell.territory === "verdant";
+    })).toBe(true);
     expect(result.state.battle.squads).toContainEqual(expect.objectContaining({
       id: "verdant-mage-1-squad",
-      memberIds: ["verdant-mage-1"],
+      memberIds: [
+        "verdant-mage-1-member-1",
+        "verdant-mage-1-member-2",
+      ],
+      initialSize: 2,
     }));
+    expect(result.state.battle.events.at(-1)).toMatchObject({
+      type: "deployment-succeeded",
+      entityType: "squad",
+      squadId: result.squadId,
+      unitIds: result.unitIds,
+      kind: "mage",
+      quantity: 2,
+    });
+  });
+
+  it("keeps catapult deployment as a one-unit squad", () => {
+    const result = deployBattleSessionEntity(unresolvedSession(), {
+      faction: "verdant",
+      kind: "catapult",
+      worldPosition: axialToWorld(VERDANT_TROOP_CELL),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.state.battle.units.filter((unit) => (
+      unit.squadId === "verdant-catapult-1-squad"
+    ))).toHaveLength(1);
   });
 
   it.each([

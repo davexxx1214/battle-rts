@@ -8,6 +8,23 @@ import {
 } from "../../src/game/battleSession";
 
 describe("battle session gate", () => {
+  it("creates isolated clean state for repeated battle restarts", () => {
+    const restarts = [createInitialBattle(), createInitialBattle(), createInitialBattle()];
+
+    expect(restarts[1]).toEqual(restarts[0]);
+    expect(restarts[2]).toEqual(restarts[0]);
+    expect(restarts[1]).not.toBe(restarts[0]);
+    for (const battle of restarts) {
+      expect(battle.elapsed).toBe(0);
+      expect(battle.events).toEqual([]);
+      expect(battle.buildingOccupancy).toEqual({});
+      expect(battle.buildings.every((building) => building.kind === "castle")).toBe(true);
+      expect(battle.units.every((unit) => (
+        unit.behavior === "charging" && unit.currentTarget === null && unit.health > 0
+      ))).toBe(true);
+    }
+  });
+
   it("keeps the battle frozen until the player engages", () => {
     const initial = createInitialBattle();
 

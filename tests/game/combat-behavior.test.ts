@@ -6,6 +6,7 @@ import {
   stepBattle,
   type BattleState,
 } from "../../src/game/battle";
+import { UNIT_SPECS } from "../../src/game/rules";
 import {
   BATTLEFIELD_MAP,
   axialToWorld,
@@ -22,17 +23,23 @@ function runSteps(initial: BattleState, count: number, delta = 0.1): BattleState
 describe("automatic combat role behavior", () => {
   it("fires a slow catapult stone that damages nearby enemies", () => {
     const catapult = createBattleUnit({
-      id: "v-catapult", faction: "verdant", role: "catapult", position: { x: 0, z: 8 },
+      id: "v-catapult", faction: "verdant", role: "catapult",
+      position: axialToWorld({ q: 2, r: 2 }),
     });
     const target = createBattleUnit({
-      id: "c-target", faction: "crimson", role: "knight", position: { x: 0, z: 0 },
+      id: "c-target", faction: "crimson", role: "knight",
+      position: axialToWorld({ q: 2, r: 0 }),
     });
     const nearby = createBattleUnit({
-      id: "c-nearby", faction: "crimson", role: "ranger", position: { x: 1.4, z: 0 },
+      id: "c-nearby", faction: "crimson", role: "ranger",
+      position: axialToWorld({ q: 2, r: -1 }),
     });
     const fired = stepBattle(createBattleState([catapult, target, nearby]), 0.1);
 
-    expect(fired.projectiles).toMatchObject([{ role: "catapult", splashRadius: 2.8 }]);
+    expect(fired.projectiles).toMatchObject([{
+      role: "catapult",
+      splashRadius: UNIT_SPECS.catapult.splashRadius,
+    }]);
     const impacted = runSteps(fired, 18);
     expect(impacted.units.find((unit) => unit.id === target.id)?.health).toBeLessThan(target.health);
     expect(impacted.units.find((unit) => unit.id === nearby.id)?.health).toBeLessThan(nearby.health);
@@ -41,14 +48,14 @@ describe("automatic combat role behavior", () => {
   it("assigns persistent unique melee engagement slots", () => {
     const attackers = [
       createBattleUnit({
-        id: "v-1", faction: "verdant", role: "knight", position: { x: -0.8, z: 5 },
+        id: "v-1", faction: "verdant", role: "knight", position: { x: -6.8, z: 6.4 },
       }),
       createBattleUnit({
-        id: "v-2", faction: "verdant", role: "knight", position: { x: 0.8, z: 5 },
+        id: "v-2", faction: "verdant", role: "knight", position: { x: -5.2, z: 6.4 },
       }),
     ];
     const target = createBattleUnit({
-      id: "c-1", faction: "crimson", role: "knight", position: { x: 0, z: 2 },
+      id: "c-1", faction: "crimson", role: "knight", position: axialToWorld({ q: -4, r: 2 }),
     });
     const first = stepBattle(createBattleState([...attackers, target]), 0.1);
     const second = stepBattle(first, 0.1);
@@ -80,11 +87,11 @@ describe("automatic combat role behavior", () => {
 
   it("resumes charging after an ordinary path target dies", () => {
     const attacker = createBattleUnit({
-      id: "v-attacker", faction: "verdant", role: "knight", position: { x: 0, z: 2 },
+      id: "v-attacker", faction: "verdant", role: "knight", position: { x: -6, z: 3.4 },
     });
     const target = {
       ...createBattleUnit({
-        id: "c-target", faction: "crimson", role: "knight", position: { x: 0, z: 1 },
+        id: "c-target", faction: "crimson", role: "knight", position: { x: -6, z: 2.4 },
       }),
       health: 1,
     };

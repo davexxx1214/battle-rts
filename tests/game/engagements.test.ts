@@ -41,7 +41,7 @@ describe("melee engagement slots", () => {
       id: "c-water-edge",
       faction: "crimson",
       role: "knight",
-      position: { x: 4, z: 0 },
+      position: { x: 6, z: 0 },
     });
     const attacker = createBattleUnit({
       id: "v-east",

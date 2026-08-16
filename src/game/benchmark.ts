@@ -52,6 +52,48 @@ export class FrameBenchmark {
   }
 }
 
+export function createBenchmarkBattle(unitCount = 80): BattleState {
+  if (!Number.isInteger(unitCount) || unitCount <= 0) {
+    throw new Error("Benchmark unitCount must be a positive integer.");
+  }
+  const verdantCount = Math.ceil(unitCount / 2);
+  const crimsonCount = unitCount - verdantCount;
+  return createBattleState([
+    ...createBenchmarkFaction("verdant", verdantCount),
+    ...createBenchmarkFaction("crimson", crimsonCount),
+  ]);
+}
+
+function createBenchmarkFaction(faction: Faction, count: number) {
+  const roles: readonly UnitRole[] = ["knight", "ranger", "mage", "catapult"];
+  const cells = BATTLEFIELD_MAP.cells.filter((cell) => (
+    cell.territory === faction && cell.walkable
+  ));
+  if (cells.length === 0) {
+    throw new Error(`Benchmark map has no walkable ${faction} cells.`);
+  }
+  return Array.from({ length: count }, (_, index) => {
+    const cell = cells[index % cells.length]!;
+    const center = axialToWorld(cell);
+    const layer = Math.floor(index / cells.length);
+    const angle = (index % 6) * Math.PI / 3;
+    const offset = layer === 0 ? 0 : Math.min(0.32, 0.12 + layer * 0.06);
+    return createBattleUnit({
+      id: `benchmark-${faction}-${index + 1}`,
+      squadId: `benchmark-${faction}-${roles[index % roles.length]}`,
+      faction,
+      role: roles[index % roles.length]!,
+      position: {
+        x: center.x + Math.cos(angle) * offset,
+        z: center.z + Math.sin(angle) * offset,
+      },
+    });
+  });
+}
+
 function round(value: number): number {
   return Math.round(value * 10) / 10;
 }
+import { createBattleState, createBattleUnit, type BattleState } from "./battle";
+import type { Faction, UnitRole } from "./types";
+import { BATTLEFIELD_MAP, axialToWorld } from "../map/battlefield";

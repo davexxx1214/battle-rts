@@ -37,7 +37,7 @@ describe("scene asset presentation", () => {
     ] as const) {
       const asset = STRUCTURE_SCENE_ASSETS.neutral[kind];
       expect(asset.url).toContain("/assets/kaykit/medieval-hex/");
-      expect(asset.url).toMatch(/\.gltf$/);
+      expect(asset.url).toMatch(/\.gl(?:tf|b)$/);
     }
     expect(STRUCTURE_SCENE_ASSETS.neutral["wall-gate"].hiddenNodes).toEqual([
       "wall_straight_gate_door_left",
@@ -54,11 +54,16 @@ describe("scene asset presentation", () => {
       "stone",
       "tent",
       "tree",
+      "village-farm",
+      "village-house",
+      "village-market",
       "wheelbarrow",
     ]);
-    for (const asset of Object.values(SCENERY_SCENE_ASSETS)) {
-      expect(asset.url).toContain("/assets/kaykit/");
-      expect(asset.url).toMatch(/\.gltf$/);
+    for (const [kind, asset] of Object.entries(SCENERY_SCENE_ASSETS)) {
+      expect(asset.url).toContain(kind.startsWith("village-")
+        ? "/assets/kenney/hexagon-kit/"
+        : "/assets/kaykit/");
+      expect(asset.url).toMatch(/\.gl(?:tf|b)$/);
       expect(asset.scale).toBeGreaterThan(0);
     }
   });

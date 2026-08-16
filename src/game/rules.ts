@@ -17,10 +17,16 @@ export type BuildingKind = {
 }[DeployableKind];
 export type TroopKind = Exclude<DeployableKind, BuildingKind>;
 
+export const TROOP_KINDS: readonly TroopKind[] = (
+  Object.keys(DEPLOYABLE_CATEGORIES) as DeployableKind[]
+)
+  .filter((kind): kind is TroopKind => DEPLOYABLE_CATEGORIES[kind] === "troop");
+
 export interface UnitSpec {
   readonly attackMode: "melee" | "projectile";
   readonly maxHealth: number;
   readonly damage: number;
+  readonly damageReduction: number;
   readonly attackRange: number;
   readonly attackCooldown: number;
   readonly moveSpeed: number;
@@ -43,6 +49,7 @@ export interface GameRules {
   };
   readonly deployment: {
     readonly costs: Readonly<Record<DeployableKind, number>>;
+    readonly troopCounts: Readonly<Record<TroopKind, number>>;
   };
   readonly opponentAi: {
     readonly decisionIntervalSeconds: number;
@@ -89,8 +96,9 @@ export interface GameRules {
 export const UNIT_SPECS = {
   knight: {
     attackMode: "melee",
-    maxHealth: 220,
-    damage: 5.25,
+    maxHealth: 230,
+    damage: 6,
+    damageReduction: 0.08,
     attackRange: 1.22,
     attackCooldown: 1.1,
     moveSpeed: 3.25,
@@ -100,10 +108,11 @@ export const UNIT_SPECS = {
   },
   ranger: {
     attackMode: "projectile",
-    maxHealth: 122,
-    damage: 4,
+    maxHealth: 140,
+    damage: 9,
+    damageReduction: 0,
     attackRange: 7,
-    attackCooldown: 1.4,
+    attackCooldown: 1.35,
     moveSpeed: 3.55,
     aggroRange: 9,
     splashRadius: 0,
@@ -111,24 +120,26 @@ export const UNIT_SPECS = {
   },
   mage: {
     attackMode: "projectile",
-    maxHealth: 102,
-    damage: 5,
+    maxHealth: 180,
+    damage: 11.75,
+    damageReduction: 0.08,
     attackRange: 6.2,
-    attackCooldown: 2,
+    attackCooldown: 1.8,
     moveSpeed: 3.05,
     aggroRange: 8.5,
-    splashRadius: 2.25,
-    projectileSpeed: 8,
+    splashRadius: 2.4,
+    projectileSpeed: 9,
   },
   catapult: {
     attackMode: "projectile",
-    maxHealth: 360,
-    damage: 42,
+    maxHealth: 380,
+    damage: 47,
+    damageReduction: 0.12,
     attackRange: 13.5,
     attackCooldown: 4,
     moveSpeed: 1.65,
     aggroRange: 13,
-    splashRadius: 2.8,
+    splashRadius: 3,
     projectileSpeed: 7,
   },
 } as const satisfies Readonly<Record<UnitRole, UnitSpec>>;
@@ -157,12 +168,18 @@ export const GAME_RULES = {
   },
   deployment: {
     costs: {
-      swordsman: 300,
+      swordsman: 400,
       archer: 300,
-      mage: 400,
+      mage: 600,
       catapult: 800,
       "gold-mine": GOLD_MINE_COST,
       barracks: BARRACKS_COST,
+    },
+    troopCounts: {
+      swordsman: 3,
+      archer: 2,
+      mage: 2,
+      catapult: 1,
     },
   },
   opponentAi: {
@@ -265,6 +282,11 @@ export function validateGameRules(rules: GameRules): string[] {
       errors.push(`deployment.costs.${kind} must be a multiple of 100 from 100 to 1000`);
     }
   }
+  for (const [kind, count] of Object.entries(deployment.troopCounts)) {
+    if (!Number.isInteger(count) || count <= 0) {
+      errors.push(`deployment.troopCounts.${kind} must be a positive integer`);
+    }
+  }
   if (deployment.costs["gold-mine"] !== buildings.goldMine.cost) {
     errors.push("gold mine deployment and building costs must match");
   }
@@ -363,6 +385,9 @@ export function validateGameRules(rules: GameRules): string[] {
     ]);
     if (!isNonNegative(spec.splashRadius)) {
       errors.push(`units.${role}.splashRadius must not be negative`);
+    }
+    if (!isNonNegative(spec.damageReduction) || spec.damageReduction >= 1) {
+      errors.push(`units.${role}.damageReduction must be from zero up to but not including one`);
     }
     if (spec.attackMode === "projectile" && !isPositive(spec.projectileSpeed)) {
       errors.push(`units.${role}.projectileSpeed must be positive for projectile attacks`);

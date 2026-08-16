@@ -2,6 +2,7 @@ import {
   appendUnitsToSquads,
   createBattleUnit,
 } from "./battle";
+import { createFormationSlots } from "./formation";
 import type { BattleSessionState } from "./battleSessionState";
 import { createBattleBuilding } from "./buildings";
 import {
@@ -18,6 +19,7 @@ import {
   GAME_RULES,
   TROOP_ROLE_BY_DEPLOYABLE,
   isBuildingDeployable,
+  type BuildingKind,
   type DeployableKind,
   type TroopKind,
 } from "./rules";
@@ -54,6 +56,7 @@ export type DeploymentPreview =
       readonly reason: null;
       readonly coordinate: HexCoordinate;
       readonly position: WorldPoint;
+      readonly unitPositions: readonly WorldPoint[];
     }
   | {
       readonly valid: false;
@@ -62,14 +65,29 @@ export type DeploymentPreview =
       readonly position: WorldPoint | null;
     };
 
-export type DeploymentResult =
+type DeploymentSuccessDetails =
   | {
+      readonly entityType: "building";
+      readonly kind: BuildingKind;
+      readonly buildingId: string;
+      readonly quantity: 1;
+    }
+  | {
+      readonly entityType: "squad";
+      readonly kind: TroopKind;
+      readonly squadId: string;
+      readonly unitIds: readonly string[];
+      readonly quantity: number;
+    };
+
+export type DeploymentResult =
+  | ({
       readonly ok: true;
       readonly state: BattleSessionState;
-      readonly entityId: string;
+      readonly deploymentId: string;
       readonly coordinate: HexCoordinate;
       readonly position: WorldPoint;
-    }
+    } & DeploymentSuccessDetails)
   | {
       readonly ok: false;
       readonly state: BattleSessionState;
@@ -118,14 +136,14 @@ export function previewDeployment(
     return invalidPreview(availability.reason, request.worldPosition);
   }
 
-  const entityId = deploymentEntityId(
+  const deploymentId = deploymentEntityId(
     request.faction,
     request.kind,
     state.nextDeploymentSequence + 1,
   );
   if (isBuildingDeployable(request.kind)) {
     const placement = requestBuildingPlacement(BATTLEFIELD_MAP, state.buildingOccupancy, {
-      buildingId: entityId,
+      buildingId: deploymentId,
       kind: request.kind,
       faction: request.faction,
       worldPosition: request.worldPosition,
@@ -133,7 +151,7 @@ export function previewDeployment(
     if (!placement.ok) {
       return invalidPreview(placement.reason, request.worldPosition);
     }
-    return validPreview(placement.coordinate);
+    return validPreview(placement.coordinate, []);
   }
 
   const coordinate = resolveWorldHex(BATTLEFIELD_MAP, request.worldPosition);
@@ -151,7 +169,16 @@ export function previewDeployment(
   if (state.buildingOccupancy[coordinateKey(coordinate)]) {
     return invalidPreview("occupied-hex", request.worldPosition);
   }
-  return validPreview(coordinate);
+  const unitPositions = planTroopPositions(
+    request.faction,
+    request.kind,
+    coordinate,
+    state.buildingOccupancy,
+  );
+  if (!unitPositions.ok) {
+    return invalidPreview(unitPositions.reason, request.worldPosition);
+  }
+  return validPreview(coordinate, unitPositions.positions);
 }
 
 export function deployBattleSessionEntity(
@@ -163,7 +190,7 @@ export function deployBattleSessionEntity(
   if (!preview.valid) return { ok: false, state: session, reason: preview.reason };
 
   const sequence = state.nextDeploymentSequence + 1;
-  const entityId = deploymentEntityId(request.faction, request.kind, sequence);
+  const deploymentId = deploymentEntityId(request.faction, request.kind, sequence);
   const spend = trySpendGold(
     state.economy,
     request.faction,
@@ -179,9 +206,10 @@ export function deployBattleSessionEntity(
   let occupancy = state.buildingOccupancy;
   let units = state.units;
   let squads = state.squads;
+  let successDetails: DeploymentSuccessDetails;
   if (isBuildingDeployable(request.kind)) {
     const placement = requestBuildingPlacement(BATTLEFIELD_MAP, occupancy, {
-      buildingId: entityId,
+      buildingId: deploymentId,
       kind: request.kind,
       faction: request.faction,
       worldPosition: request.worldPosition,
@@ -193,29 +221,48 @@ export function deployBattleSessionEntity(
     }
     occupancy = placement.occupancy;
     buildings = [...buildings, createBattleBuilding({
-      id: entityId,
+      id: deploymentId,
       kind: request.kind,
       faction: request.faction,
       coordinate: preview.coordinate,
       createdAt: state.matchElapsed,
     })];
+    successDetails = {
+      entityType: "building",
+      kind: request.kind,
+      buildingId: deploymentId,
+      quantity: 1,
+    };
   } else {
-    const unit = createDeployedUnit(entityId, request.faction, request.kind, preview.position);
-    units = [...units, unit];
-    squads = appendUnitsToSquads(squads, [unit]);
+    const deployedUnits = createDeployedUnits(
+      deploymentId,
+      request.faction,
+      request.kind,
+      preview.unitPositions,
+    );
+    units = [...units, ...deployedUnits];
+    squads = appendUnitsToSquads(squads, deployedUnits);
+    successDetails = {
+      entityType: "squad",
+      kind: request.kind,
+      squadId: `${deploymentId}-squad`,
+      unitIds: deployedUnits.map((unit) => unit.id),
+      quantity: deployedUnits.length,
+    };
   }
 
   const deploymentEvent = stampBattleEvent({
     type: "deployment-succeeded",
     faction: request.faction,
-    entityId,
-    kind: request.kind,
+    deploymentId,
+    ...successDetails,
     coordinate: preview.coordinate,
     position: preview.position,
   }, state.nextEventSequence, state.elapsed);
   return {
     ok: true,
-    entityId,
+    deploymentId,
+    ...successDetails,
     coordinate: preview.coordinate,
     position: preview.position,
     state: {
@@ -241,28 +288,65 @@ export function deployBattleSessionEntity(
   };
 }
 
-function createDeployedUnit(
-  entityId: string,
+function createDeployedUnits(
+  deploymentId: string,
   faction: Faction,
   kind: TroopKind,
-  position: WorldPoint,
+  positions: readonly WorldPoint[],
 ) {
-  return createBattleUnit({
-    id: entityId,
-    squadId: `${entityId}-squad`,
+  const squadId = `${deploymentId}-squad`;
+  return positions.map((memberPosition, index) => createBattleUnit({
+    id: `${deploymentId}-member-${index + 1}`,
+    squadId,
     faction,
     role: TROOP_ROLE_BY_DEPLOYABLE[kind],
-    position,
-  });
+    position: memberPosition,
+  }));
 }
 
-function validPreview(coordinate: HexCoordinate): DeploymentPreview {
+function validPreview(
+  coordinate: HexCoordinate,
+  unitPositions: readonly WorldPoint[],
+): DeploymentPreview {
   return {
     valid: true,
     reason: null,
     coordinate: { ...coordinate },
     position: axialToWorld(coordinate),
+    unitPositions,
   };
+}
+
+function planTroopPositions(
+  faction: Faction,
+  kind: TroopKind,
+  coordinate: HexCoordinate,
+  occupancy: BattleSessionState["battle"]["buildingOccupancy"],
+): { readonly ok: true; readonly positions: readonly WorldPoint[] }
+  | { readonly ok: false; readonly reason: DeploymentFailureReason } {
+  const center = axialToWorld(coordinate);
+  const facing = faction === "verdant" ? Math.PI : 0;
+  const positions = createFormationSlots(
+    GAME_RULES.deployment.troopCounts[kind],
+    center,
+    facing,
+  );
+  for (const position of positions) {
+    const memberCoordinate = resolveWorldHex(BATTLEFIELD_MAP, position);
+    if (!memberCoordinate) return { ok: false, reason: "outside-battlefield" };
+    const cell = getMapCell(BATTLEFIELD_MAP, memberCoordinate);
+    if (!cell) return { ok: false, reason: "outside-battlefield" };
+    if (cell.territory !== null && cell.territory !== faction) {
+      return { ok: false, reason: "enemy-territory" };
+    }
+    if (cell.territory !== faction || !cell.walkable) {
+      return { ok: false, reason: "unwalkable-hex" };
+    }
+    if (occupancy[coordinateKey(memberCoordinate)]) {
+      return { ok: false, reason: "occupied-hex" };
+    }
+  }
+  return { ok: true, positions };
 }
 
 function invalidPreview(

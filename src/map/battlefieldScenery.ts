@@ -1,4 +1,8 @@
-import { battlefieldCoordinates, battlefieldSurfaceAt } from "./battlefieldLayout";
+import {
+  battlefieldCoordinates,
+  battlefieldOuterFlankAt,
+  battlefieldSurfaceAt,
+} from "./battlefieldLayout";
 
 export const BATTLEFIELD_SCENERY_KINDS = [
   "tree",
@@ -9,11 +13,18 @@ export const BATTLEFIELD_SCENERY_KINDS = [
   "wheelbarrow",
   "farm-dirt",
   "farm-grain",
+  "village-house",
+  "village-market",
+  "village-farm",
 ] as const;
 
 export type BattlefieldSceneryKind = typeof BATTLEFIELD_SCENERY_KINDS[number];
 
-export type BattlefieldSceneryZone = "wild" | "verdant-camp" | "crimson-camp";
+export type BattlefieldSceneryZone =
+  | "wild"
+  | "outskirts"
+  | "verdant-camp"
+  | "crimson-camp";
 
 export interface BattlefieldScenery {
   readonly id: string;
@@ -31,6 +42,9 @@ export const BLOCKING_SCENERY_KINDS: ReadonlySet<BattlefieldSceneryKind> = new S
   "iron",
   "tent",
   "wheelbarrow",
+  "village-house",
+  "village-market",
+  "village-farm",
 ]);
 
 const FOREST_CLUSTER_CELLS = battlefieldCoordinates()
@@ -38,6 +52,12 @@ const FOREST_CLUSTER_CELLS = battlefieldCoordinates()
 
 const ROCK_CLUSTER_CELLS = battlefieldCoordinates()
   .filter(([q, r]) => battlefieldSurfaceAt(q, r) === "rock");
+
+const OUTER_FLANK_CELLS = battlefieldCoordinates()
+  .filter(([q, r]) => (
+    battlefieldOuterFlankAt(q, r)
+    && battlefieldSurfaceAt(q, r) === "grass"
+  ));
 
 const RIVERBANK_DETAILS = [
   { q: -3, r: 2, offset: { x: -0.58, z: -0.34 }, rotationY: 0.2 },
@@ -49,6 +69,7 @@ const RIVERBANK_DETAILS = [
 export const BATTLEFIELD_SCENERY: readonly BattlefieldScenery[] = [
   ...FOREST_CLUSTER_CELLS.flatMap(([q, r], index) => createForestCluster(q, r, index)),
   ...ROCK_CLUSTER_CELLS.flatMap(([q, r], index) => createRockCluster(q, r, index)),
+  ...OUTER_FLANK_CELLS.flatMap(([q, r], index) => createOuterFlankCluster(q, r, index)),
   ...RIVERBANK_DETAILS.map((detail, index) => scenery(
     `riverbank-bush-${index}`,
     "bush",
@@ -132,6 +153,61 @@ function createRockCluster(q: number, r: number, index: number): BattlefieldScen
         )]
       : []),
   ];
+}
+
+function createOuterFlankCluster(q: number, r: number, index: number): BattlefieldScenery[] {
+  const primaryKinds = [
+    "tree",
+    "tree",
+    "stone",
+    "tree",
+    "village-house",
+    "tree",
+    "village-market",
+    "tree",
+    "village-farm",
+    "tree",
+  ] as const;
+  const kind = primaryKinds[index % primaryKinds.length]!;
+  const rotation = (index % 6) * Math.PI / 3;
+  const primary = scenery(
+    `outskirts-${q}-${r}-${kind}`,
+    kind,
+    "outskirts",
+    q,
+    r,
+    { x: 0, z: 0 },
+    kind === "tree"
+      ? 0.86 + (index % 4) * 0.07
+      : kind === "stone"
+        ? 0.72 + (index % 3) * 0.06
+        : 0.76 + (index % 3) * 0.05,
+    rotation,
+  );
+  const detail = index % 3 === 0
+    ? scenery(
+        `outskirts-${q}-${r}-bush`,
+        "bush",
+        "outskirts",
+        q,
+        r,
+        { x: index % 2 === 0 ? 0.52 : -0.5, z: index % 2 === 0 ? -0.36 : 0.34 },
+        0.68 + (index % 4) * 0.06,
+        rotation + Math.PI / 5,
+      )
+    : index % 3 === 1
+      ? scenery(
+          `outskirts-${q}-${r}-iron`,
+          "iron",
+          "outskirts",
+          q,
+          r,
+          { x: index % 2 === 0 ? -0.46 : 0.48, z: index % 2 === 0 ? 0.3 : -0.32 },
+          0.52 + (index % 3) * 0.05,
+          rotation - Math.PI / 6,
+        )
+      : null;
+  return detail ? [primary, detail] : [primary];
 }
 
 function createCampScenery(faction: "verdant" | "crimson"): BattlefieldScenery[] {

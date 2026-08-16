@@ -8,6 +8,10 @@ import {
   BATTLEFIELD_SCENERY,
   BLOCKING_SCENERY_KINDS,
 } from "../../src/map/battlefieldScenery";
+import {
+  battlefieldCombatZoneAt,
+  battlefieldOuterFlankAt,
+} from "../../src/map/battlefieldLayout";
 
 describe("battlefield scenery layout", () => {
   it("covers every forest cell with a layered tree cluster", () => {
@@ -63,5 +67,44 @@ describe("battlefield scenery layout", () => {
       q: item.coordinate.q,
       r: item.coordinate.r,
     })));
+  });
+
+  it("turns the oversized outer flanks into dense, non-deployable scenery", () => {
+    const blockingKeys = new Set(BATTLEFIELD_SCENERY
+      .filter((item) => BLOCKING_SCENERY_KINDS.has(item.kind))
+      .map((item) => `${item.coordinate.q},${item.coordinate.r}`));
+    const outerFlanks = BATTLEFIELD_MAP.cells.filter((cell) => (
+      cell.territory !== null
+      && battlefieldOuterFlankAt(cell.q, cell.r)
+    ));
+
+    expect(outerFlanks.length).toBeGreaterThan(100);
+    expect(outerFlanks.every((cell) => !cell.walkable)).toBe(true);
+    expect(outerFlanks.every((cell) => !cell.buildable)).toBe(true);
+    expect(outerFlanks.every((cell) => blockingKeys.has(`${cell.q},${cell.r}`))).toBe(true);
+
+    const outerKinds = new Set(BATTLEFIELD_SCENERY
+      .filter((item) => outerFlanks.some((cell) => (
+        cell.q === item.coordinate.q && cell.r === item.coordinate.r
+      )))
+      .map((item) => item.kind));
+    for (const kind of [
+      "tree",
+      "stone",
+      "village-house",
+      "village-market",
+      "village-farm",
+    ] as const) {
+      expect(outerKinds.has(kind), `outer flanks should include ${kind}`).toBe(true);
+    }
+
+    for (const faction of ["verdant", "crimson"] as const) {
+      const buildable = BATTLEFIELD_MAP.cells.filter((cell) => (
+        cell.territory === faction && cell.buildable
+      ));
+      expect(buildable.length).toBeGreaterThanOrEqual(10);
+      expect(buildable.length).toBeLessThanOrEqual(45);
+      expect(buildable.every((cell) => battlefieldCombatZoneAt(cell.q, cell.r))).toBe(true);
+    }
   });
 });

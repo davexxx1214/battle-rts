@@ -1,9 +1,11 @@
 import { useFrame, useLoader } from "@react-three/fiber";
 import {
+  type AnimationAction,
   AnimationMixer,
   Box3,
   Color,
   LoopOnce,
+  LoopRepeat,
   MathUtils,
   Mesh,
   MeshBasicMaterial,
@@ -19,19 +21,14 @@ import type { BattleUnit, UnitRole, WorldPoint } from "../../game/battle";
 import { terrainHeightAt } from "../../map/battlefield";
 import { FACTION_SCENE_COLORS, UNIT_BASE_RING_GEOMETRY } from "../assets";
 import { CatapultUnitModel } from "./CatapultUnitModel";
-
-const MODEL_URLS: Readonly<Record<Exclude<UnitRole, "catapult">, string>> = {
-  knight: "/assets/kaykit/adventurers/characters/Knight.glb",
-  ranger: "/assets/kaykit/adventurers/characters/Ranger.glb",
-  mage: "/assets/kaykit/adventurers/characters/Mage.glb",
-};
-
-const ANIMATION_URLS = [
-  "/assets/kaykit/character-animations/rig-medium/Rig_Medium_General.glb",
-  "/assets/kaykit/character-animations/rig-medium/Rig_Medium_MovementBasic.glb",
-  "/assets/kaykit/character-animations/rig-medium/Rig_Medium_CombatMelee.glb",
-  "/assets/kaykit/character-animations/rig-medium/Rig_Medium_CombatRanged.glb",
-] as const;
+import {
+  CHARACTER_ANIMATION_URLS,
+  CHARACTER_EQUIPMENT_URLS,
+  CHARACTER_SCENE_ASSETS,
+  characterAnimationForState,
+  characterTintStrength,
+  type CharacterRole,
+} from "./characterPresentation";
 
 const CHARACTER_SCALE = 0.27;
 const FAR_ANIMATION_STEP_SECONDS = 1 / 15;
@@ -70,14 +67,28 @@ function CharacterUnitModel({
 }) {
   const gltf = useLoader(
     GLTFLoader,
-    MODEL_URLS[unit.role as Exclude<UnitRole, "catapult">],
+    CHARACTER_SCENE_ASSETS[unit.role as CharacterRole].modelUrl,
   );
-  const animationGltfs = useLoader(GLTFLoader, [...ANIMATION_URLS]);
+  const animationGltfs = useLoader(GLTFLoader, [...CHARACTER_ANIMATION_URLS]);
+  const equipmentGltfs = useLoader(GLTFLoader, [...CHARACTER_EQUIPMENT_URLS]);
   const root = useRef<Object3D>(null);
   const healthRoot = useRef<Object3D>(null);
+  const activeAction = useRef<AnimationAction | null>(null);
+  const equipmentSources = useMemo(
+    () => new Map(CHARACTER_EQUIPMENT_URLS.map((url, index) => [
+      url,
+      equipmentGltfs[index]!.scene,
+    ])),
+    [equipmentGltfs],
+  );
   const model = useMemo(
-    () => prepareCharacterModel(gltf.scene, unit.faction),
-    [gltf.scene, unit.faction],
+    () => prepareCharacterModel(
+      gltf.scene,
+      unit.faction,
+      unit.role as CharacterRole,
+      equipmentSources,
+    ),
+    [equipmentSources, gltf.scene, unit.faction, unit.role],
   );
   const clips = useMemo(
     () => animationGltfs.flatMap((animation) => animation.animations),
@@ -86,28 +97,40 @@ function CharacterUnitModel({
   const mixer = useMemo(() => new AnimationMixer(model), [model]);
   const modelMaterials = useMemo(() => collectModelMaterials(model), [model]);
   const animationAccumulator = useRef(0);
-  const animationName = resolveAnimation(unit);
   const damageAge = damageTime === undefined ? Number.POSITIVE_INFINITY : battleTime - damageTime;
+  const animationName = characterAnimationForState({
+    id: unit.id,
+    role: unit.role as CharacterRole,
+    status: unit.status,
+    attackSequence,
+    damaged: damageAge < 0.2,
+  });
 
   useEffect(() => {
     const clip = clips.find((candidate) => candidate.name === animationName)
       ?? clips.find((candidate) => candidate.name === "Idle_A")
       ?? clips[0];
-    mixer.stopAllAction();
     if (!clip) return;
     const action = mixer.clipAction(clip);
+    const previous = activeAction.current;
+    if (previous && previous !== action) previous.fadeOut(0.12);
     action.reset();
     if (unit.status === "dead") {
       action.setLoop(LoopOnce, 1);
       action.clampWhenFinished = true;
+    } else if (animationName.startsWith("Hit_")) {
+      action.setLoop(LoopOnce, 1);
+      action.clampWhenFinished = false;
+    } else {
+      action.setLoop(LoopRepeat, Number.POSITIVE_INFINITY);
+      action.clampWhenFinished = false;
     }
-    action.fadeIn(0.08).play();
-    return () => {
-      action.fadeOut(0.08);
-    };
-  }, [animationName, clips, mixer, unit.status]);
+    action.fadeIn(0.12).play();
+    activeAction.current = action;
+  }, [animationName, attackSequence, clips, damageTime, mixer, unit.status]);
 
   useEffect(() => () => {
+    activeAction.current = null;
     mixer.stopAllAction();
   }, [mixer]);
   useFrame(({ camera }, delta) => {
@@ -234,30 +257,54 @@ function AttackPulse({ role }: { readonly role: UnitRole }) {
   );
 }
 
-function prepareCharacterModel(source: Object3D, faction: BattleUnit["faction"]): Object3D {
+function prepareCharacterModel(
+  source: Object3D,
+  faction: BattleUnit["faction"],
+  role: CharacterRole,
+  equipmentSources: ReadonlyMap<string, Object3D>,
+): Object3D {
   const model = cloneSkeleton(source);
   const tint = new Color(FACTION_SCENE_COLORS[faction].tint);
   model.scale.setScalar(CHARACTER_SCALE);
+  model.updateMatrixWorld(true);
+  const bounds = new Box3().setFromObject(model);
+  if (Number.isFinite(bounds.min.y)) model.position.y -= bounds.min.y;
+  attachCharacterEquipment(model, role, equipmentSources);
   model.traverse((object) => {
     if (!(object instanceof Mesh)) return;
     object.castShadow = false;
     object.receiveShadow = true;
+    const tintStrength = characterTintStrength(object.name);
     if (Array.isArray(object.material)) {
-      object.material = object.material.map((material) => tintMaterial(material, tint));
+      object.material = object.material.map(
+        (material) => tintMaterial(material, tint, tintStrength),
+      );
     } else {
-      object.material = tintMaterial(object.material, tint);
+      object.material = tintMaterial(object.material, tint, tintStrength);
     }
   });
-  model.updateMatrixWorld(true);
-  const bounds = new Box3().setFromObject(model);
-  if (Number.isFinite(bounds.min.y)) model.position.y -= bounds.min.y;
   return model;
 }
 
-function tintMaterial(material: Material, tint: Color): Material {
+function attachCharacterEquipment(
+  model: Object3D,
+  role: CharacterRole,
+  equipmentSources: ReadonlyMap<string, Object3D>,
+): void {
+  for (const equipment of CHARACTER_SCENE_ASSETS[role].equipment) {
+    const slot = model.getObjectByName(equipment.slot);
+    const source = equipmentSources.get(equipment.url);
+    if (!slot || !source) continue;
+    const instance = source.clone(true);
+    instance.name = `equipment:${equipment.url.split("/").at(-1) ?? role}`;
+    slot.add(instance);
+  }
+}
+
+function tintMaterial(material: Material, tint: Color, strength: number): Material {
   const clone = material.clone();
   if (clone instanceof MeshStandardMaterial) {
-    clone.color.lerp(tint, 0.34);
+    clone.color.lerp(tint, strength);
     clone.transparent = true;
   }
   return clone;
@@ -273,17 +320,6 @@ function collectModelMaterials(model: Object3D): MeshStandardMaterial[] {
     }
   });
   return materials;
-}
-
-function resolveAnimation(unit: BattleUnit): string {
-  if (unit.status === "dead") return "Death_A";
-  if (unit.status === "moving") return unit.role === "ranger" ? "Running_A" : "Walking_A";
-  if (unit.status === "attacking") {
-    if (unit.role === "knight") return "Melee_1H_Attack_Chop";
-    if (unit.role === "ranger") return "Ranged_2H_Shoot";
-    return "Ranged_Magic_Shoot";
-  }
-  return "Idle_A";
 }
 
 function normalizedDirection(origin: WorldPoint, destination: WorldPoint): WorldPoint {

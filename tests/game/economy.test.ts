@@ -3,12 +3,20 @@ import { describe, expect, it } from "vitest";
 import {
   advanceEconomy,
   createEconomyState,
+  getPassiveRecoveryWaitSeconds,
   getMatchClock,
   trySpendGold,
   type EconomyState,
 } from "../../src/game/economy";
 
 describe("gold economy", () => {
+  it("reports passive recovery wait in complete gold ticks and honors saved progress", () => {
+    expect(getPassiveRecoveryWaitSeconds(100, "normal")).toBeCloseTo(2.8);
+    expect(getPassiveRecoveryWaitSeconds(101, "normal")).toBeCloseTo(5.6);
+    expect(getPassiveRecoveryWaitSeconds(101, "normal", 0.5)).toBeCloseTo(4.2);
+    expect(getPassiveRecoveryWaitSeconds(100, "double")).toBeCloseTo(1.4);
+  });
+
   it("starts both factions at 500 gold and awards 100 after 2.8 seconds", () => {
     const initial = createEconomyState();
     const result = advanceEconomy(initial, 0, 2.8);

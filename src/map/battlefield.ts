@@ -1,9 +1,12 @@
 import type { Faction, WorldPoint } from "../game/types";
-import { BLOCKING_SCENERY_KEYS } from "./battlefieldScenery";
 import {
   BATTLEFIELD_RADIUS,
+  BATTLEFIELD_BRIDGE_LAYOUTS,
   battlefieldCoordinates,
+  battlefieldReservedPathAt,
+  battlefieldStaticObstacleAt,
   battlefieldSurfaceAt,
+  type BattlefieldBridgeLayout,
   type TerrainSurface,
 } from "./battlefieldLayout";
 
@@ -28,10 +31,13 @@ export interface BattlefieldMap {
   readonly verdantCamp: HexCoordinate;
   readonly crimsonCamp: HexCoordinate;
   readonly center: HexCoordinate;
+  readonly bridges: readonly BattlefieldBridge[];
   readonly castles: Readonly<Record<Faction, HexCoordinate>>;
   readonly castleApproaches: Readonly<Record<Faction, HexCoordinate>>;
   readonly radius: number;
 }
+
+export type BattlefieldBridge = BattlefieldBridgeLayout;
 
 export interface BattlefieldWorldBounds {
   readonly minX: number;
@@ -190,6 +196,7 @@ function createBattlefieldMap(): BattlefieldMap {
     verdantCamp: BATTLEFIELD_CAMP_LAYOUTS.verdant.camp,
     crimsonCamp: BATTLEFIELD_CAMP_LAYOUTS.crimson.camp,
     center: { q: 0, r: 0 },
+    bridges: BATTLEFIELD_BRIDGE_LAYOUTS,
     castles: {
       verdant: BATTLEFIELD_CAMP_LAYOUTS.verdant.castle,
       crimson: BATTLEFIELD_CAMP_LAYOUTS.crimson.castle,
@@ -218,13 +225,13 @@ function createCell(q: number, r: number): BattlefieldCell {
     && surface !== "forest"
     && surface !== "rock"
     && !STRUCTURE_FOOTPRINT_KEYS.has(coordinateKey({ q, r }))
-    && !BLOCKING_SCENERY_KEYS.has(coordinateKey({ q, r }));
+    && !battlefieldStaticObstacleAt(q, r);
   const territory: Faction | null = r >= 2
     ? "verdant"
     : r <= -2
       ? "crimson"
       : null;
-  const reservedForPath = walkable && Math.abs(2 * q + r) <= 1;
+  const reservedForPath = walkable && battlefieldReservedPathAt(q, r);
   return {
     q,
     r,

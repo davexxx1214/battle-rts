@@ -153,6 +153,12 @@ function eventCues(event: BattleEvent): string[] {
     return event.faction === "verdant" ? ["command.attack"] : [];
   }
   if (event.type === "deployment-succeeded") return ["command.move"];
+  if (event.type === "building-gold-produced") {
+    return [event.creditedAmount > 0 ? "building.gold" : "building.gold-wasted"];
+  }
+  if (event.type === "building-unit-spawned") return ["building.spawn"];
+  if (event.type === "building-destroyed") return ["building.destroy"];
+  if (event.type === "castle-activated") return ["castle.activate"];
   if (event.type === "attack-started") {
     if (event.role === "castle") return ["ranger.attack"];
     if (event.role === "knight") return ["knight.attack"];

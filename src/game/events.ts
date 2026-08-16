@@ -1,6 +1,6 @@
 import type { Faction, UnitRole, WorldPoint } from "./types";
 import type { BuildingSimulationEvent } from "./buildings";
-import type { DeployableKind } from "./rules";
+import type { BuildingKind, TroopKind } from "./rules";
 import type { HexCoordinate } from "../map/battlefield";
 import type { CombatTargetType } from "./combat";
 import type { CastleActivationEvent } from "./castleCombat";
@@ -18,14 +18,27 @@ export type BattleEventInput =
       readonly faction: Faction;
       readonly promptSequence: number;
     }
-  | {
+  | ({
       readonly type: "deployment-succeeded";
       readonly faction: Faction;
-      readonly entityId: string;
-      readonly kind: DeployableKind;
+      readonly deploymentId: string;
       readonly coordinate: HexCoordinate;
       readonly position: WorldPoint;
-    }
+    } & (
+      | {
+          readonly entityType: "building";
+          readonly kind: BuildingKind;
+          readonly buildingId: string;
+          readonly quantity: 1;
+        }
+      | {
+          readonly entityType: "squad";
+          readonly kind: TroopKind;
+          readonly squadId: string;
+          readonly unitIds: readonly string[];
+          readonly quantity: number;
+        }
+    ))
   | {
       readonly type: "attack-started";
       readonly attackerId: string;

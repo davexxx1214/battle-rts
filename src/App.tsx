@@ -30,7 +30,7 @@ import {
 } from "./game/deployTransaction";
 import { getMatchClock } from "./game/economy";
 import type { DeployableKind } from "./game/rules";
-import type { BenchmarkSnapshot } from "./game/benchmark";
+import { createBenchmarkBattle, type BenchmarkSnapshot } from "./game/benchmark";
 import {
   BattlefieldCanvas,
   createSceneInteractionBridge,
@@ -56,7 +56,6 @@ interface DeploymentFeedback {
 }
 
 const SIMULATION_STEP_SECONDS = 0.05;
-const INITIAL_ARMY_SIZE = 41;
 
 export function App() {
   const benchmarkMode = useMemo(() => (
@@ -73,6 +72,10 @@ export function App() {
   const cameraViewStore = useMemo(createCameraViewStore, []);
   const clock = getMatchClock(battle.matchElapsed);
   const armyCounts = useMemo(() => countArmies(battle), [battle]);
+  const enemyForceShare = armyCounts.crimson / Math.max(
+    1,
+    armyCounts.verdant + armyCounts.crimson,
+  );
   const deploymentEnabled = battlePhase === "engaged" && battle.winner === null;
   const deploymentPreview = useMemo<DeploymentPreview | null>(() => (
     app.selectedDeployable && cursorWorld
@@ -300,7 +303,7 @@ export function App() {
           <strong>{armyCounts.crimson}</strong>
           <small>猩红军团存活</small>
           <div className={styles.forceMeter}>
-            <i style={{ height: `${(armyCounts.crimson / INITIAL_ARMY_SIZE) * 100}%` }} />
+            <i style={{ height: `${enemyForceShare * 100}%` }} />
           </div>
         </aside>
       </section>
@@ -311,7 +314,7 @@ export function App() {
 function createAppState(benchmarkMode: boolean): AppState {
   return {
     session: {
-      battle: createInitialBattle(),
+      battle: benchmarkMode ? createBenchmarkBattle(80) : createInitialBattle(),
       phase: benchmarkMode ? "engaged" : "briefing",
     },
     selectedDeployable: null,
@@ -362,6 +365,9 @@ function localPointer(
 
 function countArmies(battle: BattleState) {
   return {
+    verdant: battle.units.filter((unit) => (
+      unit.faction === "verdant" && unit.health > 0
+    )).length,
     crimson: battle.units.filter((unit) => (
       unit.faction === "crimson" && unit.health > 0
     )).length,

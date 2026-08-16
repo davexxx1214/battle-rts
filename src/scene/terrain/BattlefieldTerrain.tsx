@@ -28,7 +28,10 @@ import {
   BATTLEFIELD_SCENERY_KINDS,
   type BattlefieldSceneryKind,
 } from "../../map/battlefieldScenery";
-import { SCENERY_SCENE_ASSETS, STRUCTURE_SCENE_ASSETS } from "../assets";
+import {
+  SCENERY_SCENE_ASSETS,
+  STRUCTURE_SCENE_ASSETS,
+} from "../assets";
 import { miningCartPose } from "./miningCartMotion";
 
 const GRASS_TILE_URL = "/assets/kaykit/medieval-hex/tiles/base/hex_grass.gltf";
@@ -153,7 +156,7 @@ function BattlefieldProps() {
   );
   return (
     <group>
-      {BATTLEFIELD_STRUCTURES.map((structure) => {
+      {BATTLEFIELD_STRUCTURES.filter((structure) => structure.kind !== "castle").map((structure) => {
         const world = axialToWorld(structure.coordinate);
         const asset = sceneAssetForStructure(structure);
         return (

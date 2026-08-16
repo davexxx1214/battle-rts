@@ -15,7 +15,6 @@ import {
   type MeleeEngagementSlot,
 } from "./engagements";
 import {
-  createFormationSlots,
   separateLivingAllies,
 } from "./formation";
 import {
@@ -28,7 +27,6 @@ import {
   getBattlefieldCell,
   worldToAxial,
 } from "../map/battlefield";
-import { BATTLEFIELD_DEPLOYMENTS } from "../scenarios/battlefieldScenario";
 import type { Faction, UnitRole, WorldPoint } from "./types";
 import { BattleSpatialIndex } from "./spatialIndex";
 import { UNIT_SPECS } from "./rules";
@@ -172,10 +170,7 @@ export function createBattleState(units: readonly BattleUnit[]): BattleState {
 }
 
 export function createInitialBattle(): BattleState {
-  const units: BattleUnit[] = [];
-  units.push(...createArmy("verdant"));
-  units.push(...createArmy("crimson"));
-  return createBattleState(units);
+  return createBattleState([]);
 }
 
 export function getBattleMatchClock(state: BattleState): MatchClock {
@@ -648,6 +643,7 @@ function applyDamageIntents(
   );
   const unitsById = new Map(units.map((unit) => [unit.id, unit] as const));
   const buildingsById = new Map(buildingSources.map((building) => [building.id, building] as const));
+  const remainingHealthById = new Map(units.map((unit) => [unit.id, unit.health] as const));
   const totals = new Map<string, { amount: number; killerId: string }>();
 
   for (const intent of intents) {
@@ -658,6 +654,11 @@ function applyDamageIntents(
       : buildingsById.get(intent.sourceId);
     const target = unitsById.get(intent.targetId);
     if (!source || !target) continue;
+    const mitigatedAmount = intent.amount * (1 - UNIT_SPECS[target.role].damageReduction);
+    const remainingHealth = remainingHealthById.get(target.id) ?? 0;
+    const appliedAmount = Math.min(mitigatedAmount, remainingHealth);
+    if (appliedAmount <= 0) continue;
+    remainingHealthById.set(target.id, remainingHealth - appliedAmount);
     emit({
       type: "damage-applied",
       sourceId: intent.sourceId,
@@ -666,11 +667,11 @@ function applyDamageIntents(
       targetId: intent.targetId,
       targetType: "unit",
       targetPosition: { ...target.position },
-      amount: intent.amount,
+      amount: appliedAmount,
     });
     const current = totals.get(intent.targetId);
     totals.set(intent.targetId, {
-      amount: (current?.amount ?? 0) + intent.amount,
+      amount: (current?.amount ?? 0) + appliedAmount,
       killerId: current?.killerId ?? intent.sourceId,
     });
   }
@@ -843,23 +844,6 @@ export function appendUnitsToSquads(
         });
   }
   return [...next.values()];
-}
-
-function createArmy(faction: Faction): BattleUnit[] {
-  const facing = faction === "verdant" ? Math.PI : 0;
-  const definitions = BATTLEFIELD_DEPLOYMENTS[faction];
-  return definitions.flatMap((definition) => {
-    const squadId = `${faction}-${definition.name}`;
-    return createFormationSlots(definition.count, definition.center, facing).map((position, index) => (
-      createBattleUnit({
-        id: `${squadId}-${index + 1}`,
-        squadId,
-        faction,
-        role: definition.role,
-        position,
-      })
-    ));
-  });
 }
 
 function createInitialCastles(): BattleBuilding[] {

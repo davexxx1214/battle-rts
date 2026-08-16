@@ -184,6 +184,36 @@ export const playbackCatalog = {
       gain: [0.76, 0.76],
       pitch: [1, 1],
     },
+    "building.gold": {
+      bus: "magic",
+      variants: ["mage_cast_01", "mage_cast_02"],
+      gain: [0.24, 0.3],
+      pitch: [1.34, 1.44],
+    },
+    "building.gold-wasted": {
+      bus: "commands",
+      variants: ["command_attack"],
+      gain: [0.34, 0.38],
+      pitch: [0.72, 0.78],
+    },
+    "building.spawn": {
+      bus: "commands",
+      variants: ["command_move"],
+      gain: [0.5, 0.58],
+      pitch: [1.08, 1.16],
+    },
+    "building.destroy": {
+      bus: "reactions",
+      variants: ["unit_death_armor_01", "unit_death_armor_02"],
+      gain: [0.76, 0.86],
+      pitch: [0.7, 0.78],
+    },
+    "castle.activate": {
+      bus: "horns",
+      variants: ["war_horn_victory"],
+      gain: [0.7, 0.76],
+      pitch: [0.86, 0.9],
+    },
     "battle.victory": {
       bus: "horns",
       variants: ["war_horn_victory"],

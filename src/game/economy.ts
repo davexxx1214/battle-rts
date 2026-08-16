@@ -174,6 +174,22 @@ export function getMatchClock(elapsedSeconds: number): MatchClock {
   };
 }
 
+export function getPassiveRecoveryWaitSeconds(
+  goldGap: number,
+  phase: GoldPhase,
+  recoveryProgress = 0,
+): number {
+  if (!Number.isFinite(goldGap) || goldGap <= 0) return 0;
+  const progress = Number.isFinite(recoveryProgress)
+    ? clamp(recoveryProgress, 0, 1)
+    : 0;
+  const recoveryCount = Math.ceil(goldGap / GAME_RULES.economy.goldPerRecovery);
+  const interval = phase === "double"
+    ? GAME_RULES.economy.doubleRecoverySeconds
+    : GAME_RULES.economy.normalRecoverySeconds;
+  return Math.max(0, recoveryCount - progress) * interval;
+}
+
 interface RecoverySegment {
   readonly seconds: number;
   readonly phase: GoldPhase;

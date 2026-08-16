@@ -8,7 +8,7 @@ import {
 } from "../../src/game/battle";
 import type { BattleBuilding } from "../../src/game/buildings";
 import { createBattleBuilding } from "../../src/game/buildings";
-import { GAME_RULES } from "../../src/game/rules";
+import { GAME_RULES, UNIT_SPECS } from "../../src/game/rules";
 import { BATTLEFIELD_MAP, axialToWorld } from "../../src/map/battlefield";
 import type { Faction, WorldPoint } from "../../src/game/types";
 
@@ -97,7 +97,9 @@ describe("authoritative castle combat", () => {
       targetId: attacker.id,
       targetType: "unit",
     }));
-    expect(first.units[0]?.health).toBe(attacker.health - GAME_RULES.castle.damage);
+    expect(first.units[0]?.health).toBe(
+      attacker.health - GAME_RULES.castle.damage * (1 - UNIT_SPECS.knight.damageReduction),
+    );
 
     let quiet: BattleState = {
       ...first,
@@ -128,7 +130,7 @@ describe("authoritative castle combat", () => {
     const next = stepBattle(state, 0.1);
 
     expect(next.units.find((unit) => unit.id === first.id)?.health)
-      .toBe(first.health - GAME_RULES.castle.damage);
+      .toBe(first.health - GAME_RULES.castle.damage * (1 - UNIT_SPECS.knight.damageReduction));
     expect(next.units.find((unit) => unit.id === second.id)?.health).toBe(second.health);
   });
 

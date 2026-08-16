@@ -1,8 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { FrameBenchmark } from "../../src/game/benchmark";
+import { FrameBenchmark, createBenchmarkBattle } from "../../src/game/benchmark";
+import { getBattlefieldCell, worldToAxial } from "../../src/map/battlefield";
 
 describe("frame benchmark", () => {
+  it("creates an explicit 80-unit scenario independent from the empty live match", () => {
+    const battle = createBenchmarkBattle(80);
+
+    expect(battle.units).toHaveLength(80);
+    expect(battle.units.filter((unit) => unit.faction === "verdant")).toHaveLength(40);
+    expect(battle.units.filter((unit) => unit.faction === "crimson")).toHaveLength(40);
+    expect(battle.units.every((unit) => (
+      getBattlefieldCell(worldToAxial(unit.position))?.walkable
+    ))).toBe(true);
+  });
+
   it("reports median fps, one-percent low, and render counters after its window", () => {
     const benchmark = new FrameBenchmark(1);
     for (let index = 0; index < 100; index += 1) {
