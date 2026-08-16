@@ -181,6 +181,17 @@ describe("atomic battle deployment", () => {
     ))).toHaveLength(1);
   });
 
+  it("rejects a troop deployment on a walkable hex disconnected from the battle route", () => {
+    const isolatedCell = { q: -1, r: 7 };
+
+    expect(getMapCell(BATTLEFIELD_MAP, isolatedCell)?.walkable).toBe(true);
+    expect(previewDeployment(unresolvedSession(), {
+      faction: "verdant",
+      kind: "swordsman",
+      worldPosition: axialToWorld(isolatedCell),
+    })).toMatchObject({ valid: false, reason: "unwalkable-hex" });
+  });
+
   it.each([
     ["insufficient gold", 200, "gold-mine" as DeployableKind,
       axialToWorld(VERDANT_BUILDING_CELL), "insufficient-gold"],

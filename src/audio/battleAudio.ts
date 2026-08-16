@@ -11,21 +11,15 @@ export interface AudioVoice {
   play: () => Promise<void> | void;
 }
 
-export interface BattleAudioCueRequest {
-  readonly cue: string;
-  readonly sequence: number;
-}
+export type UiAudioCue = "select" | "place-unit" | "place-building";
 
-export type BattleMusicScene = "battle" | "victory" | "defeat";
+export type BattleMusicScene = "victory" | "defeat";
+
+export const DEFAULT_AUDIO_ENABLED = true;
 
 const MASTER_VOLUME_MULTIPLIER = 0.5;
 
 const MUSIC_TRACKS: Readonly<Record<BattleMusicScene, readonly string[]>> = {
-  battle: [
-    "/audio/music/background1.mp3",
-    "/audio/music/background2.mp3",
-    "/audio/music/background3.mp3",
-  ],
   victory: [
     "/audio/music/victory1.mp3",
     "/audio/music/victory2.mp3",
@@ -34,8 +28,16 @@ const MUSIC_TRACKS: Readonly<Record<BattleMusicScene, readonly string[]>> = {
   defeat: ["/audio/music/fail.mp3"],
 };
 
+export const UI_AUDIO_CUES: Readonly<
+  Record<UiAudioCue, { readonly src: string; readonly gain: number }>
+> = {
+  select: { src: "/audio/ui/organic/hover.mp3", gain: 0.25 },
+  "place-unit": { src: "/audio/ui/organic/drop.mp3", gain: 1 },
+  "place-building": { src: "/audio/ui/organic/snap.mp3", gain: 0.35 },
+};
+
 export function scaleAudioGain(gain: number): number {
-  return Math.min(1, Math.max(0, gain)) * MASTER_VOLUME_MULTIPLIER;
+  return clampAudioGain(gain) * MASTER_VOLUME_MULTIPLIER;
 }
 
 export class BattleMusicPlayer {
@@ -58,13 +60,11 @@ export class BattleMusicPlayer {
     else this.#stop(false);
   }
 
-  setScene(scene: BattleMusicScene, revision: number): void {
+  setScene(scene: BattleMusicScene | null, revision: number): void {
     if (scene === this.#scene && revision === this.#sceneRevision) return;
     this.#scene = scene;
     this.#sceneRevision = revision;
-    const tracks = MUSIC_TRACKS[scene];
-    const roll = Math.min(0.999999, Math.max(0, this.#random()));
-    this.#track = tracks[Math.floor(roll * tracks.length)]!;
+    this.#track = scene ? this.#selectTrack(scene) : null;
     this.#stop(true);
     if (this.#enabled) this.#playSelectedTrack(true);
   }
@@ -74,13 +74,19 @@ export class BattleMusicPlayer {
     this.#stop(true);
   }
 
+  #selectTrack(scene: BattleMusicScene): string {
+    const tracks = MUSIC_TRACKS[scene];
+    const roll = Math.min(0.999999, Math.max(0, this.#random()));
+    return tracks[Math.floor(roll * tracks.length)]!;
+  }
+
   #playSelectedTrack(restart: boolean): void {
-    if (!this.#scene || !this.#track) return;
+    if (!this.#track) return;
     this.#voice.src = this.#track;
     if (restart) this.#voice.currentTime = 0;
     this.#voice.volume = scaleAudioGain(1);
     this.#voice.playbackRate = 1;
-    this.#voice.loop = this.#scene === "battle";
+    this.#voice.loop = false;
     const result = this.#voice.play();
     if (result instanceof Promise) void result.catch(() => undefined);
   }
@@ -111,7 +117,7 @@ export class ReusableAudioPool {
     if (!voice.paused) voice.pause();
     voice.src = src;
     voice.currentTime = 0;
-    voice.volume = scaleAudioGain(volume);
+    voice.volume = clampAudioGain(volume);
     voice.playbackRate = playbackRate;
     voice.loop = loop;
     const result = voice.play();
@@ -127,54 +133,25 @@ export class ReusableAudioPool {
   }
 }
 
-export class BattleAudioEventRouter {
+function clampAudioGain(gain: number): number {
+  return Math.min(1, Math.max(0, gain));
+}
+
+export class DeploymentAudioEventRouter {
   #lastSequence = -1;
 
-  consume(
-    events: readonly BattleEvent[],
-  ): BattleAudioCueRequest[] {
-    const requests: BattleAudioCueRequest[] = [];
+  consume(events: readonly BattleEvent[]): UiAudioCue[] {
+    const cues: UiAudioCue[] = [];
     for (const event of [...events].sort((first, second) => first.sequence - second.sequence)) {
       if (event.sequence <= this.#lastSequence) continue;
       this.#lastSequence = event.sequence;
-      const cues = eventCues(event);
-      requests.push(...cues.map((cue) => ({ cue, sequence: event.sequence })));
+      if (event.type !== "deployment-succeeded" || event.faction !== "verdant") continue;
+      cues.push(event.entityType === "building" ? "place-building" : "place-unit");
     }
-    return requests;
+    return cues;
   }
 
   reset(): void {
     this.#lastSequence = -1;
   }
-}
-
-function eventCues(event: BattleEvent): string[] {
-  if (event.type === "gold-full") {
-    return event.faction === "verdant" ? ["command.attack"] : [];
-  }
-  if (event.type === "deployment-succeeded") return ["command.move"];
-  if (event.type === "building-gold-produced") {
-    return [event.creditedAmount > 0 ? "building.gold" : "building.gold-wasted"];
-  }
-  if (event.type === "building-unit-spawned") return ["building.spawn"];
-  if (event.type === "building-destroyed") return ["building.destroy"];
-  if (event.type === "castle-activated") return ["castle.activate"];
-  if (event.type === "attack-started") {
-    if (event.role === "castle") return ["ranger.attack"];
-    if (event.role === "knight") return ["knight.attack"];
-    if (event.role === "ranger") return ["ranger.attack"];
-    if (event.role === "catapult") return [];
-    return ["mage.attack"];
-  }
-  if (event.type === "projectile-hit") {
-    if (event.role === "catapult") return [];
-    return [event.role === "mage" ? "mage.impact" : "ranger.impact"];
-  }
-  if (event.type === "unit-died") return ["unit.death"];
-  if (event.type === "damage-applied") {
-    const cues = event.sourceRole === "knight" ? ["knight.impact"] : [];
-    cues.push("unit.hurt");
-    return cues;
-  }
-  return [];
 }

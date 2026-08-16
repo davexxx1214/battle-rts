@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   BATTLEFIELD_MAP,
+  BATTLEFIELD_STRUCTURES,
   getBattlefieldCell,
 } from "../../src/map/battlefield";
 import {
@@ -14,15 +15,17 @@ import {
 } from "../../src/map/battlefieldLayout";
 
 describe("battlefield scenery layout", () => {
-  it("covers every forest cell with a layered tree cluster", () => {
+  it("covers every forest cell with an official pre-assembled grove", () => {
     const forestCells = BATTLEFIELD_MAP.cells.filter((cell) => cell.surface === "forest");
+    const groveKinds = new Set(["grove-a", "grove-b", "hill-grove"]);
 
     for (const cell of forestCells) {
       const scenery = BATTLEFIELD_SCENERY.filter((item) => (
         item.coordinate.q === cell.q && item.coordinate.r === cell.r
       ));
-      expect(scenery.filter((item) => item.kind === "tree")).toHaveLength(2);
+      expect(scenery.filter((item) => groveKinds.has(item.kind))).toHaveLength(1);
     }
+    expect(BATTLEFIELD_SCENERY.some((item) => item.kind === "hill-grove")).toBe(true);
     expect(BATTLEFIELD_SCENERY.filter((item) => item.kind === "bush").length)
       .toBeGreaterThanOrEqual(Math.floor(forestCells.length / 2));
   });
@@ -69,6 +72,32 @@ describe("battlefield scenery layout", () => {
     })));
   });
 
+  it("moves the two farms away from the castle frontage and all major structures", () => {
+    const structureKeys = new Set(BATTLEFIELD_STRUCTURES.flatMap((structure) => (
+      structure.footprint.map(({ q, r }) => `${q},${r}`)
+    )));
+
+    for (const faction of ["verdant", "crimson"] as const) {
+      const mirror = faction === "verdant" ? 1 : -1;
+      const farms = BATTLEFIELD_SCENERY.filter((item) => (
+        item.zone === `${faction}-camp`
+        && (item.kind === "farm-dirt" || item.kind === "farm-grain")
+      ));
+      expect(farms.map(({ coordinate }) => coordinate)).toEqual([
+        { q: 1 * mirror, r: 7 * mirror },
+        { q: 2 * mirror, r: 7 * mirror },
+      ]);
+      expect(farms.every((farm) => !structureKeys.has(
+        `${farm.coordinate.q},${farm.coordinate.r}`,
+      ))).toBe(true);
+      expect(farms.every((farm) => !BATTLEFIELD_SCENERY.some((item) => (
+        item.zone !== `${faction}-camp`
+        && item.coordinate.q === farm.coordinate.q
+        && item.coordinate.r === farm.coordinate.r
+      )))).toBe(true);
+    }
+  });
+
   it("turns the oversized outer flanks into dense, non-deployable scenery", () => {
     const blockingKeys = new Set(BATTLEFIELD_SCENERY
       .filter((item) => BLOCKING_SCENERY_KINDS.has(item.kind))
@@ -102,7 +131,7 @@ describe("battlefield scenery layout", () => {
       const buildable = BATTLEFIELD_MAP.cells.filter((cell) => (
         cell.territory === faction && cell.buildable
       ));
-      expect(buildable.length).toBeGreaterThanOrEqual(10);
+      expect(buildable.length).toBeGreaterThanOrEqual(8);
       expect(buildable.length).toBeLessThanOrEqual(45);
       expect(buildable.every((cell) => battlefieldCombatZoneAt(cell.q, cell.r))).toBe(true);
     }

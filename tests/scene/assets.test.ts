@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BATTLE_BUILDING_DETAIL_URLS,
   FACTION_SCENE_COLORS,
   SCENERY_SCENE_ASSETS,
   SCENE_MODEL_URLS,
   STRUCTURE_SCENE_ASSETS,
   UNIT_BASE_RING_GEOMETRY,
+  battleBuildingDetailAssets,
 } from "../../src/scene/assets";
 
 describe("scene asset presentation", () => {
@@ -45,12 +47,48 @@ describe("scene asset presentation", () => {
     ]);
   });
 
+  it("builds readable one-hex compounds from the purchased KayKit detail set", () => {
+    expect(new Set(BATTLE_BUILDING_DETAIL_URLS).size).toBe(BATTLE_BUILDING_DETAIL_URLS.length);
+    expect(BATTLE_BUILDING_DETAIL_URLS).toEqual(expect.arrayContaining([
+      "/assets/kaykit/medieval-hex/decoration/props/flag_blue.gltf",
+      "/assets/kaykit/medieval-hex/decoration/props/flag_red.gltf",
+      "/assets/kaykit/medieval-hex/decoration/props/target.gltf",
+      "/assets/kaykit/medieval-hex/decoration/props/weaponrack.gltf",
+      "/assets/kaykit/medieval-hex/decoration/props/crate_A_big.gltf",
+      "/assets/kaykit/medieval-hex/decoration/props/barrel.gltf",
+    ]));
+
+    for (const faction of ["verdant", "crimson"] as const) {
+      for (const kind of ["castle", "gold-mine", "barracks"] as const) {
+        const details = battleBuildingDetailAssets(faction, kind);
+        expect(details.length).toBeGreaterThanOrEqual(3);
+        expect(new Set(details.map((detail) => detail.id)).size).toBe(details.length);
+        expect(details.every((detail) => (
+          detail.url.startsWith("/assets/kaykit/medieval-hex/")
+          && detail.url.endsWith(".gltf")
+          && detail.scale > 0
+          && detail.position.length === 3
+        ))).toBe(true);
+      }
+    }
+
+    expect(battleBuildingDetailAssets("verdant", "castle").map(({ url }) => url))
+      .toContain("/assets/kaykit/medieval-hex/decoration/props/flag_blue.gltf");
+    expect(battleBuildingDetailAssets("crimson", "castle").map(({ url }) => url))
+      .toContain("/assets/kaykit/medieval-hex/decoration/props/flag_red.gltf");
+  });
+
   it("maps every battlefield scenery kind to a local KayKit model", () => {
     expect(Object.keys(SCENERY_SCENE_ASSETS).sort()).toEqual([
       "bush",
+      "castle-rock",
       "farm-dirt",
       "farm-grain",
+      "grove-a",
+      "grove-b",
+      "hill-grove",
       "iron",
+      "rock-hills",
       "stone",
       "tent",
       "tree",

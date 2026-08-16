@@ -115,15 +115,15 @@ export function DeploymentRail({
       </header>
 
       <DeployableGroup
-        title="建筑工事"
-        items={BUILDINGS}
+        title="作战单位"
+        items={TROOPS}
         session={session}
         selectedKind={selectedKind}
         onSelect={onSelect}
       />
       <DeployableGroup
-        title="作战单位"
-        items={TROOPS}
+        title="建筑工事"
+        items={BUILDINGS}
         session={session}
         selectedKind={selectedKind}
         onSelect={onSelect}

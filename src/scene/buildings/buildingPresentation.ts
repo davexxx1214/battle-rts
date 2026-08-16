@@ -41,6 +41,21 @@ export type BuildingSignal = BuildingSignalBase & BuildingSignalPayload;
 
 const SIGNAL_SECONDS = 1.2;
 
+export const BUILDING_HEALTH_BAR_LAYERS = {
+  frame: {
+    renderOrder: 120,
+    material: { transparent: true, depthTest: false, depthWrite: false },
+  },
+  track: {
+    renderOrder: 121,
+    material: { transparent: true, depthTest: false, depthWrite: false },
+  },
+  fill: {
+    renderOrder: 122,
+    material: { transparent: true, depthTest: false, depthWrite: false },
+  },
+} as const;
+
 export function buildingPresentation(
   building: BattleBuilding,
   elapsed: number,

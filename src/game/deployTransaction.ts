@@ -6,6 +6,9 @@ import { createFormationSlots } from "./formation";
 import type { BattleSessionState } from "./battleSessionState";
 import { createBattleBuilding } from "./buildings";
 import {
+  areWorldPointsConnected,
+} from "./navigation";
+import {
   hasBuildableHex,
   recordSuccessfulDeployment,
   requestBuildingPlacement,
@@ -325,6 +328,9 @@ function planTroopPositions(
 ): { readonly ok: true; readonly positions: readonly WorldPoint[] }
   | { readonly ok: false; readonly reason: DeploymentFailureReason } {
   const center = axialToWorld(coordinate);
+  const destination = axialToWorld(
+    BATTLEFIELD_MAP.castleApproaches[faction === "verdant" ? "crimson" : "verdant"],
+  );
   const facing = faction === "verdant" ? Math.PI : 0;
   const positions = createFormationSlots(
     GAME_RULES.deployment.troopCounts[kind],
@@ -340,6 +346,9 @@ function planTroopPositions(
       return { ok: false, reason: "enemy-territory" };
     }
     if (cell.territory !== faction || !cell.walkable) {
+      return { ok: false, reason: "unwalkable-hex" };
+    }
+    if (!areWorldPointsConnected(BATTLEFIELD_MAP, position, destination)) {
       return { ok: false, reason: "unwalkable-hex" };
     }
     if (occupancy[coordinateKey(memberCoordinate)]) {

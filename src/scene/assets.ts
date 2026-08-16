@@ -1,5 +1,14 @@
 import type { BattlefieldSceneryKind } from "../map/battlefieldScenery";
 import type { BattleBuildingKind } from "../game/buildings";
+import type { Faction } from "../game/types";
+
+export interface BattleBuildingDetailAsset {
+  readonly id: string;
+  readonly url: string;
+  readonly scale: number;
+  readonly position: readonly [x: number, y: number, z: number];
+  readonly rotationY: number;
+}
 
 export const SCENE_MODEL_URLS = {
   mobileCatapult: "/assets/generated/tripo/runtime/mobile-catapult.glb",
@@ -50,6 +59,26 @@ export const SCENERY_SCENE_ASSETS = {
   bush: {
     url: "/assets/kaykit/forest-nature/forage/Bush_1_B_Color1.gltf",
     scale: 0.9,
+  },
+  "grove-a": {
+    url: "/assets/kaykit/medieval-hex/decoration/nature/trees_A_medium.gltf",
+    scale: 1.02,
+  },
+  "grove-b": {
+    url: "/assets/kaykit/medieval-hex/decoration/nature/trees_B_medium.gltf",
+    scale: 1.02,
+  },
+  "hill-grove": {
+    url: "/assets/kaykit/medieval-hex/decoration/nature/hills_A_trees.gltf",
+    scale: 1.04,
+  },
+  "rock-hills": {
+    url: "/assets/kaykit/medieval-hex/decoration/nature/hills_B.gltf",
+    scale: 1.16,
+  },
+  "castle-rock": {
+    url: "/assets/kaykit/medieval-hex/decoration/nature/mountain_A_grass.gltf",
+    scale: 1.08,
   },
   stone: {
     url: "/assets/kaykit/medieval-hex/decoration/props/resource_stone.gltf",
@@ -144,9 +173,81 @@ export const BATTLE_BUILDING_ASSET_KEYS = {
   "castle" | "mine" | "barracks"
 >>;
 
+const BUILDING_PROP_ROOT = "/assets/kaykit/medieval-hex/decoration/props";
+
+const BATTLE_BUILDING_DETAILS = {
+  verdant: createBattleBuildingDetails("blue"),
+  crimson: createBattleBuildingDetails("red"),
+} as const satisfies Readonly<Record<
+  Faction,
+  Readonly<Record<BattleBuildingKind, readonly BattleBuildingDetailAsset[]>>
+>>;
+
+export const BATTLE_BUILDING_DETAIL_URLS = [
+  ...new Set(Object.values(BATTLE_BUILDING_DETAILS).flatMap((factionDetails) => (
+    Object.values(factionDetails).flatMap((details) => details.map(({ url }) => url))
+  ))),
+] as readonly string[];
+
+export function battleBuildingDetailAssets(
+  faction: Faction,
+  kind: BattleBuildingKind,
+): readonly BattleBuildingDetailAsset[] {
+  return BATTLE_BUILDING_DETAILS[faction][kind];
+}
+
 function kaykitBuilding(color: "blue" | "red", name: string, scale: number) {
   return {
     url: `/assets/kaykit/medieval-hex/buildings/${color}/building_${name}_${color}.gltf`,
     scale,
   } as const;
+}
+
+function createBattleBuildingDetails(color: "blue" | "red") {
+  const flag = `${BUILDING_PROP_ROOT}/flag_${color}.gltf`;
+  return {
+    castle: [
+      buildingDetail("banner-left", flag, 3, [-0.5, 2.42, -0.18], -0.18),
+      buildingDetail("banner-right", flag, 3, [0.5, 2.42, -0.18], 0.18),
+      buildingDetail("castle-crate", `${BUILDING_PROP_ROOT}/crate_A_big.gltf`, 2.15, [
+        -0.72, 0.09, 0.64,
+      ], 0.16),
+    ],
+    "gold-mine": [
+      buildingDetail("ore-pile", `${BUILDING_PROP_ROOT}/resource_stone.gltf`, 1.45, [
+        0.68, 0.08, 0.46,
+      ], 0.4),
+      buildingDetail("mine-cart", `${BUILDING_PROP_ROOT}/wheelbarrow.gltf`, 1.82, [
+        -0.66, 0.08, 0.6,
+      ], 0.52),
+      buildingDetail("timber", `${BUILDING_PROP_ROOT}/resource_lumber.gltf`, 1.08, [
+        -0.58, 0.08, -0.58,
+      ], -0.22),
+      buildingDetail("mine-barrel", `${BUILDING_PROP_ROOT}/barrel.gltf`, 1.85, [
+        0.68, 0.08, -0.5,
+      ], 0.2),
+    ],
+    barracks: [
+      buildingDetail("barracks-banner", flag, 2.75, [0.68, 0.08, -0.5], 0.28),
+      buildingDetail("weapon-rack", `${BUILDING_PROP_ROOT}/weaponrack.gltf`, 2.9, [
+        -0.68, 0.08, 0.48,
+      ], -0.42),
+      buildingDetail("training-target", `${BUILDING_PROP_ROOT}/target.gltf`, 2.45, [
+        0.68, 0.08, 0.52,
+      ], 0.48),
+      buildingDetail("supply-crate", `${BUILDING_PROP_ROOT}/crate_A_big.gltf`, 2.1, [
+        -0.56, 0.08, -0.58,
+      ], -0.16),
+    ],
+  } as const;
+}
+
+function buildingDetail(
+  id: string,
+  url: string,
+  scale: number,
+  position: readonly [x: number, y: number, z: number],
+  rotationY: number,
+): BattleBuildingDetailAsset {
+  return { id, url, scale, position, rotationY };
 }

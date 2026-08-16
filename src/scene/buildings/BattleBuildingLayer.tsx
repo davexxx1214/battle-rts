@@ -13,7 +13,6 @@ import { useEffect, useMemo, useRef } from "react";
 
 import type { BattleState } from "../../game/battle";
 import type { BattleBuilding } from "../../game/buildings";
-import type { BuildingKind } from "../../game/rules";
 import {
   BATTLEFIELD_MAP,
   axialToWorld,
@@ -24,8 +23,10 @@ import {
   BATTLE_BUILDING_ASSET_KEYS,
   FACTION_SCENE_COLORS,
   STRUCTURE_SCENE_ASSETS,
+  battleBuildingDetailAssets,
 } from "../assets";
 import {
+  BUILDING_HEALTH_BAR_LAYERS,
   buildingPresentation,
   latestBuildingSignal,
   type BuildingHealthTone,
@@ -65,9 +66,11 @@ function BattleBuildingVisual({
   });
   return (
     <group ref={root} position={[building.position.x, y, building.position.z]}>
+      <BuildingFoundation faction={building.faction} kind={building.kind} />
       {building.kind === "castle"
         ? <CastleBuildingModel faction={building.faction} />
         : <DeployedBuildingModel faction={building.faction} kind={building.kind} />}
+      <BuildingDetailModels faction={building.faction} kind={building.kind} />
       <BuildingHealthBar
         ratio={presentation.healthRatio}
         tone={presentation.healthTone}
@@ -90,6 +93,29 @@ function BattleBuildingVisual({
   );
 }
 
+function BuildingFoundation({
+  faction,
+  kind,
+}: {
+  readonly faction: BattleBuilding["faction"];
+  readonly kind: BattleBuilding["kind"];
+}) {
+  const colors = FACTION_SCENE_COLORS[faction];
+  const radius = kind === "castle" ? 1.04 : 0.98;
+  return (
+    <group>
+      <mesh position={[0, 0.04, 0]} receiveShadow>
+        <cylinderGeometry args={[radius, radius + 0.06, 0.12, 6]} />
+        <meshStandardMaterial color={colors.dark} roughness={0.92} />
+      </mesh>
+      <mesh position={[0, 0.11, 0]} receiveShadow>
+        <cylinderGeometry args={[radius - 0.09, radius - 0.06, 0.07, 6]} />
+        <meshStandardMaterial color="#9a9886" roughness={0.88} />
+      </mesh>
+    </group>
+  );
+}
+
 function CastleBuildingModel({ faction }: { readonly faction: BattleBuilding["faction"] }) {
   const asset = STRUCTURE_SCENE_ASSETS[faction][BATTLE_BUILDING_ASSET_KEYS.castle];
   const gltf = useLoader(GLTFLoader, asset.url);
@@ -102,12 +128,39 @@ function DeployedBuildingModel({
   kind,
 }: {
   readonly faction: BattleBuilding["faction"];
-  readonly kind: BuildingKind;
+  readonly kind: BattleBuilding["kind"];
 }) {
   const asset = STRUCTURE_SCENE_ASSETS[faction][BATTLE_BUILDING_ASSET_KEYS[kind]];
   const gltf = useLoader(GLTFLoader, asset.url);
   const model = useMemo(() => prepareModel(gltf.scene, asset.scale), [asset.scale, gltf.scene]);
   return <primitive object={model} rotation-y={faction === "verdant" ? 0 : Math.PI} />;
+}
+
+function BuildingDetailModels({
+  faction,
+  kind,
+}: {
+  readonly faction: BattleBuilding["faction"];
+  readonly kind: BattleBuilding["kind"];
+}) {
+  const details = useMemo(() => battleBuildingDetailAssets(faction, kind), [faction, kind]);
+  const gltfs = useLoader(GLTFLoader, details.map((detail) => detail.url));
+  const models = useMemo(
+    () => details.map((detail, index) => prepareModel(gltfs[index]!.scene, detail.scale)),
+    [details, gltfs],
+  );
+  return (
+    <group>
+      {details.map((detail, index) => (
+        <primitive
+          key={detail.id}
+          object={models[index]}
+          position={detail.position}
+          rotation-y={detail.rotationY}
+        />
+      ))}
+    </group>
+  );
 }
 
 function BuildingHealthBar({
@@ -123,16 +176,25 @@ function BuildingHealthBar({
   useFrame(({ camera }) => {
     root.current?.quaternion.copy(camera.quaternion);
   });
-  const color = tone === "healthy" ? "#69d884" : tone === "warning" ? "#f2bd56" : "#ef5d52";
+  const color = tone === "healthy" ? "#63ec85" : tone === "warning" ? "#ffd05a" : "#ff5e56";
+  const { frame, track, fill } = BUILDING_HEALTH_BAR_LAYERS;
   return (
     <group ref={root} position={[0, height, 0]}>
-      <mesh position={[0, 0, -0.012]} renderOrder={120}>
-        <planeGeometry args={[1.72, 0.22]} />
-        <meshBasicMaterial color="#171a17" transparent opacity={0.84} depthTest={false} />
+      <mesh position={[0, 0, -0.024]} renderOrder={frame.renderOrder}>
+        <planeGeometry args={[1.84, 0.28]} />
+        <meshBasicMaterial color="#101410" opacity={0.94} {...frame.material} />
       </mesh>
-      <mesh position={[-0.82 + ratio * 0.82, 0, 0]} scale={[ratio, 1, 1]} renderOrder={121}>
+      <mesh position={[0, 0, -0.012]} renderOrder={track.renderOrder}>
+        <planeGeometry args={[1.68, 0.18]} />
+        <meshBasicMaterial color="#343a31" opacity={0.96} {...track.material} />
+      </mesh>
+      <mesh
+        position={[-0.79 + ratio * 0.79, 0, 0]}
+        scale={[ratio, 1, 1]}
+        renderOrder={fill.renderOrder}
+      >
         <planeGeometry args={[1.58, 0.12]} />
-        <meshBasicMaterial color={color} depthTest={false} />
+        <meshBasicMaterial color={color} opacity={1} {...fill.material} />
       </mesh>
     </group>
   );

@@ -538,7 +538,15 @@ function advanceTowardDestination(
   const waypoints = unit.navigationKey === navigationKey && unit.waypoints.length > 0
     ? unit.waypoints
     : findWorldPath(BATTLEFIELD_MAP, unit.position, destination);
-  const waypoint = waypoints[0] ?? destination;
+  const waypoint = waypoints[0];
+  if (!waypoint) {
+    return {
+      ...unit,
+      status: "idle",
+      waypoints: [],
+      navigationKey: null,
+    };
+  }
   const remaining = distance(unit.position, waypoint);
   const arrivalDistance = waypoints.length > 1
     ? NAVIGATION_WAYPOINT_ARRIVAL_DISTANCE

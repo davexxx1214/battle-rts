@@ -2,6 +2,7 @@ import type { Faction, WorldPoint } from "../game/types";
 import {
   BATTLEFIELD_RADIUS,
   BATTLEFIELD_BRIDGE_LAYOUTS,
+  battlefieldCastleRockAt,
   battlefieldCoordinates,
   battlefieldReservedPathAt,
   battlefieldStaticObstacleAt,
@@ -212,7 +213,9 @@ function createBattlefieldMap(): BattlefieldMap {
 function createCell(q: number, r: number): BattlefieldCell {
   const distance = hexDistance({ q, r }, { q: 0, r: 0 });
   const surface = battlefieldSurfaceAt(q, r);
-  const height = surface === "water"
+  const height = battlefieldCastleRockAt(q, r)
+    ? HEIGHT_LOW
+    : surface === "water"
     ? -0.26
     : surface === "camp"
       ? HEIGHT_HIGH
@@ -303,16 +306,15 @@ function createCampStructures(faction: Faction): BattlefieldStructure[] {
       footprint: [layout.castle],
       rotationY: facing,
     },
-    structure("blacksmith", "blacksmith", -3, 8, -0.12),
     structure("barracks", "barracks", -7, 8, 0.12),
     structure("mine", "mine", -1, 8),
-    structure("arrow-tower", "arrow-tower-left", -6, 9),
+    structure("arrow-tower", "arrow-tower-left", -4, 6),
     structure("wall-straight", "wall-left", -5, 8, Math.PI / 3),
     structure("wall-corner", "wall-left-corner", -4, 7, Math.PI),
     structure("wall-gate", "wall-front-gate", -3, 7, 0, []),
     structure("wall-corner", "wall-right-corner", -2, 7, 2 * Math.PI / 3),
     structure("wall-straight", "wall-right", -2, 8, -Math.PI / 3),
-    structure("arrow-tower", "arrow-tower-right", -2, 9),
+    structure("arrow-tower", "arrow-tower-right", -1, 6),
   ];
 }
 

@@ -1,14 +1,18 @@
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useLoader } from "@react-three/fiber";
 import {
   CanvasTexture,
+  DoubleSide,
   InstancedMesh,
   MathUtils,
   Mesh,
   MeshBasicMaterial,
   Object3D,
   Quaternion,
+  SRGBColorSpace,
   Sprite,
   SpriteMaterial,
+  Texture,
+  TextureLoader,
   Vector3,
 } from "three";
 import { useEffect, useMemo, useRef } from "react";
@@ -17,46 +21,45 @@ import type { BattleState, UnitRole, WorldPoint } from "../../game/battle";
 import type { BattleProjectile } from "../../game/projectiles";
 import { terrainHeightAt } from "../../map/battlefield";
 import { FixedObjectPool } from "./effectPool";
+import {
+  BATTLE_FX_SEQUENCES,
+  BATTLE_FX_URLS,
+  effectFrameIndex,
+  projectileArcOffset,
+  projectileArcSlope,
+  projectileImpactLifetime,
+  type BattleFxSequenceName,
+} from "./effectPresentation";
 
 const PROJECTILE_POOL_CAPACITY = 48;
+const MAGIC_FLIGHT_DURATION_SECONDS = 0.36;
+
+type BattleFxTextures = Readonly<Record<BattleFxSequenceName, readonly Texture[]>>;
 
 export function BattleEffects({ battle }: { readonly battle: BattleState }) {
+  const fxTextures = useBattleFxTextures();
   const recentImpacts = battle.events.filter((event) => (
-    event.type === "projectile-hit" && battle.elapsed - event.time <= 1.1
+    event.type === "projectile-hit"
+    && projectileImpactLifetime(event.role) > 0
+    && battle.elapsed - event.time <= projectileImpactLifetime(event.role)
   ));
   const recentDamage = battle.events.filter((event) => (
     event.type === "damage-applied" && battle.elapsed - event.time <= 0.5
   ));
-  const recentMelee = battle.events.filter((event) => (
-    event.type === "attack-started"
-    && event.role === "knight"
-    && battle.elapsed - event.time <= 0.3
-  ));
   return (
     <group>
-      <ProjectilePool projectiles={battle.projectiles} />
-      {recentMelee.map((event) => {
-        if (event.type !== "attack-started") return null;
-        return (
-          <MeleeSlash
-            position={event.origin}
-            facing={Math.atan2(
-              event.targetPosition.x - event.origin.x,
-              event.targetPosition.z - event.origin.z,
-            )}
-            age={battle.elapsed - event.time}
-            key={`slash-${event.sequence}`}
-          />
-        );
-      })}
+      <ProjectilePool projectiles={battle.projectiles} fxTextures={fxTextures} />
       {recentImpacts.map((event) => {
         if (event.type !== "projectile-hit") return null;
-        return event.role === "mage" ? (
-          <MageImpact
+        return event.role === "ranger" ? (
+          <AnimatedFxSprite
             position={event.position}
-            radius={event.splashRadius}
+            height={0.7}
+            frames={fxTextures.arrowImpact}
+            duration={0.3}
             age={battle.elapsed - event.time}
-            key={`mage-impact-${event.sequence}`}
+            scale={0.82}
+            key={`arrow-impact-${event.sequence}`}
           />
         ) : (
           <ImpactFlash
@@ -71,7 +74,9 @@ export function BattleEffects({ battle }: { readonly battle: BattleState }) {
         if (event.type !== "damage-applied") return null;
         return (
           <group key={`damage-${event.sequence}`}>
-            <HitSpark position={event.targetPosition} age={battle.elapsed - event.time} />
+            {event.sourceRole !== "mage" && (
+              <HitSpark position={event.targetPosition} age={battle.elapsed - event.time} />
+            )}
             <DamageNumber
               amount={event.amount}
               position={event.targetPosition}
@@ -84,15 +89,43 @@ export function BattleEffects({ battle }: { readonly battle: BattleState }) {
   );
 }
 
-function ProjectilePool({ projectiles }: { readonly projectiles: readonly BattleProjectile[] }) {
-  const arrows = useRef<InstancedMesh>(null);
-  const magic = useRef<InstancedMesh>(null);
+function useBattleFxTextures(): BattleFxTextures {
+  const loaded = useLoader(TextureLoader, BATTLE_FX_URLS);
+  return useMemo(() => {
+    const byUrl = new Map<string, Texture>(
+      BATTLE_FX_URLS.map((url, index) => [url, loaded[index]!]),
+    );
+    for (const texture of loaded) {
+      texture.colorSpace = SRGBColorSpace;
+      texture.needsUpdate = true;
+    }
+    return {
+      arrowImpact: BATTLE_FX_SEQUENCES.arrowImpact.map((url) => byUrl.get(url)!),
+      magicFlight: BATTLE_FX_SEQUENCES.magicFlight.map((url) => byUrl.get(url)!),
+    };
+  }, [loaded]);
+}
+
+function ProjectilePool({
+  projectiles,
+  fxTextures,
+}: {
+  readonly projectiles: readonly BattleProjectile[];
+  readonly fxTextures: BattleFxTextures;
+}) {
+  const arrowShafts = useRef<InstancedMesh>(null);
+  const arrowHeads = useRef<InstancedMesh>(null);
+  const arrowFletchings = useRef<InstancedMesh>(null);
+  const magicFrames = useRef<(InstancedMesh | null)[]>([]);
   const stones = useRef<InstancedMesh>(null);
-  const warnings = useRef<InstancedMesh>(null);
   const dummy = useMemo(() => new Object3D(), []);
   const direction = useMemo(() => new Vector3(), []);
   const up = useMemo(() => new Vector3(0, 1, 0), []);
   const rotation = useMemo(() => new Quaternion(), []);
+  const reverse = useMemo(
+    () => new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI),
+    [],
+  );
   const pool = useMemo(() => new FixedObjectPool(
     PROJECTILE_POOL_CAPACITY,
     () => ({ projectile: null as BattleProjectile | null }),
@@ -104,82 +137,124 @@ function ProjectilePool({ projectiles }: { readonly projectiles: readonly Battle
     assignment.value.projectile = projectilesById.get(assignment.key) ?? null;
   }
 
-  useFrame(() => {
+  useFrame(({ camera }) => {
     for (let index = 0; index < PROJECTILE_POOL_CAPACITY; index += 1) {
-      setHiddenMatrix(arrows.current, dummy, index);
-      setHiddenMatrix(magic.current, dummy, index);
+      setHiddenMatrix(arrowShafts.current, dummy, index);
+      setHiddenMatrix(arrowHeads.current, dummy, index);
+      setHiddenMatrix(arrowFletchings.current, dummy, index);
+      for (const magicFrame of magicFrames.current) {
+        setHiddenMatrix(magicFrame, dummy, index);
+      }
       setHiddenMatrix(stones.current, dummy, index);
-      setHiddenMatrix(warnings.current, dummy, index);
     }
     for (const assignment of assignments) {
       const projectile = assignment.value.projectile;
       if (!projectile) continue;
-      const height = terrainHeightAt(projectile.position) + 0.92;
       if (projectile.role === "ranger") {
+        const totalDistance = Math.max(0.001, distance(projectile.origin, projectile.destination));
+        const travelled = distance(projectile.origin, projectile.position);
+        const progress = MathUtils.clamp(travelled / totalDistance, 0, 1);
         direction.set(
           projectile.destination.x - projectile.position.x,
-          0,
+          projectileArcSlope("ranger", progress, totalDistance),
           projectile.destination.z - projectile.position.z,
         ).normalize();
-        dummy.position.set(projectile.position.x, height, projectile.position.z);
+        dummy.position.set(
+          projectile.position.x,
+          terrainHeightAt(projectile.position) + 0.92 + projectileArcOffset("ranger", progress),
+          projectile.position.z,
+        );
         dummy.quaternion.copy(rotation.setFromUnitVectors(up, direction));
         dummy.scale.set(1, 1, 1);
         dummy.updateMatrix();
-        arrows.current?.setMatrixAt(assignment.index, dummy.matrix);
+        arrowShafts.current?.setMatrixAt(assignment.index, dummy.matrix);
+
+        dummy.position.addScaledVector(direction, 0.32);
+        dummy.updateMatrix();
+        arrowHeads.current?.setMatrixAt(assignment.index, dummy.matrix);
+
+        dummy.position.addScaledVector(direction, -0.62);
+        dummy.quaternion.multiply(reverse);
+        dummy.updateMatrix();
+        arrowFletchings.current?.setMatrixAt(assignment.index, dummy.matrix);
       } else if (projectile.role === "catapult") {
         const totalDistance = Math.max(0.001, distance(projectile.origin, projectile.destination));
         const travelled = distance(projectile.origin, projectile.position);
         const progress = MathUtils.clamp(travelled / totalDistance, 0, 1);
         dummy.position.set(
           projectile.position.x,
-          terrainHeightAt(projectile.position) + 0.85 + Math.sin(progress * Math.PI) * 3.8,
+          terrainHeightAt(projectile.position) + 0.85
+            + projectileArcOffset("catapult", progress),
           projectile.position.z,
         );
         dummy.rotation.set(progress * Math.PI * 5, progress * Math.PI * 3, 0);
         dummy.scale.setScalar(0.3);
         dummy.updateMatrix();
         stones.current?.setMatrixAt(assignment.index, dummy.matrix);
-      } else {
-        dummy.position.set(projectile.position.x, height, projectile.position.z);
-        dummy.quaternion.identity();
-        dummy.scale.setScalar(0.18);
-        dummy.updateMatrix();
-        magic.current?.setMatrixAt(assignment.index, dummy.matrix);
-
+      } else if (projectile.role === "mage") {
+        const totalDistance = Math.max(0.001, distance(projectile.origin, projectile.destination));
+        const travelled = distance(projectile.origin, projectile.position);
+        const progress = MathUtils.clamp(travelled / totalDistance, 0, 1);
+        const flightAge = travelled / Math.max(0.001, projectile.speed);
+        const frameIndex = effectFrameIndex(
+          flightAge % MAGIC_FLIGHT_DURATION_SECONDS,
+          MAGIC_FLIGHT_DURATION_SECONDS,
+          fxTextures.magicFlight.length,
+        ) ?? 0;
         dummy.position.set(
-          projectile.destination.x,
-          terrainHeightAt(projectile.destination) + 0.055,
-          projectile.destination.z,
+          projectile.position.x,
+          terrainHeightAt(projectile.position) + 0.92 + projectileArcOffset("mage", progress),
+          projectile.position.z,
         );
-        dummy.rotation.set(-Math.PI / 2, 0, 0);
-        dummy.scale.setScalar(projectile.splashRadius);
+        dummy.quaternion.copy(camera.quaternion);
+        dummy.scale.setScalar(0.8);
         dummy.updateMatrix();
-        warnings.current?.setMatrixAt(assignment.index, dummy.matrix);
+        magicFrames.current[frameIndex]?.setMatrixAt(assignment.index, dummy.matrix);
       }
     }
-    if (arrows.current) arrows.current.instanceMatrix.needsUpdate = true;
-    if (magic.current) magic.current.instanceMatrix.needsUpdate = true;
+    if (arrowShafts.current) arrowShafts.current.instanceMatrix.needsUpdate = true;
+    if (arrowHeads.current) arrowHeads.current.instanceMatrix.needsUpdate = true;
+    if (arrowFletchings.current) arrowFletchings.current.instanceMatrix.needsUpdate = true;
+    for (const magicFrame of magicFrames.current) {
+      if (magicFrame) magicFrame.instanceMatrix.needsUpdate = true;
+    }
     if (stones.current) stones.current.instanceMatrix.needsUpdate = true;
-    if (warnings.current) warnings.current.instanceMatrix.needsUpdate = true;
   });
 
   return (
     <group>
-      <instancedMesh ref={arrows} args={[undefined, undefined, PROJECTILE_POOL_CAPACITY]} frustumCulled={false}>
-        <cylinderGeometry args={[0.025, 0.04, 0.56, 5]} />
-        <meshBasicMaterial color="#ffe1a0" />
+      <instancedMesh ref={arrowShafts} args={[undefined, undefined, PROJECTILE_POOL_CAPACITY]} frustumCulled={false}>
+        <cylinderGeometry args={[0.018, 0.018, 0.54, 5]} />
+        <meshStandardMaterial color="#684326" roughness={0.9} />
       </instancedMesh>
-      <instancedMesh ref={magic} args={[undefined, undefined, PROJECTILE_POOL_CAPACITY]} frustumCulled={false}>
-        <sphereGeometry args={[1, 10, 7]} />
-        <meshBasicMaterial color="#75d5ff" transparent opacity={0.94} depthWrite={false} />
+      <instancedMesh ref={arrowHeads} args={[undefined, undefined, PROJECTILE_POOL_CAPACITY]} frustumCulled={false}>
+        <coneGeometry args={[0.055, 0.14, 5]} />
+        <meshStandardMaterial color="#aeb4b2" metalness={0.45} roughness={0.56} />
       </instancedMesh>
+      <instancedMesh ref={arrowFletchings} args={[undefined, undefined, PROJECTILE_POOL_CAPACITY]} frustumCulled={false}>
+        <coneGeometry args={[0.048, 0.13, 4, 1, true]} />
+        <meshStandardMaterial color="#8d2832" roughness={0.88} side={DoubleSide} />
+      </instancedMesh>
+      {fxTextures.magicFlight.map((texture, index) => (
+        <instancedMesh
+          ref={(mesh) => { magicFrames.current[index] = mesh; }}
+          args={[undefined, undefined, PROJECTILE_POOL_CAPACITY]}
+          frustumCulled={false}
+          key={texture.uuid}
+        >
+          <planeGeometry args={[0.67, 0.8]} />
+          <meshBasicMaterial
+            map={texture}
+            transparent
+            depthWrite={false}
+            toneMapped={false}
+            side={DoubleSide}
+          />
+        </instancedMesh>
+      ))}
       <instancedMesh ref={stones} args={[undefined, undefined, PROJECTILE_POOL_CAPACITY]} frustumCulled={false}>
         <dodecahedronGeometry args={[1, 0]} />
         <meshStandardMaterial color="#655d4d" roughness={0.94} />
-      </instancedMesh>
-      <instancedMesh ref={warnings} args={[undefined, undefined, PROJECTILE_POOL_CAPACITY]} frustumCulled={false}>
-        <ringGeometry args={[0.78, 1, 24]} />
-        <meshBasicMaterial color="#6bcdf2" transparent opacity={0.24} depthWrite={false} />
       </instancedMesh>
     </group>
   );
@@ -194,37 +269,52 @@ function setHiddenMatrix(mesh: InstancedMesh | null, dummy: Object3D, index: num
   mesh.setMatrixAt(index, dummy.matrix);
 }
 
-function MeleeSlash({
+function AnimatedFxSprite({
   position,
-  facing,
+  height,
+  frames,
+  duration,
   age,
+  scale,
+  rotation = 0,
 }: {
   readonly position: WorldPoint;
-  readonly facing: number;
+  readonly height: number;
+  readonly frames: readonly Texture[];
+  readonly duration: number;
   readonly age: number;
+  readonly scale: number;
+  readonly rotation?: number;
 }) {
-  const root = useRef<Mesh>(null);
-  const material = useRef<MeshBasicMaterial>(null);
+  const sprite = useRef<Sprite>(null);
+  const material = useRef<SpriteMaterial>(null);
   const bornAt = useRef<number | null>(null);
   useFrame(({ clock }) => {
     bornAt.current ??= clock.elapsedTime - age;
-    const progress = MathUtils.clamp((clock.elapsedTime - bornAt.current) / 0.3, 0, 1);
-    if (root.current) {
-      root.current.rotation.z = -0.7 + progress * 1.65;
-      root.current.scale.setScalar(0.8 + progress * 0.45);
-      root.current.visible = progress < 1;
+    const currentAge = clock.elapsedTime - bornAt.current;
+    const frameIndex = effectFrameIndex(currentAge, duration, frames.length);
+    if (sprite.current) sprite.current.visible = frameIndex !== null;
+    if (material.current && frameIndex !== null && material.current.map !== frames[frameIndex]) {
+      material.current.map = frames[frameIndex]!;
+      material.current.needsUpdate = true;
     }
-    if (material.current) material.current.opacity = Math.sin(progress * Math.PI) * 0.9;
   });
   return (
-    <mesh
-      ref={root}
-      position={[position.x, terrainHeightAt(position) + 0.82, position.z]}
-      rotation={[-Math.PI / 2, facing, -0.7]}
+    <sprite
+      ref={sprite}
+      position={[position.x, terrainHeightAt(position) + height, position.z]}
+      scale={[scale * 0.84, scale, 1]}
+      renderOrder={28}
     >
-      <torusGeometry args={[0.62, 0.045, 4, 18, Math.PI * 1.15]} />
-      <meshBasicMaterial ref={material} color="#fff0b3" transparent depthWrite={false} />
-    </mesh>
+      <spriteMaterial
+        ref={material}
+        map={frames[0]}
+        rotation={rotation}
+        transparent
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </sprite>
   );
 }
 
@@ -249,43 +339,6 @@ function HitSpark({ position, age }: { readonly position: WorldPoint; readonly a
           <meshBasicMaterial ref={material} color="#fff1ad" transparent depthWrite={false} />
         </mesh>
       ))}
-    </group>
-  );
-}
-
-function MageImpact({
-  position,
-  radius,
-  age,
-}: {
-  readonly position: WorldPoint;
-  readonly radius: number;
-  readonly age: number;
-}) {
-  const root = useRef<Object3D>(null);
-  const blastMaterial = useRef<MeshBasicMaterial>(null);
-  const residueMaterial = useRef<MeshBasicMaterial>(null);
-  const bornAt = useRef<number | null>(null);
-  useFrame(({ clock }) => {
-    bornAt.current ??= clock.elapsedTime - age;
-    const currentAge = clock.elapsedTime - bornAt.current;
-    const burst = MathUtils.clamp(currentAge / 0.28, 0, 1);
-    if (root.current) root.current.visible = currentAge < 1.1;
-    if (blastMaterial.current) blastMaterial.current.opacity = (1 - burst) * 0.78;
-    if (residueMaterial.current) {
-      residueMaterial.current.opacity = Math.max(0, 0.34 * (1 - currentAge / 1.1));
-    }
-  });
-  return (
-    <group ref={root} position={[position.x, terrainHeightAt(position) + 0.06, position.z]}>
-      <mesh position={[0, 0.28, 0]} scale={[radius * 0.52, radius * 0.52, radius * 0.52]}>
-        <sphereGeometry args={[1, 16, 10]} />
-        <meshBasicMaterial ref={blastMaterial} color="#8ee8ff" transparent depthWrite={false} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} scale={[radius, radius, radius]}>
-        <ringGeometry args={[0.5, 1, 28]} />
-        <meshBasicMaterial ref={residueMaterial} color="#3fa8d8" transparent depthWrite={false} />
-      </mesh>
     </group>
   );
 }

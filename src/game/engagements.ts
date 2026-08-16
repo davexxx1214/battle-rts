@@ -17,7 +17,7 @@ interface MeleeEngagementRequest {
 }
 
 const SLOT_COUNT = 8;
-const SLOT_RADIUS = 1.02;
+const SLOT_RADIUS = 1.2;
 
 export function assignMeleeEngagementSlots(
   requests: readonly MeleeEngagementRequest[],

@@ -48,10 +48,10 @@ describe("automatic combat role behavior", () => {
   it("assigns persistent unique melee engagement slots", () => {
     const attackers = [
       createBattleUnit({
-        id: "v-1", faction: "verdant", role: "knight", position: { x: -6.8, z: 6.4 },
+        id: "v-1", faction: "verdant", role: "knight", position: { x: -4.8, z: 6.4 },
       }),
       createBattleUnit({
-        id: "v-2", faction: "verdant", role: "knight", position: { x: -5.2, z: 6.4 },
+        id: "v-2", faction: "verdant", role: "knight", position: { x: -4.4, z: 6.4 },
       }),
     ];
     const target = createBattleUnit({

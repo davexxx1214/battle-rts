@@ -1,4 +1,5 @@
 import {
+  BATTLEFIELD_CASTLE_ROCK_COORDINATES,
   battlefieldCoordinates,
   battlefieldOuterFlankAt,
   battlefieldSurfaceAt,
@@ -7,7 +8,12 @@ import {
 export const BATTLEFIELD_SCENERY_KINDS = [
   "tree",
   "bush",
+  "grove-a",
+  "grove-b",
+  "hill-grove",
+  "castle-rock",
   "stone",
+  "rock-hills",
   "iron",
   "tent",
   "wheelbarrow",
@@ -38,10 +44,17 @@ export interface BattlefieldScenery {
 
 export const BLOCKING_SCENERY_KINDS: ReadonlySet<BattlefieldSceneryKind> = new Set([
   "tree",
+  "grove-a",
+  "grove-b",
+  "hill-grove",
+  "castle-rock",
   "stone",
+  "rock-hills",
   "iron",
   "tent",
   "wheelbarrow",
+  "farm-dirt",
+  "farm-grain",
   "village-house",
   "village-market",
   "village-farm",
@@ -53,10 +66,23 @@ const FOREST_CLUSTER_CELLS = battlefieldCoordinates()
 const ROCK_CLUSTER_CELLS = battlefieldCoordinates()
   .filter(([q, r]) => battlefieldSurfaceAt(q, r) === "rock");
 
+const CAMP_FARM_LAYOUT = {
+  dirt: { id: "farm-dirt", kind: "farm-dirt", q: 1, r: 7 },
+  grain: { id: "farm-grain", kind: "farm-grain", q: 2, r: 7 },
+} as const;
+
+const CAMP_FARM_KEYS = new Set(
+  Object.values(CAMP_FARM_LAYOUT).flatMap(({ q, r }) => [
+    `${q},${r}`,
+    `${-q},${-r}`,
+  ]),
+);
+
 const OUTER_FLANK_CELLS = battlefieldCoordinates()
   .filter(([q, r]) => (
     battlefieldOuterFlankAt(q, r)
     && battlefieldSurfaceAt(q, r) === "grass"
+    && !CAMP_FARM_KEYS.has(`${q},${r}`)
   ));
 
 const RIVERBANK_DETAILS = [
@@ -82,6 +108,16 @@ export const BATTLEFIELD_SCENERY: readonly BattlefieldScenery[] = [
   )),
   ...createCampScenery("verdant"),
   ...createCampScenery("crimson"),
+  ...BATTLEFIELD_CASTLE_ROCK_COORDINATES.map(({ q, r }, index) => scenery(
+    `castle-rock-${q}-${r}`,
+    "castle-rock",
+    r > 0 ? "verdant-camp" : "crimson-camp",
+    q,
+    r,
+    { x: 0, z: 0 },
+    1,
+    (index % 2 === 0 ? Math.PI / 3 : -Math.PI / 3) + (r < 0 ? Math.PI : 0),
+  )),
 ];
 
 export const BLOCKING_SCENERY_KEYS: ReadonlySet<string> = new Set(
@@ -93,18 +129,19 @@ export const BLOCKING_SCENERY_KEYS: ReadonlySet<string> = new Set(
 function createForestCluster(q: number, r: number, index: number): BattlefieldScenery[] {
   const alternate = index % 2 === 0;
   const rotation = (index % 6) * Math.PI / 3;
-  const trees: BattlefieldScenery[] = [
-    scenery(`forest-${q}-${r}-tree-a`, "tree", "wild", q, r, {
-      x: alternate ? -0.42 : -0.28,
-      z: alternate ? -0.12 : 0.24,
-    }, 0.92 + (index % 4) * 0.06, rotation),
-    scenery(`forest-${q}-${r}-tree-b`, "tree", "wild", q, r, {
-      x: alternate ? 0.38 : 0.46,
-      z: alternate ? 0.34 : -0.26,
-    }, 0.78 + ((index + 2) % 4) * 0.06, rotation + Math.PI * 0.72),
-  ];
+  const kind = index % 4 === 0 ? "hill-grove" : alternate ? "grove-a" : "grove-b";
+  const grove = scenery(
+    `forest-${q}-${r}-${kind}`,
+    kind,
+    "wild",
+    q,
+    r,
+    { x: 0, z: 0 },
+    0.9 + (index % 3) * 0.05,
+    rotation,
+  );
   return alternate
-    ? [...trees, scenery(
+    ? [grove, scenery(
         `forest-${q}-${r}-bush`,
         "bush",
         "wild",
@@ -114,12 +151,22 @@ function createForestCluster(q: number, r: number, index: number): BattlefieldSc
         0.9 + (index % 3) * 0.08,
         rotation * 0.5,
       )]
-    : trees;
+    : [grove];
 }
 
 function createRockCluster(q: number, r: number, index: number): BattlefieldScenery[] {
   const rotation = (index % 6) * Math.PI / 3;
   return [
+    scenery(
+      `rock-${q}-${r}-hills`,
+      "rock-hills",
+      "wild",
+      q,
+      r,
+      { x: -0.08, z: 0.04 },
+      0.9 + (index % 3) * 0.05,
+      rotation,
+    ),
     scenery(
       `rock-${q}-${r}-stone`,
       "stone",
@@ -232,10 +279,34 @@ function createCampScenery(faction: "verdant" | "crimson"): BattlefieldScenery[]
     scale,
     rotation + localRotation,
   );
+  const dirtFarm = CAMP_FARM_LAYOUT.dirt;
+  const grainFarm = CAMP_FARM_LAYOUT.grain;
   return [
-    campItem("farm-dirt", "farm-dirt", -2, 6, { x: 0, z: 0 }, 0.94),
-    campItem("farm-grain", "farm-grain", -1, 6, { x: 0, z: 0 }, 0.94),
-    campItem("field-bush", "bush", -1, 6, { x: 0.72, z: 0.5 }, 0.78, 0.35),
+    campItem(
+      dirtFarm.id,
+      dirtFarm.kind,
+      dirtFarm.q,
+      dirtFarm.r,
+      { x: 0, z: 0 },
+      0.94,
+    ),
+    campItem(
+      grainFarm.id,
+      grainFarm.kind,
+      grainFarm.q,
+      grainFarm.r,
+      { x: 0, z: 0 },
+      0.94,
+    ),
+    campItem(
+      "field-bush",
+      "bush",
+      grainFarm.q,
+      grainFarm.r,
+      { x: 0.72, z: 0.5 },
+      0.78,
+      0.35,
+    ),
     campItem("camp-tent", "tent", 0, 6, { x: -0.18, z: 0.08 }, 1.04, -0.16),
     campItem("camp-wheelbarrow", "wheelbarrow", 0, 6, { x: 0.66, z: -0.32 }, 0.86, 0.54),
     campItem("camp-bush", "bush", 0, 6, { x: -0.72, z: -0.46 }, 0.84, -0.25),

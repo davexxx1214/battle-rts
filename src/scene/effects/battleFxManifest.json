@@ -1,0 +1,18 @@
+{
+  "arrowImpact": [
+    "/assets/fx/battle/arrow-impact/Classic_19.png",
+    "/assets/fx/battle/arrow-impact/Classic_20.png",
+    "/assets/fx/battle/arrow-impact/Classic_21.png",
+    "/assets/fx/battle/arrow-impact/Classic_22.png",
+    "/assets/fx/battle/arrow-impact/Classic_23.png",
+    "/assets/fx/battle/arrow-impact/Classic_24.png"
+  ],
+  "magicFlight": [
+    "/assets/fx/battle/magic-flight/Alternative_1_25.png",
+    "/assets/fx/battle/magic-flight/Alternative_1_26.png",
+    "/assets/fx/battle/magic-flight/Alternative_1_27.png",
+    "/assets/fx/battle/magic-flight/Alternative_1_28.png",
+    "/assets/fx/battle/magic-flight/Alternative_1_29.png",
+    "/assets/fx/battle/magic-flight/Alternative_1_30.png"
+  ]
+}

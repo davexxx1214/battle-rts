@@ -14,15 +14,13 @@
     "test": "vitest run tests",
     "test:watch": "vitest tests",
     "arena": "vitest run --config vitest.arena.config.ts --reporter=verbose",
-    "build:sfx-cues": "node scripts/build-battle-sfx-cues.mjs",
-    "check:sfx-cues": "node scripts/build-battle-sfx-cues.mjs --check",
-    "generate:sfx": "node scripts/generate-battle-sfx.mjs",
+    "check:audio": "node scripts/check-audio-assets.mjs",
     "generate:models": "node scripts/generate-tripo-assets.mjs",
     "check:models": "node scripts/check-tripo-runtime-assets.mjs",
     "check:scene-assets": "node scripts/check-scene-runtime-assets.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "check": "pnpm lint && pnpm typecheck && pnpm check:sfx-cues && pnpm check:models && pnpm check:scene-assets && pnpm test && pnpm build"
+    "check": "pnpm lint && pnpm typecheck && pnpm check:audio && pnpm check:models && pnpm check:scene-assets && pnpm test && pnpm build"
   },
   "dependencies": {
     "@react-three/fiber": "9.7.0",
@@ -32,7 +30,6 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
-    "@fal-ai/client": "^1.10.1",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "@types/three": "0.182.0",

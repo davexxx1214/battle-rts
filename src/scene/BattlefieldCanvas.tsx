@@ -307,8 +307,8 @@ function latestDamagePresentation(battle: BattleState, unitId: string) {
 function latestShakeImpulse(battle: BattleState): CameraShakeImpulse | null {
   for (let index = battle.events.length - 1; index >= 0; index -= 1) {
     const event = battle.events[index]!;
-    if (event.type === "projectile-hit" && (event.role === "mage" || event.role === "catapult")) {
-      return { sequence: event.sequence, intensity: event.role === "catapult" ? 0.74 : 0.58 };
+    if (event.type === "projectile-hit" && event.role === "catapult") {
+      return { sequence: event.sequence, intensity: 0.74 };
     }
   }
   return null;

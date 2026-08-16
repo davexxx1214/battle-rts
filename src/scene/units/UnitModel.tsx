@@ -23,7 +23,6 @@ import { FACTION_SCENE_COLORS, UNIT_BASE_RING_GEOMETRY } from "../assets";
 import { CatapultUnitModel } from "./CatapultUnitModel";
 import {
   CHARACTER_ANIMATION_URLS,
-  CHARACTER_EQUIPMENT_URLS,
   CHARACTER_SCENE_ASSETS,
   characterAnimationForState,
   characterTintStrength,
@@ -65,30 +64,18 @@ function CharacterUnitModel({
   readonly damageTime?: number;
   readonly damageSourcePosition?: WorldPoint;
 }) {
+  const role = unit.role as CharacterRole;
   const gltf = useLoader(
     GLTFLoader,
-    CHARACTER_SCENE_ASSETS[unit.role as CharacterRole].modelUrl,
+    CHARACTER_SCENE_ASSETS[role].modelUrl,
   );
   const animationGltfs = useLoader(GLTFLoader, [...CHARACTER_ANIMATION_URLS]);
-  const equipmentGltfs = useLoader(GLTFLoader, [...CHARACTER_EQUIPMENT_URLS]);
   const root = useRef<Object3D>(null);
   const healthRoot = useRef<Object3D>(null);
   const activeAction = useRef<AnimationAction | null>(null);
-  const equipmentSources = useMemo(
-    () => new Map(CHARACTER_EQUIPMENT_URLS.map((url, index) => [
-      url,
-      equipmentGltfs[index]!.scene,
-    ])),
-    [equipmentGltfs],
-  );
   const model = useMemo(
-    () => prepareCharacterModel(
-      gltf.scene,
-      unit.faction,
-      unit.role as CharacterRole,
-      equipmentSources,
-    ),
-    [equipmentSources, gltf.scene, unit.faction, unit.role],
+    () => prepareCharacterModel(gltf.scene, unit.faction, role),
+    [gltf.scene, role, unit.faction],
   );
   const clips = useMemo(
     () => animationGltfs.flatMap((animation) => animation.animations),
@@ -100,7 +87,7 @@ function CharacterUnitModel({
   const damageAge = damageTime === undefined ? Number.POSITIVE_INFINITY : battleTime - damageTime;
   const animationName = characterAnimationForState({
     id: unit.id,
-    role: unit.role as CharacterRole,
+    role,
     status: unit.status,
     attackSequence,
     damaged: damageAge < 0.2,
@@ -261,7 +248,6 @@ function prepareCharacterModel(
   source: Object3D,
   faction: BattleUnit["faction"],
   role: CharacterRole,
-  equipmentSources: ReadonlyMap<string, Object3D>,
 ): Object3D {
   const model = cloneSkeleton(source);
   const tint = new Color(FACTION_SCENE_COLORS[faction].tint);
@@ -269,12 +255,11 @@ function prepareCharacterModel(
   model.updateMatrixWorld(true);
   const bounds = new Box3().setFromObject(model);
   if (Number.isFinite(bounds.min.y)) model.position.y -= bounds.min.y;
-  attachCharacterEquipment(model, role, equipmentSources);
   model.traverse((object) => {
     if (!(object instanceof Mesh)) return;
     object.castShadow = false;
     object.receiveShadow = true;
-    const tintStrength = characterTintStrength(object.name);
+    const tintStrength = characterTintStrength(role, object.name);
     if (Array.isArray(object.material)) {
       object.material = object.material.map(
         (material) => tintMaterial(material, tint, tintStrength),
@@ -284,21 +269,6 @@ function prepareCharacterModel(
     }
   });
   return model;
-}
-
-function attachCharacterEquipment(
-  model: Object3D,
-  role: CharacterRole,
-  equipmentSources: ReadonlyMap<string, Object3D>,
-): void {
-  for (const equipment of CHARACTER_SCENE_ASSETS[role].equipment) {
-    const slot = model.getObjectByName(equipment.slot);
-    const source = equipmentSources.get(equipment.url);
-    if (!slot || !source) continue;
-    const instance = source.clone(true);
-    instance.name = `equipment:${equipment.url.split("/").at(-1) ?? role}`;
-    slot.add(instance);
-  }
 }
 
 function tintMaterial(material: Material, tint: Color, strength: number): Material {

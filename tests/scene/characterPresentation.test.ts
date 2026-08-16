@@ -8,29 +8,11 @@ import {
 } from "../../src/scene/units/characterPresentation";
 
 describe("character presentation", () => {
-  it("equips each medium-rig combat role with readable KayKit gear", () => {
-    expect(CHARACTER_SCENE_ASSETS.knight.equipment).toEqual([
-      {
-        url: "/assets/kaykit/adventurers/equipment/sword_1handed.gltf",
-        slot: "handslot.r",
-      },
-      {
-        url: "/assets/kaykit/adventurers/equipment/shield_round_color.gltf",
-        slot: "handslot.l",
-      },
-    ]);
-    expect(CHARACTER_SCENE_ASSETS.ranger.equipment).toEqual([
-      {
-        url: "/assets/kaykit/adventurers/equipment/bow_withString.gltf",
-        slot: "handslot.l",
-      },
-    ]);
-    expect(CHARACTER_SCENE_ASSETS.mage.equipment).toEqual([
-      {
-        url: "/assets/kaykit/adventurers/equipment/staff.gltf",
-        slot: "handslot.r",
-      },
-    ]);
+  it("uses dedicated battle-ready GLBs", () => {
+    for (const role of ["knight", "ranger", "mage"] as const) {
+      const modelUrl = CHARACTER_SCENE_ASSETS[role].modelUrl;
+      expect(modelUrl).toMatch(/\/characters\/battle\/.+_Battle\.glb$/);
+    }
   });
 
   it("loads the advanced movement library required by the bow-carry run", () => {
@@ -94,9 +76,10 @@ describe("character presentation", () => {
   });
 
   it("keeps faces natural while committing capes and gear to faction colors", () => {
-    expect(characterTintStrength("Knight_Head")).toBe(0);
-    expect(characterTintStrength("Ranger_ArmLeft")).toBeLessThan(0.2);
-    expect(characterTintStrength("Mage_Cape")).toBeGreaterThanOrEqual(0.55);
-    expect(characterTintStrength("shield_round_color")).toBeGreaterThanOrEqual(0.7);
+    expect(characterTintStrength("knight", "Knight_Head")).toBe(0);
+    expect(characterTintStrength("ranger", "Ranger_ArmLeft")).toBeLessThan(0.2);
+    expect(characterTintStrength("mage", "Mage_Cape")).toBeGreaterThanOrEqual(0.55);
+    expect(characterTintStrength("knight", "shield_round_color")).toBeGreaterThanOrEqual(0.7);
+    expect(characterTintStrength("knight", "VendorRenamedHead")).toBe(0);
   });
 });

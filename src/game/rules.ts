@@ -152,7 +152,7 @@ export const TROOP_ROLE_BY_DEPLOYABLE = {
 } as const satisfies Readonly<Record<TroopKind, UnitRole>>;
 
 const GOLD_MINE_COST = 700;
-const BARRACKS_COST = 700;
+const BARRACKS_COST = 600;
 
 export const GAME_RULES = {
   match: {

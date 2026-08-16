@@ -11,7 +11,12 @@ import {
 } from "react";
 
 import styles from "./App.module.css";
-import { BattleAudio } from "./audio/BattleAudioPlayer";
+import {
+  DEFAULT_GAME_MODE,
+  type GameMode,
+} from "./app/gameMode";
+import { DEFAULT_AUDIO_ENABLED } from "./audio/battleAudio";
+import { useBattleAudio } from "./audio/useBattleAudio";
 import {
   createInitialBattle,
   type BattleState,
@@ -28,6 +33,7 @@ import {
   previewDeployment,
   type DeploymentPreview,
 } from "./game/deployTransaction";
+import { createArenaBattle } from "./game/arenaBattle";
 import { getMatchClock } from "./game/economy";
 import type { DeployableKind } from "./game/rules";
 import { createBenchmarkBattle, type BenchmarkSnapshot } from "./game/benchmark";
@@ -43,6 +49,7 @@ import {
   DeploymentRail,
   deploymentReasonLabel,
 } from "./ui/DeploymentRail";
+import { GameModeSelector } from "./ui/GameModeSelector";
 
 interface AppState {
   readonly session: BattleSessionState;
@@ -61,12 +68,15 @@ export function App() {
   const benchmarkMode = useMemo(() => (
     new URLSearchParams(window.location.search).get("benchmark") === "80"
   ), []);
-  const [app, setApp] = useState<AppState>(() => createAppState(benchmarkMode));
+  const [mode, setMode] = useState<GameMode>(DEFAULT_GAME_MODE);
+  const [app, setApp] = useState<AppState>(() => (
+    createAppState(benchmarkMode, DEFAULT_GAME_MODE)
+  ));
   const { battle, phase: battlePhase } = app.session;
   const [cursorWorld, setCursorWorld] = useState<WorldPoint | null>(null);
   const [cameraResetToken, setCameraResetToken] = useState(0);
   const [battleInstanceRevision, setBattleInstanceRevision] = useState(0);
-  const [audioEnabled, setAudioEnabled] = useState(false);
+  const [audioEnabled, setAudioEnabled] = useState(DEFAULT_AUDIO_ENABLED);
   const [benchmark, setBenchmark] = useState<BenchmarkSnapshot | null>(null);
   const bridgeRef = useRef(createSceneInteractionBridge());
   const cameraViewStore = useMemo(createCameraViewStore, []);
@@ -86,6 +96,11 @@ export function App() {
         })
       : null
   ), [app.selectedDeployable, app.session, cursorWorld]);
+  const playUiCue = useBattleAudio({
+    battle,
+    resetToken: battleInstanceRevision,
+    enabled: audioEnabled,
+  });
 
   useBattleLoop(setApp, battlePhase);
 
@@ -106,12 +121,22 @@ export function App() {
   }, []);
 
   const resetBattle = useCallback(() => {
-    setApp(createAppState(benchmarkMode));
+    setApp(createAppState(benchmarkMode, mode));
     setCursorWorld(null);
     setCameraResetToken((current) => current + 1);
     cameraViewStore.publish(DEFAULT_CAMERA_VIEW);
     setBattleInstanceRevision((current) => current + 1);
-  }, [benchmarkMode, cameraViewStore]);
+  }, [benchmarkMode, cameraViewStore, mode]);
+
+  const changeMode = useCallback((nextMode: GameMode) => {
+    if (nextMode === mode) return;
+    setMode(nextMode);
+    setApp(createAppState(benchmarkMode, nextMode));
+    setCursorWorld(null);
+    setCameraResetToken((current) => current + 1);
+    cameraViewStore.publish(DEFAULT_CAMERA_VIEW);
+    setBattleInstanceRevision((current) => current + 1);
+  }, [benchmarkMode, cameraViewStore, mode]);
 
   const engageBattle = useCallback(() => {
     setApp((current) => ({
@@ -122,12 +147,13 @@ export function App() {
   }, []);
 
   const selectDeployable = useCallback((kind: DeployableKind) => {
+    playUiCue("select");
     setApp((current) => ({
       ...current,
       selectedDeployable: kind,
       feedback: { tone: "info", message: "移动到己方区域，绿色预览表示可以部署" },
     }));
-  }, []);
+  }, [playUiCue]);
 
   const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (!app.selectedDeployable) return;
@@ -184,11 +210,6 @@ export function App() {
 
   return (
     <main className={styles.appShell}>
-      <BattleAudio
-        battle={battle}
-        resetToken={battleInstanceRevision}
-        enabled={audioEnabled && battlePhase === "engaged"}
-      />
       <header className={styles.commandBar}>
         <div className={styles.brandLockup}>
           <div className={styles.brandSigil} aria-hidden="true">⚔</div>
@@ -197,13 +218,16 @@ export function App() {
             <h1>IRONFIELD <em>GOLD WAR</em></h1>
           </div>
         </div>
-        <div className={styles.battlePulse} aria-live="polite">
-          <span>{battlePhase === "briefing"
-            ? "等待交战"
-            : battle.winner
-              ? "战斗结束"
-              : clock.phase === "double" ? "双倍金币" : "战线交锋中"}</span>
-          <strong>{formatTime(clock.remainingSeconds)}</strong>
+        <div className={styles.commandCenter}>
+          {!benchmarkMode && <GameModeSelector mode={mode} onChange={changeMode} />}
+          <div className={styles.battlePulse} aria-live="polite">
+            <span>{battlePhase === "briefing"
+              ? "等待交战"
+              : battle.winner
+                ? "战斗结束"
+                : clock.phase === "double" ? "双倍金币" : "战线交锋中"}</span>
+            <strong>{formatTime(clock.remainingSeconds)}</strong>
+          </div>
         </div>
         <div className={styles.headerActions}>
           <button
@@ -222,7 +246,7 @@ export function App() {
             className={styles.audioToggle}
             data-enabled={audioEnabled}
             type="button"
-            aria-label={audioEnabled ? "关闭音乐和音效" : "开启音乐和音效"}
+            aria-label={audioEnabled ? "关闭结算音乐和界面音效" : "开启结算音乐和界面音效"}
             aria-pressed={audioEnabled}
             onClick={() => setAudioEnabled((current) => !current)}
           >
@@ -311,11 +335,14 @@ export function App() {
   );
 }
 
-function createAppState(benchmarkMode: boolean): AppState {
+function createAppState(benchmarkMode: boolean, mode: GameMode): AppState {
+  const populatedBattle = benchmarkMode || mode === "arena";
   return {
     session: {
-      battle: benchmarkMode ? createBenchmarkBattle(80) : createInitialBattle(),
-      phase: benchmarkMode ? "engaged" : "briefing",
+      battle: benchmarkMode
+        ? createBenchmarkBattle(80)
+        : mode === "arena" ? createArenaBattle() : createInitialBattle(),
+      phase: populatedBattle ? "engaged" : "briefing",
     },
     selectedDeployable: null,
     feedback: null,

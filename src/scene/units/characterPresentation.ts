@@ -2,56 +2,57 @@ import type { UnitRole, UnitStatus } from "../../game/battle";
 
 export type CharacterRole = Exclude<UnitRole, "catapult">;
 
-export interface CharacterEquipmentAsset {
-  readonly url: string;
-  readonly slot: "handslot.l" | "handslot.r";
-}
-
 export interface CharacterSceneAsset {
   readonly modelUrl: string;
-  readonly equipment: readonly CharacterEquipmentAsset[];
+  readonly tintStrengthByMesh: Readonly<Record<string, number>>;
 }
 
 export const CHARACTER_SCENE_ASSETS = {
   knight: {
-    modelUrl: "/assets/kaykit/adventurers/characters/Knight.glb",
-    equipment: [
-      {
-        url: "/assets/kaykit/adventurers/equipment/sword_1handed.gltf",
-        slot: "handslot.r",
-      },
-      {
-        url: "/assets/kaykit/adventurers/equipment/shield_round_color.gltf",
-        slot: "handslot.l",
-      },
-    ],
+    modelUrl: "/assets/kaykit/adventurers/characters/battle/Knight_Battle.glb",
+    tintStrengthByMesh: {
+      Knight_ArmLeft: 0.12,
+      Knight_ArmRight: 0.12,
+      Knight_Body: 0.46,
+      Knight_Cape: 0.68,
+      Knight_Head: 0,
+      Knight_Helmet: 0.46,
+      Knight_HelmetVisor: 0.46,
+      Knight_LegLeft: 0.12,
+      Knight_LegRight: 0.12,
+      sword_1handed: 0.34,
+      shield_round_color: 0.78,
+    },
   },
   ranger: {
-    modelUrl: "/assets/kaykit/adventurers/characters/Ranger.glb",
-    equipment: [
-      {
-        url: "/assets/kaykit/adventurers/equipment/bow_withString.gltf",
-        slot: "handslot.l",
-      },
-    ],
+    modelUrl: "/assets/kaykit/adventurers/characters/battle/Ranger_Battle.glb",
+    tintStrengthByMesh: {
+      Ranger_ArmLeft: 0.12,
+      Ranger_ArmRight: 0.12,
+      Ranger_Body: 0.46,
+      Ranger_Cape: 0.68,
+      Ranger_Head: 0,
+      Ranger_LegLeft: 0.12,
+      Ranger_LegRight: 0.12,
+      Ranger_Quiver: 0.34,
+      bow_withString: 0.34,
+    },
   },
   mage: {
-    modelUrl: "/assets/kaykit/adventurers/characters/Mage.glb",
-    equipment: [
-      {
-        url: "/assets/kaykit/adventurers/equipment/staff.gltf",
-        slot: "handslot.r",
-      },
-    ],
+    modelUrl: "/assets/kaykit/adventurers/characters/battle/Mage_Battle.glb",
+    tintStrengthByMesh: {
+      Mage_ArmLeft: 0.12,
+      Mage_ArmRight: 0.12,
+      Mage_Body: 0.46,
+      Mage_Cape: 0.68,
+      Mage_Hat: 0.46,
+      Mage_Head: 0,
+      Mage_LegLeft: 0.12,
+      Mage_LegRight: 0.12,
+      staff: 0.34,
+    },
   },
 } as const satisfies Readonly<Record<CharacterRole, CharacterSceneAsset>>;
-
-export const CHARACTER_EQUIPMENT_URLS = [
-  "/assets/kaykit/adventurers/equipment/sword_1handed.gltf",
-  "/assets/kaykit/adventurers/equipment/shield_round_color.gltf",
-  "/assets/kaykit/adventurers/equipment/bow_withString.gltf",
-  "/assets/kaykit/adventurers/equipment/staff.gltf",
-] as const;
 
 export const CHARACTER_ANIMATION_URLS = [
   "/assets/kaykit/character-animations/rig-medium/Rig_Medium_General.glb",
@@ -98,15 +99,11 @@ export function characterAnimationForState({
   return variation === 0 ? "Idle_A" : "Idle_B";
 }
 
-export function characterTintStrength(objectName: string): number {
-  const name = objectName.toLowerCase();
-  if (name.includes("head")) return 0;
-  if (name.includes("cape")) return 0.68;
-  if (name.includes("shield")) return 0.78;
-  if (name.includes("sword") || name.includes("bow") || name.includes("staff")) return 0.34;
-  if (name.includes("body") || name.includes("helmet") || name.includes("hat")) return 0.46;
-  if (name.includes("arm") || name.includes("leg")) return 0.12;
-  return 0.28;
+export function characterTintStrength(role: CharacterRole, objectName: string): number {
+  const strengths: Readonly<Record<string, number>> = (
+    CHARACTER_SCENE_ASSETS[role].tintStrengthByMesh
+  );
+  return strengths[objectName] ?? 0;
 }
 
 function stableVariation(id: string): 0 | 1 {

@@ -276,7 +276,7 @@ function deploymentPosition(
     : lane;
   const bridge = BATTLEFIELD_MAP.bridges.find((candidate) => candidate.id === bridgeId);
   if (!bridge) throw new Error(`Arena requires the ${bridgeId} bridge.`);
-  return axialToWorld(bridge.approaches[faction]);
+  return axialToWorld(bridge.landings[faction][0]);
 }
 
 function castleHealth(state: BattleState): { verdant: number; crimson: number } {

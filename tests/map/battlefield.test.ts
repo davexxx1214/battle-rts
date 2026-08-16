@@ -40,18 +40,28 @@ describe("battlefield island", () => {
         { q: -1, r: 1 },
       ],
       [
-        { q: 2, r: -1 },
-        { q: 2, r: 0 },
         { q: 2, r: 1 },
+        { q: 2, r: 0 },
+        { q: 2, r: -1 },
         { q: 1, r: 1 },
         { q: 1, r: 0 },
         { q: 1, r: -1 },
       ],
     ]);
+    expect(BATTLEFIELD_MAP.bridges.map((bridge) => bridge.landings)).toEqual([
+      {
+        verdant: [{ q: -2, r: 2 }, { q: -1, r: 2 }],
+        crimson: [{ q: -2, r: -2 }, { q: -1, r: -2 }],
+      },
+      {
+        verdant: [{ q: 2, r: 2 }, { q: 1, r: 2 }],
+        crimson: [{ q: 2, r: -2 }, { q: 1, r: -2 }],
+      },
+    ]);
     expect(bridgeKeys.size).toBe(12);
     expect(river.every((cell) => (
       bridgeKeys.has(`${cell.q},${cell.r}`)
-        ? cell.surface === "bridge" && cell.walkable
+        ? cell.surface === "bridge" && cell.height === 0.36 && cell.walkable
         : cell.surface === "water" && !cell.walkable
     ))).toBe(true);
     expect(BATTLEFIELD_MAP.cells.filter((cell) => (
@@ -64,12 +74,12 @@ describe("battlefield island", () => {
     for (const bridge of BATTLEFIELD_MAP.bridges) {
       const crossing = findHexPath(
         BATTLEFIELD_MAP,
-        bridge.approaches.verdant,
-        bridge.approaches.crimson,
+        bridge.landings.verdant[0],
+        bridge.landings.crimson[0],
       );
       const bridgeKeys = new Set(bridge.cells.map((cell) => `${cell.q},${cell.r}`));
-      expect(crossing[0]).toEqual(bridge.approaches.verdant);
-      expect(crossing.at(-1)).toEqual(bridge.approaches.crimson);
+      expect(crossing[0]).toEqual(bridge.landings.verdant[0]);
+      expect(crossing.at(-1)).toEqual(bridge.landings.crimson[0]);
       expect(crossing.slice(1, -1).every((cell) => bridgeKeys.has(`${cell.q},${cell.r}`)))
         .toBe(true);
       for (const camp of [BATTLEFIELD_MAP.verdantCamp, BATTLEFIELD_MAP.crimsonCamp]) {
@@ -111,7 +121,7 @@ describe("battlefield island", () => {
   it("marks every battlefield structure footprint as blocked terrain", () => {
     const functionalKinds = ["castle", "blacksmith", "barracks", "arrow-tower", "mine"];
 
-    expect(BATTLEFIELD_STRUCTURES).toHaveLength(22);
+    expect(BATTLEFIELD_STRUCTURES).toHaveLength(20);
     expect(BATTLEFIELD_STRUCTURES.map((structure) => String(structure.kind)))
       .not.toContain("siege-workshop");
     for (const faction of ["verdant", "crimson"] as const) {
@@ -119,7 +129,9 @@ describe("battlefield island", () => {
         (structure) => structure.faction === faction,
       );
       expect(factionStructures.filter((structure) => functionalKinds.includes(structure.kind)))
-        .toHaveLength(6);
+        .toHaveLength(5);
+      expect(factionStructures.some((structure) => structure.kind === "blacksmith"))
+        .toBe(false);
       expect(factionStructures.filter((structure) => structure.kind.startsWith("wall-")))
         .toHaveLength(5);
       const factionDecorations = BATTLEFIELD_DECORATIONS.filter(
@@ -139,7 +151,7 @@ describe("battlefield island", () => {
       .toEqual(new Set([0, 1]));
   });
 
-  it("closes each edge castle with a continuous seven-position half-ring", () => {
+  it("frames each castle with a five-piece wall and two symmetric front towers", () => {
     for (const faction of ["verdant", "crimson"] as const) {
       const structures = BATTLEFIELD_STRUCTURES.filter(
         (structure) => structure.faction === faction,
@@ -151,23 +163,30 @@ describe("battlefield island", () => {
       expect(hexDistance(castle.coordinate, BATTLEFIELD_MAP.center)).toBe(BATTLEFIELD_MAP.radius);
       expect(hexDistance(castle.coordinate, BATTLEFIELD_MAP[`${faction}Camp`])).toBe(3);
       expect(getBattlefieldCell(BATTLEFIELD_MAP[`${faction}Camp`])?.walkable).toBe(true);
-      const fortifications = structures.filter((structure) => (
-        structure.kind.startsWith("wall-") || structure.kind === "arrow-tower"
-      ));
-      expect(fortifications).toHaveLength(7);
-      expect(new Set(fortifications.map(({ coordinate }) => `${coordinate.q},${coordinate.r}`)).size)
-        .toBe(7);
-      const neighborCounts = fortifications.map((fortification) => (
-        fortifications.filter((candidate) => (
-          hexDistance(fortification.coordinate, candidate.coordinate) === 1
-        )).length
-      ));
-      expect([...neighborCounts].sort()).toEqual([1, 1, 2, 2, 2, 2, 2]);
-      const endpoints = fortifications.filter((_, index) => neighborCounts[index] === 1);
-      expect(endpoints).toHaveLength(2);
-      expect(endpoints.every((endpoint) => (
-        hexDistance(endpoint.coordinate, BATTLEFIELD_MAP.center) === BATTLEFIELD_MAP.radius
+      const walls = structures.filter((structure) => structure.kind.startsWith("wall-"));
+      const towers = structures.filter((structure) => structure.kind === "arrow-tower");
+      expect(walls).toHaveLength(5);
+      expect(towers).toHaveLength(2);
+      expect([...walls.map((wall) => (
+        walls.filter((candidate) => hexDistance(wall.coordinate, candidate.coordinate) === 1)
+          .length
+      ))].sort()).toEqual([1, 1, 2, 2, 2]);
+
+      const mirror = faction === "verdant" ? 1 : -1;
+      expect(towers.map(({ coordinate }) => coordinate)).toEqual([
+        { q: -4 * mirror, r: 6 * mirror },
+        { q: -1 * mirror, r: 6 * mirror },
+      ]);
+      expect(hexDistance(towers[0]!.coordinate, towers[1]!.coordinate)).toBe(3);
+      const castleWorld = axialToWorld(castle.coordinate);
+      const towerWorld = towers.map(({ coordinate }) => axialToWorld(coordinate));
+      expect((towerWorld[0]!.x + towerWorld[1]!.x) / 2).toBe(castleWorld.x);
+      expect(towerWorld[0]!.z).toBe(towerWorld[1]!.z);
+      expect(towers.every((tower) => (
+        hexDistance(tower.coordinate, BATTLEFIELD_MAP.center)
+          < hexDistance(castle.coordinate, BATTLEFIELD_MAP.center)
       ))).toBe(true);
+
       const gate = structures.find((structure) => structure.kind === "wall-gate");
       expect(gate).toBeDefined();
       expect(getBattlefieldCell(gate!.coordinate)?.walkable).toBe(true);
@@ -179,8 +198,6 @@ describe("battlefield island", () => {
       expect(interior).toBeDefined();
       expect(findHexPath(BATTLEFIELD_MAP, interior!, BATTLEFIELD_MAP[`${faction}Camp`]))
         .toContainEqual(gate!.coordinate);
-      const blacksmith = structures.find((candidate) => candidate.kind === "blacksmith");
-      expect(hexDistance(castle.coordinate, blacksmith!.coordinate)).toBe(1);
       for (const kind of ["barracks", "mine"] as const) {
         const outerBuilding = structures.find((candidate) => candidate.kind === kind);
         expect(hexDistance(castle.coordinate, outerBuilding!.coordinate)).toBeGreaterThan(2);
@@ -188,7 +205,7 @@ describe("battlefield island", () => {
     }
   });
 
-  it("aims every KayKit wall connector at its paired neighboring segment", () => {
+  it("aims a KayKit wall connector at every neighboring wall segment", () => {
     const localConnectors = {
       "wall-straight": [{ x: -1, z: 0 }, { x: 1, z: 0 }],
       "wall-gate": [{ x: -1, z: 0 }, { x: 1, z: 0 }],
@@ -199,16 +216,14 @@ describe("battlefield island", () => {
     } as const;
 
     for (const faction of ["verdant", "crimson"] as const) {
-      const fortifications = BATTLEFIELD_STRUCTURES.filter((structure) => (
-        structure.faction === faction
-        && (structure.kind.startsWith("wall-") || structure.kind === "arrow-tower")
+      const wallSegments = BATTLEFIELD_STRUCTURES.filter((structure) => (
+        structure.faction === faction && structure.kind.startsWith("wall-")
       ));
-      const wallSegments = fortifications.filter((structure) => structure.kind !== "arrow-tower");
 
       for (const segment of wallSegments) {
         const connectors = localConnectors[segment.kind as keyof typeof localConnectors];
         const segmentWorld = axialToWorld(segment.coordinate);
-        const neighboringDirections = fortifications
+        const neighboringDirections = wallSegments
           .filter((candidate) => hexDistance(segment.coordinate, candidate.coordinate) === 1)
           .map((candidate) => {
             const candidateWorld = axialToWorld(candidate.coordinate);
@@ -218,16 +233,16 @@ describe("battlefield island", () => {
             };
           });
 
-        for (const connector of connectors) {
-          const cosine = Math.cos(segment.rotationY);
-          const sine = Math.sin(segment.rotationY);
-          const direction = {
-            x: connector.x * cosine + connector.z * sine,
-            z: -connector.x * sine + connector.z * cosine,
-          };
-          expect(neighboringDirections.some((neighbor) => (
+        const cosine = Math.cos(segment.rotationY);
+        const sine = Math.sin(segment.rotationY);
+        const connectorDirections = connectors.map((connector) => ({
+          x: connector.x * cosine + connector.z * sine,
+          z: -connector.x * sine + connector.z * cosine,
+        }));
+        for (const neighbor of neighboringDirections) {
+          expect(connectorDirections.some((direction) => (
             Math.hypot(neighbor.x - direction.x, neighbor.z - direction.z) < 0.001
-          )), `${segment.id} has a dangling model connector`).toBe(true);
+          )), `${segment.id} misses a neighboring wall connector`).toBe(true);
         }
       }
     }

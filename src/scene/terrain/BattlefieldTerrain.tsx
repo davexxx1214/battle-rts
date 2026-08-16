@@ -5,7 +5,6 @@ import {
   Color,
   InstancedMesh,
   MathUtils,
-  Matrix4,
   Mesh,
   Object3D,
 } from "three";
@@ -33,9 +32,14 @@ import {
   STRUCTURE_SCENE_ASSETS,
 } from "../assets";
 import { miningCartPose } from "./miningCartMotion";
+import {
+  TERRAIN_TILE_ASSETS,
+  TERRAIN_TILE_ASSET_KEYS,
+  createTerrainTilePlan,
+  type TerrainTileAssetKey,
+  type TerrainTilePresentation,
+} from "./tilePresentation";
 
-const GRASS_TILE_URL = "/assets/kaykit/medieval-hex/tiles/base/hex_grass.gltf";
-const WATER_TILE_URL = "/assets/kaykit/medieval-hex/tiles/base/hex_water.gltf";
 const EMPTY_HIDDEN_NODES: readonly string[] = [];
 
 export function BattlefieldTerrain() {
@@ -51,34 +55,41 @@ export function BattlefieldTerrain() {
 }
 
 function HexArena() {
-  const grass = useLoader(GLTFLoader, GRASS_TILE_URL);
-  const water = useLoader(GLTFLoader, WATER_TILE_URL);
-  const grassTemplate = useMemo(() => extractMeshTemplate(grass.scene), [grass.scene]);
-  const waterTemplate = useMemo(() => extractMeshTemplate(water.scene), [water.scene]);
-  const surfaceCells = useMemo(() => ({
-    grass: BATTLEFIELD_MAP.cells.filter((cell) => cell.surface === "grass"),
-    bridge: BATTLEFIELD_MAP.cells.filter((cell) => cell.surface === "bridge"),
-    camp: BATTLEFIELD_MAP.cells.filter((cell) => cell.surface === "camp"),
-    forest: BATTLEFIELD_MAP.cells.filter((cell) => cell.surface === "forest"),
-    rock: BATTLEFIELD_MAP.cells.filter((cell) => cell.surface === "rock"),
-    water: [
-      ...BATTLEFIELD_MAP.cells.filter((cell) => cell.surface === "water"),
-      ...createOuterWaterRing(BATTLEFIELD_MAP.radius + 1),
-    ],
-  }), []);
+  const tileGltfs = useLoader(
+    GLTFLoader,
+    TERRAIN_TILE_ASSET_KEYS.map((key) => TERRAIN_TILE_ASSETS[key].url),
+  );
+  const templates = useMemo(() => new Map<TerrainTileAssetKey, TileTemplate>(
+    TERRAIN_TILE_ASSET_KEYS.map((key, index) => [
+      key,
+      extractMeshTemplate(tileGltfs[index]!.scene),
+    ]),
+  ), [tileGltfs]);
+  const tilePlan = useMemo<readonly TerrainTilePresentation[]>(() => [
+    ...createTerrainTilePlan(BATTLEFIELD_MAP),
+    ...createOuterWaterRing(BATTLEFIELD_MAP.radius + 1).map((cell) => ({
+      cell,
+      assetKey: "water" as const,
+      renderHeight: cell.height,
+      rotationY: 0,
+      tint: "#caeff8",
+      connections: [],
+    })),
+  ], []);
+  const tilesByAsset = useMemo(() => new Map(
+    TERRAIN_TILE_ASSET_KEYS.map((key) => [
+      key,
+      tilePlan.filter(({ assetKey }) => assetKey === key),
+    ]),
+  ), [tilePlan]);
   return (
     <group position={[0, -0.03, 0]}>
-      <TileInstances template={grassTemplate} cells={surfaceCells.grass} tint="#7f9664" />
-      <TileInstances template={grassTemplate} cells={surfaceCells.bridge} tint="#a9a38b" />
-      <TileInstances template={grassTemplate} cells={surfaceCells.camp} tint="#9d8758" />
-      <TileInstances template={grassTemplate} cells={surfaceCells.forest} tint="#526a4b" />
-      <TileInstances template={grassTemplate} cells={surfaceCells.rock} tint="#6e7167" />
-      <TileInstances
-        template={waterTemplate}
-        cells={surfaceCells.water}
-        tint="#a8deeb"
-        materialVariant="water"
-      />
+      {TERRAIN_TILE_ASSET_KEYS.map((key) => {
+        const tiles = tilesByAsset.get(key) ?? [];
+        return tiles.length > 0 && (
+          <TileInstances key={key} template={templates.get(key)!} tiles={tiles} />
+        );
+      })}
       <mesh receiveShadow position={[0, -0.95, 0]}>
         <cylinderGeometry args={[22, 23.5, 1.5, 54]} />
         <meshStandardMaterial color="#4b8fa4" roughness={0.62} metalness={0.04} />
@@ -104,49 +115,38 @@ interface TileTemplate {
 
 function TileInstances({
   template,
-  cells,
-  tint,
-  materialVariant = "land",
+  tiles,
 }: {
   readonly template: TileTemplate;
-  readonly cells: readonly BattlefieldCell[];
-  readonly tint: string;
-  readonly materialVariant?: "land" | "water";
+  readonly tiles: readonly TerrainTilePresentation[];
 }) {
   const instances = useRef<InstancedMesh>(null);
   useLayoutEffect(() => {
     const mesh = instances.current;
     if (!mesh) return;
-    const matrix = new Matrix4();
+    const transform = new Object3D();
     const color = new Color();
-    cells.forEach((cell, index) => {
+    tiles.forEach(({ cell, renderHeight, rotationY, tint }, index) => {
       const world = axialToWorld(cell);
-      matrix.makeTranslation(world.x, cell.height, world.z);
-      mesh.setMatrixAt(index, matrix);
+      transform.position.set(world.x, renderHeight, world.z);
+      transform.rotation.set(0, rotationY, 0);
+      transform.scale.setScalar(1);
+      transform.updateMatrix();
+      mesh.setMatrixAt(index, transform.matrix);
       const variation = ((cell.q * 17 + cell.r * 31) & 3) * 0.022;
       color.set(tint).offsetHSL(0, 0, variation);
       mesh.setColorAt(index, color);
     });
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [cells, tint]);
+  }, [tiles]);
   return (
     <instancedMesh
       ref={instances}
-      args={[template.geometry, template.material, cells.length]}
+      args={[template.geometry, template.material, tiles.length]}
       receiveShadow
       frustumCulled={false}
-    >
-      {materialVariant === "water" && (
-        <meshStandardMaterial
-          color="#4e94ac"
-          roughness={0.32}
-          metalness={0.08}
-          transparent
-          opacity={0.94}
-        />
-      )}
-    </instancedMesh>
+    />
   );
 }
 

@@ -9,14 +9,39 @@ export interface BattlefieldBridgeLayout {
   readonly id: "west" | "east";
   readonly center: BattlefieldLayoutCoordinate;
   readonly cells: readonly BattlefieldLayoutCoordinate[];
-  readonly approaches: {
-    readonly verdant: BattlefieldLayoutCoordinate;
-    readonly crimson: BattlefieldLayoutCoordinate;
+  readonly landings: {
+    readonly verdant: readonly [BattlefieldLayoutCoordinate, BattlefieldLayoutCoordinate];
+    readonly crimson: readonly [BattlefieldLayoutCoordinate, BattlefieldLayoutCoordinate];
   };
 }
 
 export const BATTLEFIELD_RADIUS = 9;
 export const BATTLEFIELD_COMBAT_HALF_WIDTH = 6;
+export const BATTLEFIELD_CASTLE_ROCK_COORDINATES = [
+  { q: -6, r: 9 },
+  { q: -2, r: 9 },
+  { q: 6, r: -9 },
+  { q: 2, r: -9 },
+] as const satisfies readonly BattlefieldLayoutCoordinate[];
+export const BATTLEFIELD_CASTLE_FOREST_COORDINATES = [
+  { q: -5, r: 4 },
+  { q: -5, r: 5 },
+  { q: -5, r: 6 },
+  { q: -5, r: 7 },
+  { q: -6, r: 8 },
+  { q: 5, r: -4 },
+  { q: 5, r: -5 },
+  { q: 5, r: -6 },
+  { q: 5, r: -7 },
+  { q: 6, r: -8 },
+] as const satisfies readonly BattlefieldLayoutCoordinate[];
+
+const BATTLEFIELD_CASTLE_ROCK_KEYS = new Set(
+  BATTLEFIELD_CASTLE_ROCK_COORDINATES.map(({ q, r }) => `${q},${r}`),
+);
+const BATTLEFIELD_CASTLE_FOREST_KEYS = new Set(
+  BATTLEFIELD_CASTLE_FOREST_COORDINATES.map(({ q, r }) => `${q},${r}`),
+);
 export const BATTLEFIELD_BRIDGE_LAYOUTS = [
   createBridgeLayout("west", -2),
   createBridgeLayout("east", 2),
@@ -39,7 +64,7 @@ export function battlefieldOuterFlankAt(q: number, r: number): boolean {
 
 export function battlefieldStaticObstacleAt(q: number, r: number): boolean {
   const campPropCell = q === 0 && Math.abs(r) === 6;
-  return battlefieldOuterFlankAt(q, r) || campPropCell;
+  return battlefieldOuterFlankAt(q, r) || campPropCell || battlefieldCastleRockAt(q, r);
 }
 
 export function battlefieldSurfaceAt(q: number, r: number): TerrainSurface {
@@ -56,12 +81,22 @@ export function battlefieldSurfaceAt(q: number, r: number): TerrainSurface {
     && !battlefieldReservedPathAt(q, r)
     && positiveModulo(q * 5 - r * 13, 11) === 0;
 
+  if (battlefieldCastleForestAt(q, r)) return "forest";
+  if (battlefieldCastleRockAt(q, r)) return "grass";
   if (isBridge) return "bridge";
   if (isRiver) return "water";
   if (isCamp) return "camp";
   if (isForest) return "forest";
   if (isRock) return "rock";
   return "grass";
+}
+
+export function battlefieldCastleRockAt(q: number, r: number): boolean {
+  return BATTLEFIELD_CASTLE_ROCK_KEYS.has(`${q},${r}`);
+}
+
+export function battlefieldCastleForestAt(q: number, r: number): boolean {
+  return BATTLEFIELD_CASTLE_FOREST_KEYS.has(`${q},${r}`);
 }
 
 export function battlefieldCoordinates(
@@ -88,17 +123,17 @@ function positiveModulo(value: number, divisor: number): number {
 
 function createBridgeLayout(id: BattlefieldBridgeLayout["id"], q: number) {
   const innerQ = id === "west" ? q + 1 : q - 1;
-  const innerRows = id === "west" ? [-1, 0, 1] : [1, 0, -1];
+  const rows = id === "west" ? [-1, 0, 1] : [1, 0, -1];
   return {
     id,
     center: { q, r: 0 },
     cells: [
-      ...[-1, 0, 1].map((r) => ({ q, r })),
-      ...innerRows.map((r) => ({ q: innerQ, r })),
+      ...rows.map((r) => ({ q, r })),
+      ...rows.map((r) => ({ q: innerQ, r })),
     ],
-    approaches: {
-      verdant: { q, r: 2 },
-      crimson: { q, r: -2 },
+    landings: {
+      verdant: [{ q, r: 2 }, { q: innerQ, r: 2 }],
+      crimson: [{ q, r: -2 }, { q: innerQ, r: -2 }],
     },
   } as const;
 }

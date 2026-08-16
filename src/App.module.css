@@ -115,6 +115,13 @@
   border-inline: 1px solid var(--line);
 }
 
+.commandCenter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
 .battlePulse::before {
   width: 7px;
   height: 7px;
@@ -462,8 +469,13 @@
 
 @media (max-width: 900px) {
   .commandBar {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
     padding-inline: 12px;
+  }
+
+  .commandCenter {
+    justify-self: center;
   }
 
   .battlePulse {
@@ -495,6 +507,10 @@
 
   .brandLockup h1 {
     font-size: 15px;
+  }
+
+  .brandLockup > div:last-child {
+    display: none;
   }
 
   .restartButton {

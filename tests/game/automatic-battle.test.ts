@@ -8,7 +8,13 @@ import {
 } from "../../src/game/battle";
 import { createBattleBuilding } from "../../src/game/buildings";
 import { createBuildingOccupancy } from "../../src/game/deployment";
-import { BATTLEFIELD_MAP, axialToWorld } from "../../src/map/battlefield";
+import { createFormationSlots } from "../../src/game/formation";
+import {
+  BATTLEFIELD_MAP,
+  axialToWorld,
+  getBattlefieldCell,
+  worldToAxial,
+} from "../../src/map/battlefield";
 
 function withBuildings(
   state: BattleState,
@@ -18,6 +24,39 @@ function withBuildings(
 }
 
 describe("automatic battle behavior", () => {
+  it("keeps a three-swordsman charge on walkable terrain from every walkable formation start", () => {
+    const starts = BATTLEFIELD_MAP.cells.filter((cell) => {
+      if (cell.territory !== "verdant" || !cell.walkable) return false;
+      return createFormationSlots(3, axialToWorld(cell), Math.PI).every((position) => {
+        const memberCell = getBattlefieldCell(worldToAxial(position));
+        return memberCell?.territory === "verdant" && memberCell.walkable;
+      });
+    });
+
+    for (const start of starts) {
+      const units = createFormationSlots(3, axialToWorld(start), Math.PI).map((position, index) => (
+        createBattleUnit({
+          id: `verdant-${start.q}-${start.r}-${index}`,
+          faction: "verdant",
+          role: "knight",
+          position,
+        })
+      ));
+      let state = createBattleState(units);
+
+      for (let step = 0; step < 600; step += 1) {
+        state = stepBattle(state, 0.1);
+        for (const unit of state.units.filter((candidate) => candidate.health > 0)) {
+          const cell = getBattlefieldCell(worldToAxial(unit.position));
+          expect(
+            cell?.walkable,
+            `start=${start.q},${start.r} step=${step} unit=${unit.id} position=${unit.position.x},${unit.position.z}`,
+          ).toBe(true);
+        }
+      }
+    }
+  });
+
   it("damages an attackable building encountered on the route", () => {
     const mine = createBattleBuilding({
       id: "crimson-route-mine",

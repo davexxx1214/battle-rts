@@ -3,11 +3,24 @@ import { describe, expect, it } from "vitest";
 import { createBattleBuilding } from "../../src/game/buildings";
 import { stampBattleEvent } from "../../src/game/events";
 import {
+  BUILDING_HEALTH_BAR_LAYERS,
   buildingPresentation,
   latestBuildingSignal,
 } from "../../src/scene/buildings/buildingPresentation";
 
 describe("building presentation state", () => {
+  it("renders the health fill after its translucent frame instead of hiding it in black", () => {
+    const layers = Object.values(BUILDING_HEALTH_BAR_LAYERS);
+
+    expect(layers.every((layer) => layer.material.transparent)).toBe(true);
+    expect(layers.every((layer) => !layer.material.depthTest)).toBe(true);
+    expect(layers.every((layer) => !layer.material.depthWrite)).toBe(true);
+    expect(BUILDING_HEALTH_BAR_LAYERS.fill.renderOrder)
+      .toBeGreaterThan(BUILDING_HEALTH_BAR_LAYERS.track.renderOrder);
+    expect(BUILDING_HEALTH_BAR_LAYERS.track.renderOrder)
+      .toBeGreaterThan(BUILDING_HEALTH_BAR_LAYERS.frame.renderOrder);
+  });
+
   it("derives health tone and the next production progress from authoritative state", () => {
     const mine = {
       ...createBattleBuilding({
