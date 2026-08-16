@@ -1,6 +1,6 @@
 config.yaml里放了几个key:
 
-fal_key: 用来访问fal ai 生成美术和音乐资源
+fal_key: 用来访问fal ai 生成美术和音乐资源    sonilo/v1.1/text-to-sound-effects用来生成音效, sonilo/v1.1/text-to-music生成背景音乐
 remote_host: 远程部署主机
 remote_user:  远程登录用户名
 

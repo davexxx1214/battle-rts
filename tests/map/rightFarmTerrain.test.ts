@@ -40,6 +40,7 @@ const RIGHT_FARM_COORDINATES = [
   { q: 3, r: 2 },
   { q: 3, r: 4 },
   { q: 3, r: 5 },
+  { q: 4, r: 2 },
   { q: 4, r: 4 },
   { q: 4, r: 3 },
   { q: 5, r: 2 },
@@ -50,15 +51,15 @@ const RIGHT_FARM_COORDINATES = [
 const RIGHT_FARM_PASSAGE_COORDINATE = { q: 2, r: 3 } as const;
 
 describe("right farm terrain", () => {
-  it("removes only the outermost row of the southeast battlefield peninsula", () => {
+  it("removes the outermost row of the southeast peninsula before mirroring it", () => {
     const keys = new Set(battlefieldCoordinates().map(([q, r]) => `${q},${r}`));
 
-    expect(keys.size).toBe(242);
+    expect(keys.size).toBe(213);
     for (const { q, r } of REMOVED_RIGHT_EDGE_COORDINATES) {
       expect(keys.has(`${q},${r}`)).toBe(false);
       expect(getBattlefieldCell({ q, r })).toBeUndefined();
     }
-    expect(keys.has("8,1")).toBe(true);
+    expect(keys.has("7,1")).toBe(true);
     expect(keys.has("-7,9")).toBe(true);
   });
 
@@ -87,7 +88,7 @@ describe("right farm terrain", () => {
     expect(farmScenery.every(({ kind }) => BLOCKING_SCENERY_KINDS.has(kind))).toBe(true);
     expect(farmKinds.filter((kind) => kind === "farm-grain")).toHaveLength(11);
     expect(farmKinds.filter((kind) => kind === "farm-dirt")).toHaveLength(1);
-    expect(farmKinds.filter((kind) => kind === "farm-windmill")).toHaveLength(1);
+    expect(farmKinds.filter((kind) => kind === "farm-windmill")).toHaveLength(2);
     expect(farmKinds.filter((kind) => kind === "farm-cargo-wagon")).toHaveLength(1);
     expect(farmKinds.filter((kind) => kind === "farm-home-a")).toHaveLength(1);
     expect(farmKinds.filter((kind) => kind === "farm-home-b")).toHaveLength(1);
@@ -140,6 +141,41 @@ describe("right farm terrain", () => {
     expect(BATTLEFIELD_SCENERY.filter(({ coordinate }) => (
       coordinate.q === 3 && coordinate.r === 2
     )).map(({ kind }) => kind)).toEqual(["farm-watermill"]);
+  });
+
+  it("replaces the waterfront gray props with a mirrored pair of faction windmills", () => {
+    const playerCoordinate = { q: 4, r: 2 } as const;
+    const enemyCoordinate = { q: -4, r: -2 } as const;
+    const sceneryAt = (coordinate: { readonly q: number; readonly r: number }) => BATTLEFIELD_SCENERY.filter(
+      ({ coordinate: itemCoordinate }) => (
+        itemCoordinate.q === coordinate.q && itemCoordinate.r === coordinate.r
+      ),
+    );
+
+    expect(sceneryAt(playerCoordinate)).toEqual([
+      expect.objectContaining({
+        id: "right-farm-waterfront-windmill",
+        kind: "farm-windmill",
+        zone: "right-farm",
+        faction: "verdant",
+      }),
+    ]);
+    expect(sceneryAt(enemyCoordinate)).toEqual([
+      expect.objectContaining({
+        id: "left-farm-waterfront-windmill",
+        kind: "farm-windmill",
+        zone: "left-farm",
+        faction: "crimson",
+      }),
+    ]);
+    expect(getBattlefieldCell(playerCoordinate)).toMatchObject({
+      walkable: false,
+      buildable: false,
+    });
+    expect(getBattlefieldCell(enemyCoordinate)).toMatchObject({
+      walkable: false,
+      buildable: false,
+    });
   });
 
   it("clears the gray outskirts props into a walkable, buildable passage", () => {

@@ -1,4 +1,5 @@
 import type { BattlefieldSceneryKind } from "../map/battlefieldScenery";
+import type { BattlefieldCloudKind } from "../map/battlefieldAtmosphere";
 import type { BattleBuildingKind } from "../game/buildings";
 import type { Faction } from "../game/types";
 
@@ -14,7 +15,19 @@ export interface ScenerySceneAsset {
   readonly url: string;
   readonly scale: number;
   readonly renderMode?: "full-scene" | "instanced";
+  readonly factionUrls?: Readonly<Partial<Record<Faction, string>>>;
 }
+
+export const BATTLEFIELD_CLOUD_SCENE_ASSETS = {
+  big: {
+    url: "/assets/kaykit/medieval-hex/decoration/nature/cloud_big.gltf",
+    scale: 1,
+  },
+  small: {
+    url: "/assets/kaykit/medieval-hex/decoration/nature/cloud_small.gltf",
+    scale: 1,
+  },
+} as const satisfies Readonly<Record<BattlefieldCloudKind, ScenerySceneAsset>>;
 
 export const SCENE_MODEL_URLS = {
   mobileCatapult: "/assets/generated/tripo/runtime/mobile-catapult.glb",
@@ -70,6 +83,10 @@ export const SCENERY_SCENE_ASSETS = {
     url: "/assets/kaykit/medieval-hex/units/blue/ship_blue_accent.gltf",
     scale: 1.28,
     renderMode: "full-scene",
+    factionUrls: {
+      verdant: "/assets/kaykit/medieval-hex/units/blue/ship_blue_accent.gltf",
+      crimson: "/assets/kaykit/medieval-hex/units/red/ship_red_accent.gltf",
+    },
   },
   "grove-a": {
     url: "/assets/kaykit/medieval-hex/decoration/nature/trees_A_medium.gltf",
@@ -139,26 +156,46 @@ export const SCENERY_SCENE_ASSETS = {
     url: "/assets/kaykit/medieval-hex/units/blue/cart_merchant_blue_accent.gltf",
     scale: 1.15,
     renderMode: "full-scene",
+    factionUrls: {
+      verdant: "/assets/kaykit/medieval-hex/units/blue/cart_merchant_blue_accent.gltf",
+      crimson: "/assets/kaykit/medieval-hex/units/red/cart_merchant_red_accent.gltf",
+    },
   },
   "farm-windmill": {
     url: "/assets/kaykit/medieval-hex/buildings/blue/building_windmill_blue.gltf",
     scale: 1.15,
     renderMode: "full-scene",
+    factionUrls: {
+      verdant: "/assets/kaykit/medieval-hex/buildings/blue/building_windmill_blue.gltf",
+      crimson: "/assets/kaykit/medieval-hex/buildings/red/building_windmill_red.gltf",
+    },
   },
   "farm-home-a": {
     url: "/assets/kaykit/medieval-hex/buildings/blue/building_home_A_blue.gltf",
     scale: 1.25,
     renderMode: "full-scene",
+    factionUrls: {
+      verdant: "/assets/kaykit/medieval-hex/buildings/blue/building_home_A_blue.gltf",
+      crimson: "/assets/kaykit/medieval-hex/buildings/red/building_home_A_red.gltf",
+    },
   },
   "farm-home-b": {
     url: "/assets/kaykit/medieval-hex/buildings/blue/building_home_B_blue.gltf",
     scale: 1.15,
     renderMode: "full-scene",
+    factionUrls: {
+      verdant: "/assets/kaykit/medieval-hex/buildings/blue/building_home_B_blue.gltf",
+      crimson: "/assets/kaykit/medieval-hex/buildings/red/building_home_B_red.gltf",
+    },
   },
   "farm-watermill": {
     url: "/assets/kaykit/medieval-hex/buildings/blue/building_watermill_blue.gltf",
     scale: 1.2,
     renderMode: "full-scene",
+    factionUrls: {
+      verdant: "/assets/kaykit/medieval-hex/buildings/blue/building_watermill_blue.gltf",
+      crimson: "/assets/kaykit/medieval-hex/buildings/red/building_watermill_red.gltf",
+    },
   },
   "village-house": {
     url: "/assets/kenney/hexagon-kit/building-house.glb",
@@ -176,6 +213,15 @@ export const SCENERY_SCENE_ASSETS = {
   BattlefieldSceneryKind,
   ScenerySceneAsset
 >>;
+
+export function scenerySceneAssetFor(
+  kind: BattlefieldSceneryKind,
+  faction?: Faction,
+): ScenerySceneAsset {
+  const asset: ScenerySceneAsset = SCENERY_SCENE_ASSETS[kind];
+  const factionUrl = faction ? asset.factionUrls?.[faction] : undefined;
+  return factionUrl ? { ...asset, url: factionUrl } : asset;
+}
 
 export const STRUCTURE_SCENE_ASSETS = {
   verdant: {

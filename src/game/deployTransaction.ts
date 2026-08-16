@@ -13,6 +13,7 @@ import {
   recordSuccessfulDeployment,
   requestBuildingPlacement,
   resolveWorldHex,
+  validBuildingDeploymentCoordinates,
   type BuildingPlacementFailureReason,
 } from "./deployment";
 import { trySpendGold } from "./economy";
@@ -183,6 +184,32 @@ export function previewDeployment(
     return invalidPreview(unitPositions.reason, request.worldPosition);
   }
   return validPreview(coordinate, unitPositions.positions);
+}
+
+export function validDeploymentCoordinates(
+  session: BattleSessionState,
+  faction: Faction,
+  kind: DeployableKind,
+): readonly HexCoordinate[] {
+  const availability = getDeployableAvailability(session, faction, kind);
+  if (!availability.enabled) return [];
+  const state = session.battle;
+  if (isBuildingDeployable(kind)) {
+    return validBuildingDeploymentCoordinates(
+      BATTLEFIELD_MAP,
+      faction,
+      state.buildingOccupancy,
+      state.units,
+    );
+  }
+  const occupiedBuildings = occupiedBuildingKeys(state);
+  return BATTLEFIELD_MAP.cells
+    .filter((cell) => (
+      cell.territory === faction
+      && cell.walkable
+      && planTroopPositions(faction, kind, cell, occupiedBuildings).ok
+    ))
+    .map(({ q, r }) => ({ q, r }));
 }
 
 export function deployBattleSessionEntity(

@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "model": "sonilo/v1.1/text-to-sound-effects",
+  "updatedAt": "2026-08-16T11:52:24.087Z",
+  "format": "wav",
+  "maximumDurationSeconds": 2,
+  "entries": [
+    {
+      "id": "catapult_launch_01",
+      "duration": 1,
+      "prompt": "Isolated medieval torsion catapult firing one heavy stone, sudden wooden frame strain, rope snap and forceful low launch thump, dry close game sound, no impact, no voice, no ambience, no music",
+      "file": "catapult_launch_01.wav",
+      "requestId": "01a00a57-768f-7192-975a-d37b76d4485f",
+      "specHash": "a87991fd1907098c91dcb173fa4d7b0b58cecdfcf44f45b1c813c160e54b6b2b",
+      "sha256": "e7f299bd4c754862e564d263c433911768fd343b806842ae626a6c08575a324d"
+    },
+    {
+      "id": "catapult_launch_02",
+      "duration": 1,
+      "prompt": "Single medieval catapult release, compact timber creak, taut rope recoil and heavy arm slam, powerful but short isolated game effect, no projectile impact, no voice, no ambience, no music",
+      "file": "catapult_launch_02.wav",
+      "requestId": "01a00a57-7675-7183-b937-386be105383f",
+      "specHash": "ea9628c0e5f51a4ce42fb8f838ed923a895760cfba15d3dd00336cec289cbb3c",
+      "sha256": "9007689403a21ab8910d72910c0ac9b8f37313b0550341a87d2a329a6fba330d"
+    },
+    {
+      "id": "catapult_impact_01",
+      "duration": 2,
+      "prompt": "Single large catapult stone smashing into medieval stonework, deep compact impact, cracking masonry and brief falling rubble, fast decay, isolated game sound, no voices, no ambience, no music",
+      "file": "catapult_impact_01.wav",
+      "requestId": "01a00a57-76a1-7df2-bd14-1398933e386a",
+      "specHash": "1a201cb2a288d2e07304470756655f45cb668e1aa492b4349447c4fe66f0c63b",
+      "sha256": "edecadf6253ebc0307afe30a50299b36c2c34b6fe36a46c1b64ee4ec215f91c7"
+    },
+    {
+      "id": "catapult_impact_02",
+      "duration": 2,
+      "prompt": "One heavy siege rock striking earth and timber fortifications, powerful low thud, splintering wood and short debris burst, dry isolated battle effect, no voices, no ambience, no music",
+      "file": "catapult_impact_02.wav",
+      "requestId": "01a00a57-8c77-70c0-b203-2004d666f12b",
+      "specHash": "18c042d0ff5dd18618d605069003446f0e10c1514d75ee5bb0119615c969d86c",
+      "sha256": "7da82f90cb53b549d2111e5220c4ad6856a9739efe5601e74c6b15f55f19fb74"
+    }
+  ]
+}

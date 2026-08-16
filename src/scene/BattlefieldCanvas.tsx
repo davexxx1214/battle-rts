@@ -17,6 +17,7 @@ import type {
   WorldPoint,
 } from "../game/battle";
 import type { DeploymentPreview } from "../game/deployTransaction";
+import { validDeploymentCoordinates } from "../game/deployTransaction";
 import type { DeployableKind } from "../game/rules";
 import { terrainHeightAt } from "../map/battlefield";
 import {
@@ -26,8 +27,10 @@ import {
 import type { CameraViewStore } from "./camera/cameraViewStore";
 import { BattleEffects } from "./effects/BattleEffects";
 import { BattleBuildingLayer } from "./buildings/BattleBuildingLayer";
+import { DeploymentAreaMask } from "./DeploymentAreaMask";
 import { BattlefieldTerrain } from "./terrain/BattlefieldTerrain";
 import { UnitModel } from "./units/UnitModel";
+import { deploymentPreviewRingGeometry } from "./units/unitRingPresentation";
 import { FrameBenchmark, type BenchmarkSnapshot } from "../game/benchmark";
 
 export interface SceneInteractionBridge {
@@ -38,6 +41,7 @@ export interface SceneInteractionBridge {
 interface BattlefieldCanvasProps {
   readonly battle: BattleState;
   readonly bridgeRef: MutableRefObject<SceneInteractionBridge>;
+  readonly deploymentKind?: DeployableKind | null;
   readonly deploymentPreview: (DeploymentPreview & { readonly kind: DeployableKind }) | null;
   readonly cameraResetToken: number;
   readonly cameraViewStore: CameraViewStore;
@@ -61,12 +65,22 @@ export function createSceneInteractionBridge(): SceneInteractionBridge {
 export function BattlefieldCanvas({
   battle,
   bridgeRef,
+  deploymentKind = null,
   deploymentPreview,
   cameraResetToken,
   cameraViewStore,
   onBenchmarkUpdate,
 }: BattlefieldCanvasProps) {
   const attackPresentations = useAttackPresentationCache(battle);
+  const deploymentMaskCoordinates = useMemo(() => (
+    deploymentKind
+      ? validDeploymentCoordinates(
+          { phase: "engaged", battle },
+          "verdant",
+          deploymentKind,
+        )
+      : []
+  ), [battle, deploymentKind]);
   return (
     <Canvas
       orthographic
@@ -105,6 +119,7 @@ export function BattlefieldCanvas({
       <Suspense fallback={null}>
         <BattleBuildingLayer battle={battle} />
       </Suspense>
+      <DeploymentAreaMask coordinates={deploymentMaskCoordinates} />
       <UnitShadowInstances battle={battle} />
       {battle.units.map((unit) => {
         const damage = latestDamagePresentation(battle, unit.id);
@@ -138,12 +153,17 @@ function DeploymentPreviewVisual({
 }) {
   if (!preview.position) return null;
   const building = preview.kind === "gold-mine" || preview.kind === "barracks";
+  const placementRing = deploymentPreviewRingGeometry(preview.kind);
   const color = preview.valid ? "#70e6a0" : "#ef625e";
   const y = terrainHeightAt(preview.position) + 0.075;
   return (
     <group position={[preview.position.x, y, preview.position.z]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={100}>
-        <ringGeometry args={building ? [0.9, 1.07, 6] : [0.38, 0.5, 18]} />
+        <ringGeometry args={[
+          placementRing.innerRadius,
+          placementRing.outerRadius,
+          placementRing.segments,
+        ]} />
         <meshBasicMaterial
           color={color}
           transparent

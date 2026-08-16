@@ -5,6 +5,7 @@ import {
   deployBattleSessionEntity,
   getDeployableAvailability,
   previewDeployment,
+  validDeploymentCoordinates,
 } from "../../src/game/deployTransaction";
 import { requestBuildingPlacement } from "../../src/game/deployment";
 import type { DeployableKind } from "../../src/game/rules";
@@ -281,6 +282,46 @@ describe("atomic battle deployment", () => {
       position: axialToWorld(VERDANT_BUILDING_CELL),
     });
     expect(invalid).toMatchObject({ valid: false, reason: "enemy-territory" });
+  });
+
+  it("lists every valid friendly troop tile for the deployment mask", () => {
+    const session = unresolvedSession();
+    const coordinates = validDeploymentCoordinates(session, "verdant", "swordsman");
+
+    expect(coordinates.length).toBeGreaterThan(0);
+    for (const coordinate of coordinates) {
+      expect(previewDeployment(session, {
+        faction: "verdant",
+        kind: "swordsman",
+        worldPosition: axialToWorld(coordinate),
+      })).toMatchObject({ valid: true, coordinate });
+      expect(getMapCell(BATTLEFIELD_MAP, coordinate)?.territory).toBe("verdant");
+    }
+    const arrowTower = session.battle.buildings.find((building) => (
+      building.faction === "verdant" && building.kind === "arrow-tower"
+    ));
+    expect(arrowTower).toBeDefined();
+    expect(coordinates).not.toContainEqual(arrowTower?.coordinate);
+  });
+
+  it("removes unit-occupied building tiles from the deployment mask", () => {
+    const session = unresolvedSession();
+    const blocker = createBattleUnit({
+      id: "verdant-mask-blocker",
+      faction: "verdant",
+      role: "knight",
+      position: axialToWorld(VERDANT_BUILDING_CELL),
+    });
+    const occupied = {
+      ...session,
+      battle: {
+        ...session.battle,
+        units: [...session.battle.units, blocker],
+      },
+    };
+
+    expect(validDeploymentCoordinates(occupied, "verdant", "barracks"))
+      .not.toContainEqual(VERDANT_BUILDING_CELL);
   });
 
   it("rejects a building preview and commit on a hex occupied by a living unit", () => {

@@ -9,6 +9,7 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
+  Quaternion,
 } from "three";
 import type { Material } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -28,6 +29,10 @@ import {
   operatorAnimationForStatus,
   wheelRotationForTravel,
 } from "./catapultAnimation";
+import {
+  faceHealthBarToCamera,
+  shouldShowUnitHealthBar,
+} from "./unitHealthPresentation";
 
 const OPERATOR_ANIMATION_URLS = [
   "/assets/kaykit/character-animations/rig-medium/Rig_Medium_General.glb",
@@ -64,6 +69,8 @@ export function CatapultUnitModel({
   const root = useRef<Object3D>(null);
   const animatedRig = useRef<Object3D>(null);
   const healthRoot = useRef<Object3D>(null);
+  const healthParentRotation = useMemo(() => new Quaternion(), []);
+  const healthCameraRotation = useMemo(() => new Quaternion(), []);
   const catapult = useMemo(
     () => prepareCatapult(catapultGltf.scene, unit.faction),
     [catapultGltf.scene, unit.faction],
@@ -171,10 +178,17 @@ export function CatapultUnitModel({
       );
       root.current.rotation.y = dampAngle(root.current.rotation.y, unit.facing, 9, delta);
     }
-    if (healthRoot.current) healthRoot.current.quaternion.copy(camera.quaternion);
+    if (healthRoot.current) {
+      faceHealthBarToCamera(
+        healthRoot.current,
+        camera,
+        healthParentRotation,
+        healthCameraRotation,
+      );
+    }
   });
 
-  const healthRatio = Math.max(0, unit.health / unit.maxHealth);
+  const healthRatio = MathUtils.clamp(unit.health / Math.max(1, unit.maxHealth), 0, 1);
   const healthWidth = 1.22 * healthRatio;
   const baseRing = UNIT_BASE_RING_GEOMETRY.catapult;
   return (
@@ -205,17 +219,18 @@ export function CatapultUnitModel({
       {attackSequence !== undefined && unit.health > 0 && (
         <SiegePulse key={attackSequence} />
       )}
-      {unit.health > 0 && healthRatio < 0.7 && (
+      {shouldShowUnitHealthBar(unit.health, unit.maxHealth) && (
         <group ref={healthRoot} position={[0, 2.72, 0]}>
-          <mesh>
+          <mesh renderOrder={140}>
             <planeGeometry args={[1.34, 0.12]} />
-            <meshBasicMaterial color="#18140f" depthTest={false} />
+            <meshBasicMaterial color="#18140f" depthTest={false} depthWrite={false} />
           </mesh>
-          <mesh position={[-(1.22 - healthWidth) / 2, 0, 0.006]}>
+          <mesh position={[-(1.22 - healthWidth) / 2, 0, 0.006]} renderOrder={141}>
             <planeGeometry args={[healthWidth, 0.076]} />
             <meshBasicMaterial
               color={FACTION_SCENE_COLORS[unit.faction].accent}
               depthTest={false}
+              depthWrite={false}
             />
           </mesh>
         </group>

@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   BattleMusicPlayer,
+  COMBAT_AUDIO_CUES,
+  CombatAudioEventRouter,
   DEFAULT_AUDIO_ENABLED,
   DeploymentAudioEventRouter,
   ReusableAudioPool,
@@ -78,6 +80,163 @@ describe("battle audio", () => {
       "place-building": { src: "/audio/ui/organic/snap.mp3", gain: 0.35 },
     });
     expect(UI_AUDIO_CUES["place-unit"].gain).toBe(1);
+  });
+
+  it("keeps only bow release and catapult combat cues", () => {
+    expect(Object.keys(COMBAT_AUDIO_CUES)).toEqual([
+      "ranger.attack",
+      "catapult.attack",
+      "catapult.impact",
+    ]);
+    expect(COMBAT_AUDIO_CUES["ranger.attack"].variants).toEqual(["draw-bow.wav"]);
+    const variants = Object.values(COMBAT_AUDIO_CUES).flatMap((cue) => cue.variants);
+    expect(variants.every((variant) => !/ambient|command|horn/.test(variant))).toBe(true);
+  });
+
+  it("routes only bow releases and catapult launches or impacts", () => {
+    const router = new CombatAudioEventRouter();
+    const point = { x: 0, z: 0 };
+    const events = [
+      stampBattleEvent({
+        type: "attack-started",
+        attackerId: "knight",
+        targetId: "target",
+        targetType: "unit",
+        role: "knight",
+        origin: point,
+        targetPosition: point,
+      }, 10, 1),
+      stampBattleEvent({
+        type: "attack-started",
+        attackerId: "tower",
+        targetId: "target",
+        targetType: "unit",
+        role: "arrow-tower",
+        origin: point,
+        targetPosition: point,
+      }, 11, 1),
+      stampBattleEvent({
+        type: "attack-started",
+        attackerId: "castle",
+        targetId: "target",
+        targetType: "unit",
+        role: "castle",
+        origin: point,
+        targetPosition: point,
+      }, 12, 1),
+      stampBattleEvent({
+        type: "projectile-hit",
+        projectileId: "mage-shot",
+        attackerId: "mage",
+        targetId: "target",
+        targetType: "unit",
+        role: "mage",
+        position: point,
+        splashRadius: 1,
+      }, 13, 1),
+      stampBattleEvent({
+        type: "projectile-hit",
+        projectileId: "arrow",
+        attackerId: "ranger",
+        targetId: "target",
+        targetType: "unit",
+        role: "ranger",
+        position: point,
+        splashRadius: 0,
+      }, 14, 1),
+      stampBattleEvent({
+        type: "damage-applied",
+        sourceId: "knight",
+        sourceRole: "knight",
+        sourcePosition: point,
+        targetId: "target",
+        targetType: "unit",
+        targetPosition: point,
+        amount: 10,
+      }, 15, 1),
+      stampBattleEvent({
+        type: "unit-died",
+        unitId: "target",
+        killerId: "knight",
+      }, 16, 1),
+      stampBattleEvent({
+        type: "attack-started",
+        attackerId: "catapult",
+        targetId: "target",
+        targetType: "unit",
+        role: "catapult",
+        origin: point,
+        targetPosition: point,
+      }, 17, 1),
+      stampBattleEvent({
+        type: "projectile-hit",
+        projectileId: "stone",
+        attackerId: "catapult",
+        targetId: "target",
+        targetType: "unit",
+        role: "catapult",
+        position: point,
+        splashRadius: 2,
+      }, 18, 1),
+      stampBattleEvent({
+        type: "damage-applied",
+        sourceId: "knight",
+        sourceRole: "knight",
+        sourcePosition: point,
+        targetId: "barracks",
+        targetType: "building",
+        targetPosition: point,
+        amount: 10,
+      }, 19, 1),
+      stampBattleEvent({
+        type: "building-destroyed",
+        buildingId: "barracks",
+        faction: "crimson",
+        kind: "barracks",
+        scheduledAt: 1,
+        coordinate: { q: 0, r: 0 },
+        position: point,
+        removeAt: 2,
+        cause: "damage",
+      }, 20, 1),
+      stampBattleEvent({
+        type: "building-destroyed",
+        buildingId: "expired-mine",
+        faction: "verdant",
+        kind: "gold-mine",
+        scheduledAt: 1,
+        coordinate: { q: 0, r: 0 },
+        position: point,
+        removeAt: 2,
+        cause: "expired",
+      }, 21, 1),
+      stampBattleEvent({
+        type: "castle-activated",
+        castleId: "verdant-castle",
+        faction: "verdant",
+        position: point,
+      }, 22, 1),
+      stampBattleEvent({
+        type: "attack-started",
+        attackerId: "ranger",
+        targetId: "target",
+        targetType: "unit",
+        role: "ranger",
+        origin: point,
+        targetPosition: point,
+      }, 23, 1),
+    ];
+
+    expect(router.consume(events)).toEqual([
+      { cue: "ranger.attack", sequence: 11 },
+      { cue: "ranger.attack", sequence: 12 },
+      { cue: "catapult.attack", sequence: 17 },
+      { cue: "catapult.impact", sequence: 18 },
+      { cue: "ranger.attack", sequence: 23 },
+    ]);
+    expect(router.consume(events)).toEqual([]);
+    router.reset();
+    expect(router.consume([events[0]!])).toEqual([]);
   });
 
   it("routes only successful player deployments to distinct placement sounds", () => {

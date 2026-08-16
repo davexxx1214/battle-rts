@@ -15,9 +15,16 @@ export interface BattlefieldBridgeLayout {
   };
 }
 
+export function mirrorBattlefieldCoordinate(
+  coordinate: BattlefieldLayoutCoordinate,
+): BattlefieldLayoutCoordinate {
+  return { q: -coordinate.q, r: -coordinate.r };
+}
+
 export const BATTLEFIELD_RADIUS = 9;
 export const BATTLEFIELD_COMBAT_HALF_WIDTH = 6;
 export const BATTLEFIELD_REMOVED_LEFT_COLUMNS = [-9, -8] as const;
+export const BATTLEFIELD_REMOVED_RIGHT_COLUMNS = [8, 9] as const;
 export const BATTLEFIELD_REMOVED_RIGHT_EDGE_COORDINATES = [
   { q: 0, r: 9 },
   { q: 1, r: 8 },
@@ -28,6 +35,8 @@ export const BATTLEFIELD_REMOVED_RIGHT_EDGE_COORDINATES = [
   { q: 6, r: 3 },
   { q: 7, r: 2 },
 ] as const satisfies readonly BattlefieldLayoutCoordinate[];
+export const BATTLEFIELD_REMOVED_LEFT_EDGE_COORDINATES =
+  BATTLEFIELD_REMOVED_RIGHT_EDGE_COORDINATES.map(mirrorBattlefieldCoordinate);
 export const BATTLEFIELD_RIGHT_FARM_COORDINATES = [
   { q: -1, r: 7 },
   { q: -1, r: 8 },
@@ -41,30 +50,44 @@ export const BATTLEFIELD_RIGHT_FARM_COORDINATES = [
   { q: 3, r: 2 },
   { q: 3, r: 4 },
   { q: 3, r: 5 },
+  { q: 4, r: 2 },
   { q: 4, r: 3 },
   { q: 4, r: 4 },
   { q: 5, r: 2 },
   { q: 5, r: 3 },
   { q: 6, r: 2 },
 ] as const satisfies readonly BattlefieldLayoutCoordinate[];
+export const BATTLEFIELD_LEFT_FARM_COORDINATES =
+  BATTLEFIELD_RIGHT_FARM_COORDINATES.map(mirrorBattlefieldCoordinate);
 export const BATTLEFIELD_RIGHT_FARM_PASSAGE_COORDINATE = {
   q: 2,
   r: 3,
 } as const satisfies BattlefieldLayoutCoordinate;
+export const BATTLEFIELD_LEFT_FARM_PASSAGE_COORDINATE = mirrorBattlefieldCoordinate(
+  BATTLEFIELD_RIGHT_FARM_PASSAGE_COORDINATE,
+);
 export const BATTLEFIELD_VERDANT_MINE_COORDINATES = [
   { q: -7, r: 7 },
   { q: -6, r: 7 },
 ] as const satisfies readonly BattlefieldLayoutCoordinate[];
 export const BATTLEFIELD_VERDANT_MINE_COORDINATE =
   BATTLEFIELD_VERDANT_MINE_COORDINATES[1]!;
-const BATTLEFIELD_REMOVED_LEFT_COLUMN_KEYS = new Set<number>(
-  BATTLEFIELD_REMOVED_LEFT_COLUMNS,
+export const BATTLEFIELD_CRIMSON_MINE_COORDINATES =
+  BATTLEFIELD_VERDANT_MINE_COORDINATES.map(mirrorBattlefieldCoordinate);
+const BATTLEFIELD_REMOVED_SIDE_COLUMN_KEYS = new Set<number>(
+  [...BATTLEFIELD_REMOVED_LEFT_COLUMNS, ...BATTLEFIELD_REMOVED_RIGHT_COLUMNS],
 );
-const BATTLEFIELD_REMOVED_RIGHT_EDGE_KEYS = new Set(
-  BATTLEFIELD_REMOVED_RIGHT_EDGE_COORDINATES.map(({ q, r }) => `${q},${r}`),
+const BATTLEFIELD_REMOVED_EDGE_KEYS = new Set(
+  [
+    ...BATTLEFIELD_REMOVED_RIGHT_EDGE_COORDINATES,
+    ...BATTLEFIELD_REMOVED_LEFT_EDGE_COORDINATES,
+  ].map(({ q, r }) => `${q},${r}`),
 );
 const BATTLEFIELD_RIGHT_FARM_KEYS = new Set(
   BATTLEFIELD_RIGHT_FARM_COORDINATES.map(({ q, r }) => `${q},${r}`),
+);
+const BATTLEFIELD_LEFT_FARM_KEYS = new Set(
+  BATTLEFIELD_LEFT_FARM_COORDINATES.map(({ q, r }) => `${q},${r}`),
 );
 export const BATTLEFIELD_CASTLE_ROCK_COORDINATES = [
   { q: -6, r: 9 },
@@ -72,17 +95,34 @@ export const BATTLEFIELD_CASTLE_ROCK_COORDINATES = [
   { q: 6, r: -9 },
   { q: 2, r: -9 },
 ] as const satisfies readonly BattlefieldLayoutCoordinate[];
+export const BATTLEFIELD_VERDANT_FLANK_BLACKSMITH_COORDINATE = {
+  q: -7,
+  r: 8,
+} as const satisfies BattlefieldLayoutCoordinate;
+export const BATTLEFIELD_CRIMSON_FLANK_BLACKSMITH_COORDINATE = mirrorBattlefieldCoordinate(
+  BATTLEFIELD_VERDANT_FLANK_BLACKSMITH_COORDINATE,
+);
+export const BATTLEFIELD_FLANK_BLACKSMITH_COORDINATES = [
+  BATTLEFIELD_VERDANT_FLANK_BLACKSMITH_COORDINATE,
+  BATTLEFIELD_CRIMSON_FLANK_BLACKSMITH_COORDINATE,
+] as const satisfies readonly BattlefieldLayoutCoordinate[];
 export const BATTLEFIELD_VERDANT_MATCHED_FOREST_COORDINATES = [
-  { q: -7, r: 8 },
   { q: -6, r: 8 },
 ] as const satisfies readonly BattlefieldLayoutCoordinate[];
+export const BATTLEFIELD_CRIMSON_MATCHED_FOREST_COORDINATES =
+  BATTLEFIELD_VERDANT_MATCHED_FOREST_COORDINATES.map(mirrorBattlefieldCoordinate);
+export const BATTLEFIELD_VERDANT_FOREST_REFERENCE_COORDINATE = {
+  q: -7,
+  r: 9,
+} as const satisfies BattlefieldLayoutCoordinate;
+export const BATTLEFIELD_CRIMSON_FOREST_REFERENCE_COORDINATE = mirrorBattlefieldCoordinate(
+  BATTLEFIELD_VERDANT_FOREST_REFERENCE_COORDINATE,
+);
 export const BATTLEFIELD_CASTLE_FOREST_COORDINATES = [
   ...BATTLEFIELD_VERDANT_MATCHED_FOREST_COORDINATES,
-  { q: 5, r: -4 },
-  { q: 5, r: -5 },
-  { q: 5, r: -6 },
-  { q: 5, r: -7 },
-  { q: 6, r: -8 },
+  ...BATTLEFIELD_CRIMSON_MATCHED_FOREST_COORDINATES,
+  BATTLEFIELD_VERDANT_FOREST_REFERENCE_COORDINATE,
+  BATTLEFIELD_CRIMSON_FOREST_REFERENCE_COORDINATE,
 ] as const satisfies readonly BattlefieldLayoutCoordinate[];
 
 const BATTLEFIELD_CASTLE_ROCK_KEYS = new Set(
@@ -113,11 +153,13 @@ export function battlefieldOuterFlankAt(q: number, r: number): boolean {
 
 export function battlefieldStaticObstacleAt(q: number, r: number): boolean {
   const campPropCell = q === 0 && Math.abs(r) === 6;
-  return (battlefieldOuterFlankAt(q, r) && !battlefieldRightFarmPassageAt(q, r))
+  return (battlefieldOuterFlankAt(q, r) && !battlefieldFarmPassageAt(q, r))
     || campPropCell
     || battlefieldCastleRockAt(q, r)
     || battlefieldLeftMineAt(q, r)
-    || battlefieldRightFarmAt(q, r);
+    || battlefieldRightMineAt(q, r)
+    || battlefieldRightFarmAt(q, r)
+    || battlefieldLeftFarmAt(q, r);
 }
 
 export function battlefieldSurfaceAt(q: number, r: number): TerrainSurface {
@@ -134,10 +176,11 @@ export function battlefieldSurfaceAt(q: number, r: number): TerrainSurface {
     && !battlefieldReservedPathAt(q, r)
     && positiveModulo(q * 5 - r * 13, 11) === 0;
 
-  if (battlefieldVerdantMineAt(q, r)) return "grass";
-  if (battlefieldLeftMineAt(q, r)) return "rock";
-  if (battlefieldRightFarmAt(q, r)) return "grass";
-  if (battlefieldRightFarmPassageAt(q, r)) return "grass";
+  if (battlefieldVerdantMineAt(q, r) || battlefieldCrimsonMineAt(q, r)) return "grass";
+  if (battlefieldFlankBlacksmithAt(q, r)) return "grass";
+  if (battlefieldLeftMineAt(q, r) || battlefieldRightMineAt(q, r)) return "rock";
+  if (battlefieldRightFarmAt(q, r) || battlefieldLeftFarmAt(q, r)) return "grass";
+  if (battlefieldFarmPassageAt(q, r)) return "grass";
   if (battlefieldCastleForestAt(q, r)) return "forest";
   if (battlefieldCastleRockAt(q, r)) return "grass";
   if (isBridge) return "bridge";
@@ -152,6 +195,12 @@ export function battlefieldCastleRockAt(q: number, r: number): boolean {
   return BATTLEFIELD_CASTLE_ROCK_KEYS.has(`${q},${r}`);
 }
 
+export function battlefieldFlankBlacksmithAt(q: number, r: number): boolean {
+  return BATTLEFIELD_FLANK_BLACKSMITH_COORDINATES.some((coordinate) => (
+    coordinate.q === q && coordinate.r === r
+  ));
+}
+
 export function battlefieldCastleForestAt(q: number, r: number): boolean {
   return BATTLEFIELD_CASTLE_FOREST_KEYS.has(`${q},${r}`);
 }
@@ -162,8 +211,20 @@ export function battlefieldLeftMineAt(q: number, r: number): boolean {
     && !battlefieldVerdantMineAt(q, r);
 }
 
+export function battlefieldRightMineAt(q: number, r: number): boolean {
+  return q >= 5 && q <= 7
+    && r >= -7 && r <= -2
+    && !battlefieldCrimsonMineAt(q, r);
+}
+
 export function battlefieldVerdantMineAt(q: number, r: number): boolean {
   return BATTLEFIELD_VERDANT_MINE_COORDINATES.some((coordinate) => (
+    q === coordinate.q && r === coordinate.r
+  ));
+}
+
+export function battlefieldCrimsonMineAt(q: number, r: number): boolean {
+  return BATTLEFIELD_CRIMSON_MINE_COORDINATES.some((coordinate) => (
     q === coordinate.q && r === coordinate.r
   ));
 }
@@ -172,9 +233,22 @@ export function battlefieldRightFarmAt(q: number, r: number): boolean {
   return BATTLEFIELD_RIGHT_FARM_KEYS.has(`${q},${r}`);
 }
 
+export function battlefieldLeftFarmAt(q: number, r: number): boolean {
+  return BATTLEFIELD_LEFT_FARM_KEYS.has(`${q},${r}`);
+}
+
 export function battlefieldRightFarmPassageAt(q: number, r: number): boolean {
   return q === BATTLEFIELD_RIGHT_FARM_PASSAGE_COORDINATE.q
     && r === BATTLEFIELD_RIGHT_FARM_PASSAGE_COORDINATE.r;
+}
+
+export function battlefieldLeftFarmPassageAt(q: number, r: number): boolean {
+  return q === BATTLEFIELD_LEFT_FARM_PASSAGE_COORDINATE.q
+    && r === BATTLEFIELD_LEFT_FARM_PASSAGE_COORDINATE.r;
+}
+
+export function battlefieldFarmPassageAt(q: number, r: number): boolean {
+  return battlefieldRightFarmPassageAt(q, r) || battlefieldLeftFarmPassageAt(q, r);
 }
 
 export function battlefieldCoordinates(
@@ -182,7 +256,7 @@ export function battlefieldCoordinates(
 ): readonly (readonly [q: number, r: number])[] {
   const coordinates: [number, number][] = [];
   for (let q = -radius; q <= radius; q += 1) {
-    if (radius === BATTLEFIELD_RADIUS && BATTLEFIELD_REMOVED_LEFT_COLUMN_KEYS.has(q)) {
+    if (radius === BATTLEFIELD_RADIUS && BATTLEFIELD_REMOVED_SIDE_COLUMN_KEYS.has(q)) {
       continue;
     }
     const minimumR = Math.max(-radius, -q - radius);
@@ -190,7 +264,7 @@ export function battlefieldCoordinates(
     for (let r = minimumR; r <= maximumR; r += 1) {
       if (
         radius === BATTLEFIELD_RADIUS
-        && BATTLEFIELD_REMOVED_RIGHT_EDGE_KEYS.has(`${q},${r}`)
+        && BATTLEFIELD_REMOVED_EDGE_KEYS.has(`${q},${r}`)
       ) {
         continue;
       }

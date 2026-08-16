@@ -6,6 +6,7 @@ import {
   beginBattleSession,
   getBattlePhaseAccess,
 } from "../../src/game/battleSession";
+import { DEFAULT_AI_DIFFICULTY } from "../../src/game/rules";
 
 describe("battle session gate", () => {
   it("creates isolated clean state for repeated battle restarts", () => {
@@ -72,10 +73,24 @@ describe("battle session gate", () => {
       .toBe("charging");
   });
 
-  it("runs opponent decisions on simulated-time boundaries", () => {
+  it("uses the easy opponent by default and waits four seconds for its opening decision", () => {
     const initial = createBattleState([]);
 
-    const advanced = advanceBattleSession(initial, "engaged", 120, 0.05);
+    expect(DEFAULT_AI_DIFFICULTY).toBe("easy");
+    const beforeDecision = advanceBattleSession(initial, "engaged", 79, 0.05);
+    const afterDecision = advanceBattleSession(initial, "engaged", 80, 0.05);
+
+    expect(beforeDecision.deploymentCounts.crimson.swordsman).toBe(0);
+    expect(afterDecision.deploymentCounts.crimson.swordsman).toBe(1);
+    expect(afterDecision.buildings.some(({ faction, kind }) => (
+      faction === "crimson" && (kind === "gold-mine" || kind === "barracks")
+    ))).toBe(false);
+  });
+
+  it("runs hard opponent decisions on the original one-second boundaries", () => {
+    const initial = createBattleState([]);
+
+    const advanced = advanceBattleSession(initial, "engaged", 120, 0.05, "hard");
 
     expect(advanced.matchElapsed).toBeCloseTo(6);
     expect(advanced.buildings).toContainEqual(expect.objectContaining({

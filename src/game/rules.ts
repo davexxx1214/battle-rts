@@ -1,5 +1,22 @@
 import type { UnitRole } from "./types";
 
+export const AI_DIFFICULTIES = ["easy", "normal", "hard"] as const;
+export type AiDifficulty = typeof AI_DIFFICULTIES[number];
+export type AiDeploymentPosture = "defensive" | "balanced" | "aggressive";
+
+export interface OpponentAiStrategy {
+  readonly firstDecisionSeconds: number;
+  readonly decisionIntervalSeconds: number;
+  readonly buildingGoals: readonly {
+    readonly kind: BuildingKind;
+    readonly desiredActive: number;
+  }[];
+  readonly troopCycle: readonly TroopKind[];
+  readonly deploymentPosture: AiDeploymentPosture;
+}
+
+export const DEFAULT_AI_DIFFICULTY: AiDifficulty = "easy";
+
 export const DEPLOYABLE_CATEGORIES = {
   swordsman: "troop",
   archer: "troop",
@@ -52,12 +69,7 @@ export interface GameRules {
     readonly troopCounts: Readonly<Record<TroopKind, number>>;
   };
   readonly opponentAi: {
-    readonly decisionIntervalSeconds: number;
-    readonly buildingGoals: readonly {
-      readonly kind: BuildingKind;
-      readonly desiredActive: number;
-    }[];
-    readonly troopCycle: readonly TroopKind[];
+    readonly strategies: Readonly<Record<AiDifficulty, OpponentAiStrategy>>;
   };
   readonly targeting: {
     readonly routeCorridorWidth: number;
@@ -191,12 +203,34 @@ export const GAME_RULES = {
     },
   },
   opponentAi: {
-    decisionIntervalSeconds: 1,
-    buildingGoals: [
-      { kind: "gold-mine", desiredActive: 1 },
-      { kind: "barracks", desiredActive: 1 },
-    ],
-    troopCycle: ["swordsman", "archer", "mage", "catapult"],
+    strategies: {
+      easy: {
+        firstDecisionSeconds: 4,
+        decisionIntervalSeconds: 24,
+        buildingGoals: [],
+        troopCycle: ["swordsman", "archer"],
+        deploymentPosture: "defensive",
+      },
+      normal: {
+        firstDecisionSeconds: 6,
+        decisionIntervalSeconds: 10,
+        buildingGoals: [
+          { kind: "gold-mine", desiredActive: 1 },
+        ],
+        troopCycle: ["swordsman", "archer", "mage"],
+        deploymentPosture: "balanced",
+      },
+      hard: {
+        firstDecisionSeconds: 1,
+        decisionIntervalSeconds: 1,
+        buildingGoals: [
+          { kind: "gold-mine", desiredActive: 1 },
+          { kind: "barracks", desiredActive: 1 },
+        ],
+        troopCycle: ["swordsman", "archer", "mage", "catapult"],
+        deploymentPosture: "aggressive",
+      },
+    },
   },
   targeting: {
     routeCorridorWidth: 3,
@@ -308,27 +342,34 @@ export function validateGameRules(rules: GameRules): string[] {
   if (deployment.costs.barracks !== buildings.barracks.cost) {
     errors.push("barracks deployment and building costs must match");
   }
-  validatePositiveGroup(errors, "opponentAi", opponentAi, ["decisionIntervalSeconds"]);
-  if (opponentAi.troopCycle.length === 0) {
-    errors.push("opponentAi.troopCycle must not be empty");
-  }
   const activeLimitByBuilding = {
     "gold-mine": buildings.goldMine.maximumActivePerFaction,
     barracks: buildings.barracks.maximumActivePerFaction,
   } satisfies Readonly<Record<BuildingKind, number>>;
-  const seenBuildingGoals = new Set<BuildingKind>();
-  for (const goal of opponentAi.buildingGoals) {
-    if (!Number.isInteger(goal.desiredActive) || goal.desiredActive <= 0) {
-      errors.push("opponent AI desired active building counts must be positive integers");
+  for (const difficulty of AI_DIFFICULTIES) {
+    const strategy = opponentAi.strategies[difficulty];
+    const prefix = `opponentAi.strategies.${difficulty}`;
+    validatePositiveGroup(errors, prefix, strategy, [
+      "firstDecisionSeconds",
+      "decisionIntervalSeconds",
+    ]);
+    if (strategy.troopCycle.length === 0) {
+      errors.push(`${prefix}.troopCycle must not be empty`);
     }
-    const maximum = activeLimitByBuilding[goal.kind];
-    if (goal.desiredActive > maximum) {
-      errors.push("opponent AI preferred buildings must not exceed active limits");
+    const seenBuildingGoals = new Set<BuildingKind>();
+    for (const goal of strategy.buildingGoals) {
+      if (!Number.isInteger(goal.desiredActive) || goal.desiredActive <= 0) {
+        errors.push("opponent AI desired active building counts must be positive integers");
+      }
+      const maximum = activeLimitByBuilding[goal.kind];
+      if (goal.desiredActive > maximum) {
+        errors.push("opponent AI preferred buildings must not exceed active limits");
+      }
+      if (seenBuildingGoals.has(goal.kind)) {
+        errors.push(`${prefix}.buildingGoals must not repeat a building kind`);
+      }
+      seenBuildingGoals.add(goal.kind);
     }
-    if (seenBuildingGoals.has(goal.kind)) {
-      errors.push("opponentAi.buildingGoals must not repeat a building kind");
-    }
-    seenBuildingGoals.add(goal.kind);
   }
   for (const kind of ["swordsman", "archer", "mage"] as const) {
     const cost = deployment.costs[kind];

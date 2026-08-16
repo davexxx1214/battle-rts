@@ -10,15 +10,23 @@ import {
 import { BATTLEFIELD_SCENERY } from "../../src/map/battlefieldScenery";
 
 const VERDANT_MATCHED_FORESTS = [
-  { q: -7, r: 8 },
   { q: -6, r: 8 },
 ] as const;
-const VERDANT_BARRACKS_FOREST = VERDANT_MATCHED_FORESTS[0];
+const VERDANT_FLANK_BLACKSMITH = { q: -7, r: 8 } as const;
 const VERDANT_MINE_COORDINATES = [
   { q: -7, r: 7 },
   { q: -6, r: 7 },
 ] as const;
+const CRIMSON_MINE_COORDINATES = [
+  { q: 6, r: -7 },
+  { q: 7, r: -7 },
+] as const;
+const CRIMSON_MATCHED_FORESTS = [
+  { q: 6, r: -8 },
+] as const;
+const CRIMSON_FLANK_BLACKSMITH = { q: 7, r: -8 } as const;
 const VERDANT_FOREST_REFERENCE = { q: -7, r: 9 } as const;
+const CRIMSON_FOREST_REFERENCE = { q: 7, r: -9 } as const;
 
 function normalizedSceneryAt(coordinate: { q: number; r: number }) {
   return BATTLEFIELD_SCENERY.filter((item) => (
@@ -31,44 +39,49 @@ function normalizedSceneryAt(coordinate: { q: number; r: number }) {
   })).sort((left, right) => left.kind.localeCompare(right.kind));
 }
 
-describe("verdant camp revision", () => {
-  it("replaces only the verdant camp barracks with blocked forest", () => {
+describe("mirrored camp revisions", () => {
+  it("keeps the old barracks removed and replaces their forests with blacksmiths", () => {
     const verdantBarracks = BATTLEFIELD_STRUCTURES.find((structure) => (
       structure.faction === "verdant" && structure.kind === "barracks"
     ));
     const crimsonBarracks = BATTLEFIELD_STRUCTURES.find((structure) => (
       structure.faction === "crimson" && structure.kind === "barracks"
     ));
-    const groveKinds = new Set(["grove-a", "grove-b", "hill-grove"]);
-
     expect(verdantBarracks).toBeUndefined();
-    expect(crimsonBarracks?.coordinate).toEqual({ q: 7, r: -8 });
-    expect(getBattlefieldCell(VERDANT_BARRACKS_FOREST)).toMatchObject({
-      surface: "forest",
-      walkable: false,
-      buildable: false,
-    });
-    expect(BATTLEFIELD_SCENERY.some((item) => (
-      item.coordinate.q === VERDANT_BARRACKS_FOREST.q
-      && item.coordinate.r === VERDANT_BARRACKS_FOREST.r
-      && groveKinds.has(item.kind)
-    ))).toBe(true);
+    expect(crimsonBarracks).toBeUndefined();
+    for (const [coordinate, faction] of [
+      [VERDANT_FLANK_BLACKSMITH, "verdant"],
+      [CRIMSON_FLANK_BLACKSMITH, "crimson"],
+    ] as const) {
+      expect(getBattlefieldCell(coordinate)).toMatchObject({
+        surface: "grass",
+        walkable: false,
+        buildable: false,
+      });
+      expect(BATTLEFIELD_STRUCTURES).toContainEqual(expect.objectContaining({
+        id: `${faction}-flank-blacksmith`,
+        kind: "blacksmith",
+        faction,
+        coordinate,
+      }));
+      expect(normalizedSceneryAt(coordinate)).toEqual([]);
+    }
   });
 
-  it("adds a second verdant mine on the cleared rock cell beside the existing mine", () => {
+  it("places two mirrored mines in each cleared rock ridge", () => {
     const verdantMines = BATTLEFIELD_STRUCTURES.filter((structure) => (
       structure.faction === "verdant" && structure.kind === "mine"
     )).sort((left, right) => left.coordinate.q - right.coordinate.q);
-    const crimsonMine = BATTLEFIELD_STRUCTURES.find((structure) => (
+    const crimsonMines = BATTLEFIELD_STRUCTURES.filter((structure) => (
       structure.faction === "crimson" && structure.kind === "mine"
-    ));
+    )).sort((left, right) => left.coordinate.q - right.coordinate.q);
 
     expect(verdantMines.map(({ coordinate }) => coordinate))
       .toEqual(VERDANT_MINE_COORDINATES);
     expect(verdantMines.map(({ footprint }) => footprint))
       .toEqual(VERDANT_MINE_COORDINATES.map((coordinate) => [coordinate]));
-    expect(crimsonMine?.coordinate).toEqual({ q: 1, r: -8 });
-    for (const coordinate of VERDANT_MINE_COORDINATES) {
+    expect(crimsonMines.map(({ coordinate }) => coordinate)).toEqual(CRIMSON_MINE_COORDINATES);
+    for (const coordinate of [...VERDANT_MINE_COORDINATES, ...CRIMSON_MINE_COORDINATES]) {
       expect(getBattlefieldCell(coordinate)).toMatchObject({
         surface: "grass",
         walkable: false,
@@ -92,14 +105,19 @@ describe("verdant camp revision", () => {
       expect(normalizedSceneryAt(coordinate))
         .not.toEqual(expect.arrayContaining([expect.objectContaining({ kind: "hill-grove" })]));
     }
+    for (const coordinate of CRIMSON_MATCHED_FORESTS) {
+      expect(getBattlefieldCell(coordinate)).toMatchObject({
+        surface: "forest",
+        walkable: false,
+        buildable: false,
+      });
+      expect(normalizedSceneryAt(coordinate))
+        .toEqual(normalizedSceneryAt(CRIMSON_FOREST_REFERENCE));
+    }
   });
 
-  it("removes the old verdant mine cart and ore props without changing crimson", () => {
-    expect(BATTLEFIELD_DECORATIONS.filter(({ faction }) => faction === "verdant"))
-      .toEqual([]);
-    expect(BATTLEFIELD_DECORATIONS.filter(({ faction }) => faction === "crimson")
-      .map(({ kind }) => kind))
-      .toEqual(["mining-cart", "ore-pile"]);
+  it("removes the old mine cart and ore props from both sides", () => {
+    expect(BATTLEFIELD_DECORATIONS).toEqual([]);
   });
 
   it("keeps both main attack routes connected after the camp revision", () => {

@@ -11,6 +11,7 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
+  Quaternion,
 } from "three";
 import type { Material } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -19,7 +20,7 @@ import { useEffect, useMemo, useRef } from "react";
 
 import type { BattleUnit, UnitRole, WorldPoint } from "../../game/battle";
 import { terrainHeightAt } from "../../map/battlefield";
-import { FACTION_SCENE_COLORS, UNIT_BASE_RING_GEOMETRY } from "../assets";
+import { FACTION_SCENE_COLORS } from "../assets";
 import { CatapultUnitModel } from "./CatapultUnitModel";
 import {
   CHARACTER_ANIMATION_URLS,
@@ -28,6 +29,11 @@ import {
   characterTintStrength,
   type CharacterRole,
 } from "./characterPresentation";
+import { unitBaseRingGeometry } from "./unitRingPresentation";
+import {
+  faceHealthBarToCamera,
+  shouldShowUnitHealthBar,
+} from "./unitHealthPresentation";
 
 const CHARACTER_SCALE = 0.27;
 const FAR_ANIMATION_STEP_SECONDS = 1 / 15;
@@ -72,6 +78,8 @@ function CharacterUnitModel({
   const animationGltfs = useLoader(GLTFLoader, [...CHARACTER_ANIMATION_URLS]);
   const root = useRef<Object3D>(null);
   const healthRoot = useRef<Object3D>(null);
+  const healthParentRotation = useMemo(() => new Quaternion(), []);
+  const healthCameraRotation = useMemo(() => new Quaternion(), []);
   const activeAction = useRef<AnimationAction | null>(null);
   const model = useMemo(
     () => prepareCharacterModel(gltf.scene, unit.faction, role),
@@ -166,12 +174,19 @@ function CharacterUnitModel({
       );
       root.current.rotation.y = dampAngle(root.current.rotation.y, unit.facing, 13, delta);
     }
-    if (healthRoot.current) healthRoot.current.quaternion.copy(camera.quaternion);
+    if (healthRoot.current) {
+      faceHealthBarToCamera(
+        healthRoot.current,
+        camera,
+        healthParentRotation,
+        healthCameraRotation,
+      );
+    }
   });
 
-  const healthRatio = Math.max(0, unit.health / unit.maxHealth);
+  const healthRatio = MathUtils.clamp(unit.health / Math.max(1, unit.maxHealth), 0, 1);
   const factionColors = FACTION_SCENE_COLORS[unit.faction];
-  const baseRing = UNIT_BASE_RING_GEOMETRY.character;
+  const baseRing = unitBaseRingGeometry(unit.role);
   const healthWidth = 0.76 * healthRatio;
   return (
     <group
@@ -202,15 +217,19 @@ function CharacterUnitModel({
       {attackSequence !== undefined && unit.health > 0 && (
         <AttackPulse role={unit.role} key={attackSequence} />
       )}
-      {unit.health > 0 && healthRatio < 0.55 && (
+      {shouldShowUnitHealthBar(unit.health, unit.maxHealth) && (
         <group ref={healthRoot} position={[0, 2.02, 0]}>
-          <mesh>
+          <mesh renderOrder={140}>
             <planeGeometry args={[0.86, 0.1]} />
-            <meshBasicMaterial color="#18140f" depthTest={false} />
+            <meshBasicMaterial color="#18140f" depthTest={false} depthWrite={false} />
           </mesh>
-          <mesh position={[-(0.76 - healthWidth) / 2, 0, 0.006]}>
+          <mesh position={[-(0.76 - healthWidth) / 2, 0, 0.006]} renderOrder={141}>
             <planeGeometry args={[healthWidth, 0.064]} />
-            <meshBasicMaterial color={factionColors.accent} depthTest={false} />
+            <meshBasicMaterial
+              color={factionColors.accent}
+              depthTest={false}
+              depthWrite={false}
+            />
           </mesh>
         </group>
       )}

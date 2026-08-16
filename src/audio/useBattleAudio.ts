@@ -3,11 +3,18 @@ import { useCallback, useEffect, useRef } from "react";
 import type { BattleState } from "../game/battle";
 import {
   BattleMusicPlayer,
+  COMBAT_AUDIO_BUS_CAPACITIES,
+  COMBAT_AUDIO_CUES,
+  CombatAudioEventRouter,
   DeploymentAudioEventRouter,
   ReusableAudioPool,
   UI_AUDIO_CUES,
+  resolveCombatAudioPlayback,
+  scaleAudioGain,
   type AudioVoice,
   type BattleMusicScene,
+  type CombatAudioBus,
+  type CombatAudioCueRequest,
   type UiAudioCue,
 } from "./battleAudio";
 
@@ -60,10 +67,17 @@ export function useBattleAudio({
 }
 
 class BrowserBattleAudioSystem {
-  readonly #router = new DeploymentAudioEventRouter();
+  readonly #deploymentRouter = new DeploymentAudioEventRouter();
+  readonly #combatRouter = new CombatAudioEventRouter();
   readonly #uiPool = new ReusableAudioPool(1, createHtmlAudioVoice);
+  readonly #combatPools = createCombatAudioPools();
   readonly #music = new BattleMusicPlayer(createHtmlAudioVoice);
-  readonly #preloads = Object.values(UI_AUDIO_CUES).map(({ src }) => {
+  readonly #preloads = [
+    ...Object.values(UI_AUDIO_CUES).map(({ src }) => src),
+    ...Object.values(COMBAT_AUDIO_CUES).flatMap(({ variants }) => (
+      variants.map((variant) => `/audio/battle/${variant}`)
+    )),
+  ].map((src) => {
     const voice = createHtmlAudioVoice();
     voice.src = src;
     return voice;
@@ -80,7 +94,10 @@ class BrowserBattleAudioSystem {
   setEnabled(enabled: boolean): void {
     if (enabled === this.#enabled) return;
     this.#enabled = enabled;
-    if (!enabled) this.#uiPool.stopAll();
+    if (!enabled) {
+      this.#uiPool.stopAll();
+      for (const pool of this.#combatPools.values()) pool.stopAll();
+    }
     this.#syncMusic();
   }
 
@@ -89,7 +106,8 @@ class BrowserBattleAudioSystem {
   }
 
   process(events: BattleState["events"]): void {
-    for (const cue of this.#router.consume(events)) this.playUiCue(cue);
+    for (const cue of this.#deploymentRouter.consume(events)) this.playUiCue(cue);
+    for (const request of this.#combatRouter.consume(events)) this.#playCombatCue(request);
   }
 
   playUiCue(cue: UiAudioCue): void {
@@ -99,21 +117,48 @@ class BrowserBattleAudioSystem {
   }
 
   reset(): void {
-    this.#router.reset();
+    this.#deploymentRouter.reset();
+    this.#combatRouter.reset();
     this.#uiPool.stopAll();
+    for (const pool of this.#combatPools.values()) pool.stopAll();
   }
 
   dispose(): void {
     this.#disposed = true;
-    this.#router.reset();
+    this.#deploymentRouter.reset();
+    this.#combatRouter.reset();
     this.#uiPool.stopAll();
+    for (const pool of this.#combatPools.values()) pool.stopAll();
     for (const voice of this.#preloads) voice.pause();
     this.#music.dispose();
+  }
+
+  #playCombatCue(request: CombatAudioCueRequest): void {
+    if (!this.#enabled || !this.#unlocked || this.#disposed) return;
+    const playback = resolveCombatAudioPlayback(request);
+    if (!playback) return;
+    this.#combatPools.get(playback.bus)?.play(
+      playback.src,
+      playback.gain,
+      playback.playbackRate,
+    );
   }
 
   #syncMusic(): void {
     this.#music.setEnabled(this.#enabled && this.#unlocked && !this.#disposed);
   }
+}
+
+function createCombatAudioPools(): ReadonlyMap<CombatAudioBus, ReusableAudioPool> {
+  const pools = new Map<CombatAudioBus, ReusableAudioPool>();
+  for (const bus of Object.keys(COMBAT_AUDIO_BUS_CAPACITIES) as CombatAudioBus[]) {
+    pools.set(bus, new ReusableAudioPool(
+      COMBAT_AUDIO_BUS_CAPACITIES[bus],
+      createHtmlAudioVoice,
+      scaleAudioGain,
+    ));
+  }
+  return pools;
 }
 
 function musicSceneForWinner(winner: BattleState["winner"]): BattleMusicScene | null {

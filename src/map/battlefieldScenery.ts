@@ -1,15 +1,23 @@
 import {
+  BATTLEFIELD_CRIMSON_FOREST_REFERENCE_COORDINATE,
+  BATTLEFIELD_CRIMSON_MATCHED_FOREST_COORDINATES,
   BATTLEFIELD_CASTLE_ROCK_COORDINATES,
   BATTLEFIELD_RIGHT_FARM_COORDINATES,
+  BATTLEFIELD_VERDANT_FOREST_REFERENCE_COORDINATE,
   BATTLEFIELD_VERDANT_MATCHED_FOREST_COORDINATES,
   battlefieldCoordinates,
+  battlefieldCrimsonMineAt,
+  battlefieldFarmPassageAt,
+  battlefieldFlankBlacksmithAt,
+  battlefieldLeftFarmAt,
   battlefieldLeftMineAt,
   battlefieldOuterFlankAt,
   battlefieldRightFarmAt,
-  battlefieldRightFarmPassageAt,
+  battlefieldRightMineAt,
   battlefieldSurfaceAt,
   battlefieldVerdantMineAt,
 } from "./battlefieldLayout";
+import type { Faction } from "../game/types";
 
 export const BATTLEFIELD_SCENERY_KINDS = [
   "tree",
@@ -47,7 +55,9 @@ export type BattlefieldSceneryZone =
   | "wild"
   | "outskirts"
   | "left-mine"
+  | "right-mine"
   | "right-farm"
+  | "left-farm"
   | "verdant-camp"
   | "crimson-camp";
 
@@ -59,6 +69,7 @@ export interface BattlefieldScenery {
   readonly offset: { readonly x: number; readonly z: number };
   readonly scale: number;
   readonly rotationY: number;
+  readonly faction?: Faction;
 }
 
 export const BLOCKING_SCENERY_KINDS: ReadonlySet<BattlefieldSceneryKind> = new Set([
@@ -90,12 +101,18 @@ export const BLOCKING_SCENERY_KINDS: ReadonlySet<BattlefieldSceneryKind> = new S
 ]);
 
 const FOREST_CLUSTER_CELLS = battlefieldCoordinates()
-  .filter(([q, r]) => battlefieldSurfaceAt(q, r) === "forest");
+  .filter(([q, r]) => (
+    battlefieldSurfaceAt(q, r) === "forest" || battlefieldFlankBlacksmithAt(q, r)
+  ));
 
 const VERDANT_MATCHED_FOREST = {
   targets: BATTLEFIELD_VERDANT_MATCHED_FOREST_COORDINATES,
-  reference: { q: -7, r: 9 },
+  reference: BATTLEFIELD_VERDANT_FOREST_REFERENCE_COORDINATE,
 } as const;
+const CRIMSON_MIRRORED_FOREST_KEYS = new Set([
+  ...BATTLEFIELD_CRIMSON_MATCHED_FOREST_COORDINATES,
+  BATTLEFIELD_CRIMSON_FOREST_REFERENCE_COORDINATE,
+].map(({ q, r }) => `${q},${r}`));
 
 const VERDANT_MATCHED_FOREST_REFERENCE_INDEX = FOREST_CLUSTER_CELLS.findIndex(([q, r]) => (
   q === VERDANT_MATCHED_FOREST.reference.q && r === VERDANT_MATCHED_FOREST.reference.r
@@ -103,32 +120,43 @@ const VERDANT_MATCHED_FOREST_REFERENCE_INDEX = FOREST_CLUSTER_CELLS.findIndex(([
 
 const ROCK_CLUSTER_CELLS = battlefieldCoordinates()
   .filter(([q, r]) => (
-    battlefieldSurfaceAt(q, r) === "rock" && !battlefieldLeftMineAt(q, r)
+    battlefieldSurfaceAt(q, r) === "rock"
+    && !battlefieldLeftMineAt(q, r)
+    && !battlefieldRightMineAt(q, r)
   ));
 
 const LEFT_MINE_CELLS = battlefieldCoordinates()
   .filter(([q, r]) => battlefieldLeftMineAt(q, r));
+const LEFT_MINE_SCENERY = LEFT_MINE_CELLS
+  .flatMap(([q, r], index) => createLeftMineCluster(q, r, index));
+const RIGHT_MINE_SCENERY = LEFT_MINE_SCENERY.map((item) => mirrorScenery(
+  item,
+  item.id.replace(/^left-mine/, "right-mine"),
+  "right-mine",
+));
+const RIGHT_FARM_SCENERY = createRightFarmScenery();
+const LEFT_FARM_SCENERY = RIGHT_FARM_SCENERY.map((item) => mirrorScenery(
+  item,
+  item.id.replace(/^right-farm/, "left-farm"),
+  "left-farm",
+  "crimson",
+));
 
-const CAMP_FARM_LAYOUT = {
-  dirt: { id: "farm-dirt", kind: "farm-dirt", q: 1, r: 7 },
-  grain: { id: "farm-grain", kind: "farm-grain", q: 2, r: 7 },
-} as const;
-
-const CAMP_FARM_KEYS = new Set(
-  Object.values(CAMP_FARM_LAYOUT).flatMap(({ q, r }) => [
-    `${q},${r}`,
-    `${-q},${-r}`,
-  ]),
-);
+function isWaterfrontWindmillCell(q: number, r: number): boolean {
+  return (q === 4 && r === 2) || (q === -4 && r === -2);
+}
 
 const OUTER_FLANK_CELLS = battlefieldCoordinates()
   .filter(([q, r]) => (
     battlefieldOuterFlankAt(q, r)
     && battlefieldSurfaceAt(q, r) === "grass"
     && !battlefieldVerdantMineAt(q, r)
-    && !battlefieldRightFarmAt(q, r)
-    && !battlefieldRightFarmPassageAt(q, r)
-    && !CAMP_FARM_KEYS.has(`${q},${r}`)
+    && !battlefieldCrimsonMineAt(q, r)
+    && (
+      (!battlefieldRightFarmAt(q, r) && !battlefieldLeftFarmAt(q, r))
+      || isWaterfrontWindmillCell(q, r)
+    )
+    && !battlefieldFarmPassageAt(q, r)
   ));
 
 const RIVERBANK_DETAILS = [
@@ -141,9 +169,12 @@ const RIVERBANK_DETAILS = [
 export const BATTLEFIELD_SCENERY: readonly BattlefieldScenery[] = [
   ...FOREST_CLUSTER_CELLS.flatMap(([q, r], index) => createForestCluster(q, r, index)),
   ...ROCK_CLUSTER_CELLS.flatMap(([q, r], index) => createRockCluster(q, r, index)),
-  ...LEFT_MINE_CELLS.flatMap(([q, r], index) => createLeftMineCluster(q, r, index)),
-  ...createRightFarmScenery(),
-  scenery(
+  ...LEFT_MINE_SCENERY,
+  ...RIGHT_MINE_SCENERY,
+  ...RIGHT_FARM_SCENERY,
+  ...LEFT_FARM_SCENERY,
+  ...[
+    scenery(
     "right-bay-ship",
     "bay-ship",
     "wild",
@@ -152,10 +183,15 @@ export const BATTLEFIELD_SCENERY: readonly BattlefieldScenery[] = [
     { x: 0, z: 0 },
     1.18,
     Math.PI / 2,
-  ),
+    "verdant",
+    ),
+  ].flatMap((ship) => [
+    ship,
+    mirrorScenery(ship, "left-bay-ship", "wild", "crimson"),
+  ]),
   ...OUTER_FLANK_CELLS.flatMap(([q, r], index) => createOuterFlankCluster(q, r, index)),
   ...RIVERBANK_DETAILS.flatMap((detail, index) => (
-    battlefieldRightFarmAt(detail.q, detail.r)
+    battlefieldRightFarmAt(detail.q, detail.r) || battlefieldLeftFarmAt(detail.q, detail.r)
       ? []
       : [scenery(
           `riverbank-bush-${index}`,
@@ -189,6 +225,25 @@ export const BLOCKING_SCENERY_KEYS: ReadonlySet<string> = new Set(
 );
 
 function createForestCluster(q: number, r: number, index: number): BattlefieldScenery[] {
+  if (battlefieldFlankBlacksmithAt(q, r)) return [];
+
+  if (CRIMSON_MIRRORED_FOREST_KEYS.has(`${q},${r}`)) {
+    const sourceQ = -q;
+    const sourceR = -r;
+    const sourceIndex = FOREST_CLUSTER_CELLS.findIndex(([candidateQ, candidateR]) => (
+      candidateQ === sourceQ && candidateR === sourceR
+    ));
+    if (sourceIndex >= 0) {
+      return createForestCluster(sourceQ, sourceR, sourceIndex).map((item) => mirrorScenery(
+        item,
+        item.id.replace(
+          `forest-${sourceQ}-${sourceR}`,
+          `forest-${q}-${r}`,
+        ),
+        "wild",
+      ));
+    }
+  }
   const shouldMatchVerdantForest = VERDANT_MATCHED_FOREST.targets.some((target) => (
     q === target.q && r === target.r
   ))
@@ -340,6 +395,21 @@ function createLeftMineCluster(q: number, r: number, index: number): Battlefield
 }
 
 function createOuterFlankCluster(q: number, r: number, index: number): BattlefieldScenery[] {
+  if (isWaterfrontWindmillCell(q, r)) {
+    const isVerdant = r > 0;
+    return [scenery(
+      isVerdant ? "right-farm-waterfront-windmill" : "left-farm-waterfront-windmill",
+      "farm-windmill",
+      isVerdant ? "right-farm" : "left-farm",
+      q,
+      r,
+      isVerdant ? { x: 0.04, z: -0.08 } : { x: -0.04, z: 0.08 },
+      1,
+      Math.PI / 6 + (isVerdant ? 0 : Math.PI),
+      isVerdant ? "verdant" : "crimson",
+    )];
+  }
+
   const primaryKinds = [
     "tree",
     "tree",
@@ -395,7 +465,15 @@ function createOuterFlankCluster(q: number, r: number, index: number): Battlefie
 }
 
 function createRightFarmScenery(): BattlefieldScenery[] {
-  const landmarkKeys = new Set(["-1,7", "0,7", "1,6", "2,5", "3,2", "3,4"]);
+  const landmarkKeys = new Set([
+    "-1,7",
+    "0,7",
+    "1,6",
+    "2,5",
+    "3,2",
+    "3,4",
+    "4,2",
+  ]);
   const grainCoordinates = BATTLEFIELD_RIGHT_FARM_COORDINATES.filter(({ q, r }) => (
     !landmarkKeys.has(`${q},${r}`)
   ));
@@ -409,6 +487,7 @@ function createRightFarmScenery(): BattlefieldScenery[] {
       { x: -0.04, z: 0.02 },
       0.9,
       Math.PI / 3,
+      "verdant",
     ),
     scenery(
       "right-farm-home-a",
@@ -419,6 +498,7 @@ function createRightFarmScenery(): BattlefieldScenery[] {
       { x: -0.08, z: 0.04 },
       1,
       -Math.PI / 6,
+      "verdant",
     ),
     scenery(
       "right-farm-dirt",
@@ -429,6 +509,7 @@ function createRightFarmScenery(): BattlefieldScenery[] {
       { x: 0, z: 0 },
       0.94,
       Math.PI / 3,
+      "verdant",
     ),
     scenery(
       "right-farm-windmill",
@@ -439,6 +520,7 @@ function createRightFarmScenery(): BattlefieldScenery[] {
       { x: 0.04, z: -0.08 },
       1,
       Math.PI / 6,
+      "verdant",
     ),
     scenery(
       "right-farm-home-b",
@@ -449,6 +531,7 @@ function createRightFarmScenery(): BattlefieldScenery[] {
       { x: 0.06, z: 0.02 },
       1,
       Math.PI / 3,
+      "verdant",
     ),
     scenery(
       "right-farm-watermill",
@@ -459,6 +542,7 @@ function createRightFarmScenery(): BattlefieldScenery[] {
       { x: 0, z: -0.26 },
       1,
       0,
+      "verdant",
     ),
   ];
   return [
@@ -471,6 +555,7 @@ function createRightFarmScenery(): BattlefieldScenery[] {
       { x: 0, z: 0 },
       0.96,
       (index % 3) * Math.PI / 3,
+      "verdant",
     )),
     ...landmarks,
   ];
@@ -498,36 +583,7 @@ function createCampScenery(faction: "verdant" | "crimson"): BattlefieldScenery[]
     scale,
     rotation + localRotation,
   );
-  const dirtFarm = CAMP_FARM_LAYOUT.dirt;
-  const grainFarm = CAMP_FARM_LAYOUT.grain;
   return [
-    ...(faction === "crimson" ? [
-      campItem(
-        dirtFarm.id,
-        dirtFarm.kind,
-        dirtFarm.q,
-        dirtFarm.r,
-        { x: 0, z: 0 },
-        0.94,
-      ),
-      campItem(
-        grainFarm.id,
-        grainFarm.kind,
-        grainFarm.q,
-        grainFarm.r,
-        { x: 0, z: 0 },
-        0.94,
-      ),
-      campItem(
-        "field-bush",
-        "bush",
-        grainFarm.q,
-        grainFarm.r,
-        { x: 0.72, z: 0.5 },
-        0.78,
-        0.35,
-      ),
-    ] : []),
     campItem("camp-tent", "tent", 0, 6, { x: -0.18, z: 0.08 }, 1.04, -0.16),
     campItem("camp-wheelbarrow", "wheelbarrow", 0, 6, { x: 0.66, z: -0.32 }, 0.86, 0.54),
     campItem("camp-bush", "bush", 0, 6, { x: -0.72, z: -0.46 }, 0.84, -0.25),
@@ -543,6 +599,35 @@ function scenery(
   offset: { readonly x: number; readonly z: number },
   scale: number,
   rotationY: number,
+  faction?: Faction,
 ): BattlefieldScenery {
-  return { id, kind, zone, coordinate: { q, r }, offset, scale, rotationY };
+  return {
+    id,
+    kind,
+    zone,
+    coordinate: { q, r },
+    offset,
+    scale,
+    rotationY,
+    ...(faction ? { faction } : {}),
+  };
+}
+
+function mirrorScenery(
+  item: BattlefieldScenery,
+  id: string,
+  zone: BattlefieldSceneryZone,
+  faction?: Faction,
+): BattlefieldScenery {
+  return scenery(
+    id,
+    item.kind,
+    zone,
+    -item.coordinate.q,
+    -item.coordinate.r,
+    { x: -item.offset.x, z: -item.offset.z },
+    item.scale,
+    item.rotationY + Math.PI,
+    faction,
+  );
 }

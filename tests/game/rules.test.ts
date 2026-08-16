@@ -136,22 +136,48 @@ describe("central game rules", () => {
 
   it("keeps the first opponent AI strategy tunable in central rules", () => {
     expect(GAME_RULES.opponentAi).toEqual({
-      decisionIntervalSeconds: 1,
-      buildingGoals: [
-        { kind: "gold-mine", desiredActive: 1 },
-        { kind: "barracks", desiredActive: 1 },
-      ],
-      troopCycle: ["swordsman", "archer", "mage", "catapult"],
+      strategies: {
+        easy: {
+          firstDecisionSeconds: 4,
+          decisionIntervalSeconds: 24,
+          buildingGoals: [],
+          troopCycle: ["swordsman", "archer"],
+          deploymentPosture: "defensive",
+        },
+        normal: {
+          firstDecisionSeconds: 6,
+          decisionIntervalSeconds: 10,
+          buildingGoals: [{ kind: "gold-mine", desiredActive: 1 }],
+          troopCycle: ["swordsman", "archer", "mage"],
+          deploymentPosture: "balanced",
+        },
+        hard: {
+          firstDecisionSeconds: 1,
+          decisionIntervalSeconds: 1,
+          buildingGoals: [
+            { kind: "gold-mine", desiredActive: 1 },
+            { kind: "barracks", desiredActive: 1 },
+          ],
+          troopCycle: ["swordsman", "archer", "mage", "catapult"],
+          deploymentPosture: "aggressive",
+        },
+      },
     });
 
     const unreachable: GameRules = {
       ...GAME_RULES,
       opponentAi: {
         ...GAME_RULES.opponentAi,
-        buildingGoals: [{
-          kind: "gold-mine",
-          desiredActive: GAME_RULES.buildings.goldMine.maximumActivePerFaction + 1,
-        }],
+        strategies: {
+          ...GAME_RULES.opponentAi.strategies,
+          hard: {
+            ...GAME_RULES.opponentAi.strategies.hard,
+            buildingGoals: [{
+              kind: "gold-mine",
+              desiredActive: GAME_RULES.buildings.goldMine.maximumActivePerFaction + 1,
+            }],
+          },
+        },
       },
     };
     expect(validateGameRules(unreachable)).toContain(

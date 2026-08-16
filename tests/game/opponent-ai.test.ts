@@ -52,11 +52,58 @@ function fundCrimson(session: BattleSessionState, gold: number): BattleSessionSt
   };
 }
 
+function advanceHard(session: BattleSessionState): BattleSessionState {
+  return advanceOpponentAi(session, "hard");
+}
+
 describe("deterministic opponent deployment AI", () => {
+  it("uses distinct economy plans for the three difficulty strategies", () => {
+    const easy = advanceOpponentAi(
+      engagedSession(GAME_RULES.economy.maximumGold),
+      "easy",
+    );
+    const normal = advanceOpponentAi(
+      engagedSession(GAME_RULES.economy.maximumGold),
+      "normal",
+    );
+    const hard = advanceOpponentAi(
+      engagedSession(GAME_RULES.economy.maximumGold),
+      "hard",
+    );
+
+    expect(easy.battle.deploymentCounts.crimson).toMatchObject({
+      swordsman: 1,
+      "gold-mine": 0,
+      barracks: 0,
+    });
+    expect(normal.battle.deploymentCounts.crimson).toMatchObject({
+      swordsman: 0,
+      "gold-mine": 1,
+      barracks: 0,
+    });
+    expect(hard.battle.deploymentCounts.crimson).toMatchObject({
+      swordsman: 0,
+      "gold-mine": 1,
+      barracks: 0,
+    });
+
+    const normalAfterMine = advanceOpponentAi(
+      fundCrimson(normal, GAME_RULES.economy.maximumGold),
+      "normal",
+    );
+    const hardAfterMine = advanceOpponentAi(
+      fundCrimson(hard, GAME_RULES.economy.maximumGold),
+      "hard",
+    );
+    expect(normalAfterMine.battle.deploymentCounts.crimson.swordsman).toBe(1);
+    expect(normalAfterMine.battle.deploymentCounts.crimson.barracks).toBe(0);
+    expect(hardAfterMine.battle.deploymentCounts.crimson.barracks).toBe(1);
+  });
+
   it("buys its opening gold mine through the shared deployment transaction", () => {
     const initial = engagedSession(GAME_RULES.deployment.costs["gold-mine"]);
 
-    const next = advanceOpponentAi(initial);
+    const next = advanceHard(initial);
     const mine = next.battle.buildings.find((building) => (
       building.faction === "crimson" && building.kind === "gold-mine"
     ));
@@ -78,12 +125,12 @@ describe("deterministic opponent deployment AI", () => {
   });
 
   it("saves for and deploys a barracks after establishing its economy", () => {
-    const withMine = advanceOpponentAi(
+    const withMine = advanceHard(
       engagedSession(GAME_RULES.deployment.costs["gold-mine"]),
     );
     const funded = fundCrimson(withMine, GAME_RULES.deployment.costs.barracks);
 
-    const next = advanceOpponentAi(funded);
+    const next = advanceHard(funded);
 
     expect(next.battle.buildings).toContainEqual(expect.objectContaining({
       faction: "crimson",
@@ -94,14 +141,14 @@ describe("deterministic opponent deployment AI", () => {
   });
 
   it("deploys direct troops in a stable cycle after its mine and barracks", () => {
-    const withMine = advanceOpponentAi(
+    const withMine = advanceHard(
       engagedSession(GAME_RULES.deployment.costs["gold-mine"]),
     );
-    const withBarracks = advanceOpponentAi(
+    const withBarracks = advanceHard(
       fundCrimson(withMine, GAME_RULES.deployment.costs.barracks),
     );
 
-    const next = advanceOpponentAi(
+    const next = advanceHard(
       fundCrimson(withBarracks, GAME_RULES.deployment.costs.swordsman),
     );
 
@@ -129,7 +176,7 @@ describe("deterministic opponent deployment AI", () => {
       battle: { ...initial.battle, units: blockers },
     };
 
-    const next = advanceOpponentAi(blocked);
+    const next = advanceHard(blocked);
 
     expect(next.battle.units).toContainEqual(expect.objectContaining({
       faction: "crimson",
@@ -143,29 +190,29 @@ describe("deterministic opponent deployment AI", () => {
   it("keeps its state unchanged while saving for the current objective", () => {
     const initial = engagedSession(GAME_RULES.economy.initialGold);
 
-    expect(advanceOpponentAi(initial)).toBe(initial);
+    expect(advanceHard(initial)).toBe(initial);
   });
 
   it("produces the same deployment from the same public battle state", () => {
     const firstInitial = engagedSession(GAME_RULES.deployment.costs["gold-mine"]);
     const secondInitial = engagedSession(GAME_RULES.deployment.costs["gold-mine"]);
 
-    const first = advanceOpponentAi(firstInitial);
-    const second = advanceOpponentAi(secondInitial);
+    const first = advanceHard(firstInitial);
+    const second = advanceHard(secondInitial);
 
     expect(first).toEqual(second);
   });
 
   it("cycles through every configured direct troop in order", () => {
-    let session = advanceOpponentAi(
+    let session = advanceHard(
       engagedSession(GAME_RULES.deployment.costs["gold-mine"]),
     );
-    session = advanceOpponentAi(
+    session = advanceHard(
       fundCrimson(session, GAME_RULES.deployment.costs.barracks),
     );
 
-    for (const kind of GAME_RULES.opponentAi.troopCycle) {
-      session = advanceOpponentAi(
+    for (const kind of GAME_RULES.opponentAi.strategies.hard.troopCycle) {
+      session = advanceHard(
         fundCrimson(session, GAME_RULES.deployment.costs[kind]),
       );
       expect(session.battle.units).toContainEqual(expect.objectContaining({

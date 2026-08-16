@@ -123,7 +123,7 @@ describe("battlefield island", () => {
   it("blocks permanent structures while keeping destructible tower ruins traversable", () => {
     const functionalKinds = ["castle", "blacksmith", "barracks", "arrow-tower", "mine"];
 
-    expect(BATTLEFIELD_STRUCTURES).toHaveLength(20);
+    expect(BATTLEFIELD_STRUCTURES).toHaveLength(22);
     expect(BATTLEFIELD_STRUCTURES.map((structure) => String(structure.kind)))
       .not.toContain("siege-workshop");
     for (const faction of ["verdant", "crimson"] as const) {
@@ -131,18 +131,18 @@ describe("battlefield island", () => {
         (structure) => structure.faction === faction,
       );
       expect(factionStructures.filter((structure) => functionalKinds.includes(structure.kind)))
-        .toHaveLength(5);
+        .toHaveLength(6);
       expect(factionStructures.some((structure) => structure.kind === "blacksmith"))
-        .toBe(false);
+        .toBe(true);
       expect(factionStructures.filter((structure) => structure.kind.startsWith("wall-")))
         .toHaveLength(5);
       const factionDecorations = BATTLEFIELD_DECORATIONS.filter(
         (decoration) => decoration.faction === faction,
       );
       expect(factionDecorations.filter((decoration) => decoration.kind === "mining-cart"))
-        .toHaveLength(faction === "verdant" ? 0 : 1);
+        .toHaveLength(0);
       expect(factionDecorations.filter((decoration) => decoration.kind === "ore-pile"))
-        .toHaveLength(faction === "verdant" ? 0 : 1);
+        .toHaveLength(0);
     }
     for (const structure of BATTLEFIELD_STATIC_STRUCTURES.concat(
       BATTLEFIELD_BATTLE_STRUCTURES.filter((candidate) => candidate.kind === "castle"),
@@ -227,13 +227,11 @@ describe("battlefield island", () => {
       expect(interior).toBeDefined();
       expect(findHexPath(BATTLEFIELD_MAP, interior!, BATTLEFIELD_MAP[`${faction}Camp`]))
         .toContainEqual(gate!.coordinate);
-      const outerBuildingKinds = faction === "verdant"
-        ? ["mine"] as const
-        : ["barracks", "mine"] as const;
-      for (const kind of outerBuildingKinds) {
-        const outerBuilding = structures.find((candidate) => candidate.kind === kind);
-        expect(hexDistance(castle.coordinate, outerBuilding!.coordinate)).toBeGreaterThan(2);
-      }
+      const mines = structures.filter((candidate) => candidate.kind === "mine");
+      expect(mines).toHaveLength(2);
+      expect(mines.every((mine) => (
+        hexDistance(castle.coordinate, mine.coordinate) > 2
+      ))).toBe(true);
     }
   });
 
@@ -300,13 +298,13 @@ describe("battlefield island", () => {
     }
   });
 
-  it("assigns fixed territories while keeping the trimmed left edge and river neutral", () => {
+  it("assigns mirrored territories while keeping the trimmed edges and river neutral", () => {
     const verdantCells = BATTLEFIELD_MAP.cells.filter((cell) => cell.territory === "verdant");
     const crimsonCells = BATTLEFIELD_MAP.cells.filter((cell) => cell.territory === "crimson");
 
     expect(verdantCells.length).toBeGreaterThan(0);
     expect(verdantCells).toHaveLength(84);
-    expect(crimsonCells).toHaveLength(108);
+    expect(crimsonCells).toHaveLength(84);
     expect(verdantCells.every((cell) => cell.r >= 2)).toBe(true);
     expect(crimsonCells.every((cell) => cell.r <= -2)).toBe(true);
     expect(BATTLEFIELD_MAP.cells.filter((cell) => Math.abs(cell.r) <= 1)

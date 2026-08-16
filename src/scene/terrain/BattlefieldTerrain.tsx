@@ -24,13 +24,19 @@ import {
   type BattlefieldStructure,
 } from "../../map/battlefield";
 import {
+  BATTLEFIELD_CLOUDS,
+  type BattlefieldCloud,
+} from "../../map/battlefieldAtmosphere";
+import {
   BATTLEFIELD_SCENERY,
   BATTLEFIELD_SCENERY_KINDS,
   type BattlefieldSceneryKind,
 } from "../../map/battlefieldScenery";
 import {
+  BATTLEFIELD_CLOUD_SCENE_ASSETS,
   SCENERY_SCENE_ASSETS,
   STRUCTURE_SCENE_ASSETS,
+  scenerySceneAssetFor,
   type ScenerySceneAsset,
 } from "../assets";
 import { miningCartPose } from "./miningCartMotion";
@@ -51,9 +57,35 @@ export function BattlefieldTerrain() {
       <BattlefieldProps />
       <Suspense fallback={null}>
         <BattlefieldSceneryLayer />
+        <BattlefieldCloudLayer />
       </Suspense>
     </>
   );
+}
+
+function BattlefieldCloudLayer() {
+  return (
+    <group>
+      {BATTLEFIELD_CLOUDS.map((cloud) => (
+        <BattlefieldCloudAsset cloud={cloud} key={cloud.id} />
+      ))}
+    </group>
+  );
+}
+
+function BattlefieldCloudAsset({ cloud }: { readonly cloud: BattlefieldCloud }) {
+  const asset = BATTLEFIELD_CLOUD_SCENE_ASSETS[cloud.kind];
+  const gltf = useLoader(GLTFLoader, asset.url);
+  const model = useMemo(
+    () => prepareAtmosphereModel(
+      gltf.scene,
+      asset.scale * cloud.scale,
+      cloud.rotationY,
+      cloud.opacity,
+    ),
+    [asset.scale, cloud.opacity, cloud.rotationY, cloud.scale, gltf.scene],
+  );
+  return <primitive object={model} position={cloud.position} />;
 }
 
 function HexArena() {
@@ -118,9 +150,9 @@ function sceneryAssetUsesFullScene(kind: BattlefieldSceneryKind): boolean {
 }
 
 function DetailedSceneryAssets({ kind }: { readonly kind: BattlefieldSceneryKind }) {
-  const asset = SCENERY_SCENE_ASSETS[kind];
   const items = BATTLEFIELD_SCENERY.filter((item) => item.kind === kind);
   return items.map((item) => {
+    const asset = scenerySceneAssetFor(kind, item.faction);
     const world = axialToWorld(item.coordinate);
     return (
       <StaticAsset
@@ -365,6 +397,32 @@ function prepareAssetModel(
     }
   });
   return clone;
+}
+
+function prepareAtmosphereModel(
+  source: Object3D,
+  scale: number,
+  rotationY: number,
+  opacity: number,
+): Object3D {
+  const model = prepareAssetModel(source, scale, rotationY);
+  model.traverse((object) => {
+    if (!(object instanceof Mesh)) return;
+    const materials = Array.isArray(object.material)
+      ? object.material.map((material) => material.clone())
+      : [object.material.clone()];
+    for (const material of materials) {
+      material.transparent = true;
+      material.opacity = opacity;
+      material.depthWrite = false;
+    }
+    object.material = Array.isArray(object.material) ? materials : materials[0]!;
+    object.castShadow = false;
+    object.receiveShadow = false;
+    object.raycast = () => undefined;
+    object.renderOrder = 2;
+  });
+  return model;
 }
 
 function sceneAssetForStructure(structure: BattlefieldStructure) {

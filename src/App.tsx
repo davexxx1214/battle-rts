@@ -35,7 +35,11 @@ import {
 } from "./game/deployTransaction";
 import { createArenaBattle } from "./game/arenaBattle";
 import { getMatchClock } from "./game/economy";
-import type { DeployableKind } from "./game/rules";
+import {
+  DEFAULT_AI_DIFFICULTY,
+  type AiDifficulty,
+  type DeployableKind,
+} from "./game/rules";
 import { createBenchmarkBattle, type BenchmarkSnapshot } from "./game/benchmark";
 import {
   BattlefieldCanvas,
@@ -49,6 +53,7 @@ import {
   DeploymentRail,
   deploymentReasonLabel,
 } from "./ui/DeploymentRail";
+import { AiDifficultySelector } from "./ui/AiDifficultySelector";
 import { GameModeSelector } from "./ui/GameModeSelector";
 
 interface AppState {
@@ -63,12 +68,18 @@ interface DeploymentFeedback {
 }
 
 const SIMULATION_STEP_SECONDS = 0.05;
+const FEEDBACK_LIFETIME_MS = {
+  success: 1800,
+  error: 2600,
+  info: 2200,
+} as const satisfies Readonly<Record<DeploymentFeedback["tone"], number>>;
 
 export function App() {
   const benchmarkMode = useMemo(() => (
     new URLSearchParams(window.location.search).get("benchmark") === "80"
   ), []);
   const [mode, setMode] = useState<GameMode>(DEFAULT_GAME_MODE);
+  const [difficulty, setDifficulty] = useState<AiDifficulty>(DEFAULT_AI_DIFFICULTY);
   const [app, setApp] = useState<AppState>(() => (
     createAppState(benchmarkMode, DEFAULT_GAME_MODE)
   ));
@@ -102,7 +113,20 @@ export function App() {
     enabled: audioEnabled,
   });
 
-  useBattleLoop(setApp, battlePhase);
+  useBattleLoop(setApp, battlePhase, difficulty);
+
+  useEffect(() => {
+    const feedback = app.feedback;
+    if (!feedback) return;
+
+    const timeout = window.setTimeout(() => {
+      setApp((current) => current.feedback === feedback
+        ? { ...current, feedback: null }
+        : current);
+    }, FEEDBACK_LIFETIME_MS[feedback.tone]);
+
+    return () => window.clearTimeout(timeout);
+  }, [app.feedback]);
 
   useEffect(() => {
     const cancel = (event: KeyboardEvent) => {
@@ -137,6 +161,11 @@ export function App() {
     cameraViewStore.publish(DEFAULT_CAMERA_VIEW);
     setBattleInstanceRevision((current) => current + 1);
   }, [benchmarkMode, cameraViewStore, mode]);
+
+  const changeDifficulty = useCallback((nextDifficulty: AiDifficulty) => {
+    if (battlePhase !== "briefing" || nextDifficulty === difficulty) return;
+    setDifficulty(nextDifficulty);
+  }, [battlePhase, difficulty]);
 
   const engageBattle = useCallback(() => {
     setApp((current) => ({
@@ -220,6 +249,13 @@ export function App() {
         </div>
         <div className={styles.commandCenter}>
           {!benchmarkMode && <GameModeSelector mode={mode} onChange={changeMode} />}
+          {!benchmarkMode && (
+            <AiDifficultySelector
+              difficulty={difficulty}
+              disabled={battlePhase !== "briefing"}
+              onChange={changeDifficulty}
+            />
+          )}
           <div className={styles.battlePulse} aria-live="polite">
             <span>{battlePhase === "briefing"
               ? "等待交战"
@@ -281,6 +317,7 @@ export function App() {
           <BattlefieldCanvas
             battle={battle}
             bridgeRef={bridgeRef}
+            deploymentKind={app.selectedDeployable}
             deploymentPreview={app.selectedDeployable && deploymentPreview
               ? { kind: app.selectedDeployable, ...deploymentPreview }
               : null}
@@ -308,7 +345,9 @@ export function App() {
             <span>{app.selectedDeployable ? "DEPLOYMENT MODE" : "FORTIFIED FRONT"}</span>
             <strong aria-live="polite">{battlePhase === "briefing"
               ? "点击交战，开始三分钟攻防"
-              : fieldFeedback?.message ?? "选择建筑或兵种进入部署模式"}</strong>
+              : fieldFeedback?.message ?? (app.selectedDeployable
+                ? "移动到己方区域，绿色预览表示可以部署"
+                : "选择建筑或兵种进入部署模式")}</strong>
           </div>
           <div
             className={styles.victoryBanner}
@@ -336,13 +375,12 @@ export function App() {
 }
 
 function createAppState(benchmarkMode: boolean, mode: GameMode): AppState {
-  const populatedBattle = benchmarkMode || mode === "arena";
   return {
     session: {
       battle: benchmarkMode
         ? createBenchmarkBattle(80)
         : mode === "arena" ? createArenaBattle() : createInitialBattle(),
-      phase: populatedBattle ? "engaged" : "briefing",
+      phase: benchmarkMode ? "engaged" : "briefing",
     },
     selectedDeployable: null,
     feedback: null,
@@ -352,6 +390,7 @@ function createAppState(benchmarkMode: boolean, mode: GameMode): AppState {
 function useBattleLoop(
   setApp: Dispatch<SetStateAction<AppState>>,
   phase: BattlePhase,
+  difficulty: AiDifficulty,
 ): void {
   useEffect(() => {
     if (phase !== "engaged") return;
@@ -370,6 +409,7 @@ function useBattleLoop(
             current.session.phase,
             steps,
             SIMULATION_STEP_SECONDS,
+            difficulty,
           );
           return battle === current.session.battle
             ? current
@@ -380,7 +420,7 @@ function useBattleLoop(
     };
     animationFrame = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(animationFrame);
-  }, [phase, setApp]);
+  }, [difficulty, phase, setApp]);
 }
 
 function localPointer(

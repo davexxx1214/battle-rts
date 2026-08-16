@@ -27,13 +27,15 @@ const LEFT_MINE_SCENERY_KINDS = new Set([
 ]);
 
 describe("left mine terrain", () => {
-  it("removes the two westernmost columns from the battlefield island", () => {
+  it("removes the two outermost columns from both battlefield sides", () => {
     const coordinates = battlefieldCoordinates();
 
-    expect(coordinates).toHaveLength(242);
-    expect(coordinates.some(([q]) => q === -9 || q === -8)).toBe(false);
-    expect(BATTLEFIELD_MAP.cells.some(({ q }) => q === -9 || q === -8)).toBe(false);
+    expect(coordinates).toHaveLength(213);
+    expect(coordinates.some(([q]) => Math.abs(q) === 8 || Math.abs(q) === 9)).toBe(false);
+    expect(BATTLEFIELD_MAP.cells.some(({ q }) => Math.abs(q) === 8 || Math.abs(q) === 9))
+      .toBe(false);
     expect(Math.min(...BATTLEFIELD_MAP.cells.map(({ q }) => q))).toBe(-7);
+    expect(Math.max(...BATTLEFIELD_MAP.cells.map(({ q }) => q))).toBe(7);
   });
 
   it("turns the remaining left flank into a blocked rock field around the mine clearing", () => {

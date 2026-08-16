@@ -149,6 +149,20 @@ export function hasBuildableHex(
   ));
 }
 
+export function validBuildingDeploymentCoordinates(
+  map: BattlefieldMap,
+  faction: Faction,
+  occupancy: BuildingOccupancy,
+  units: readonly BuildingPlacementUnit[],
+): readonly HexCoordinate[] {
+  const occupiedByUnits = occupiedUnitKeys(units);
+  return map.cells
+    .filter((cell) => (
+      validateCoordinate(map, faction, cell, occupancy, occupiedByUnits) === null
+    ))
+    .map(({ q, r }) => ({ q, r }));
+}
+
 export function resolveWorldHex(
   map: BattlefieldMap,
   point: WorldPoint,

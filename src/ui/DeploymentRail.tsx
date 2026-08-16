@@ -20,7 +20,7 @@ interface DeploymentRailProps {
 }
 
 interface PresentationMetadata {
-  readonly glyph: string;
+  readonly iconSrc: string;
   readonly name: string;
   readonly detail: string;
 }
@@ -30,20 +30,36 @@ interface DeployableDefinition extends PresentationMetadata {
 }
 
 const TROOP_PRESENTATION = {
-  swordsman: { glyph: "⚔", name: "剑士", detail: "近战前锋" },
-  archer: { glyph: "➶", name: "弓箭手", detail: "远程单体" },
-  mage: { glyph: "✦", name: "法师", detail: "范围法术" },
-  catapult: { glyph: "◉", name: "投石车", detail: "重型攻城" },
+  swordsman: {
+    iconSrc: "/assets/ui/deployables/swordsman.png",
+    name: "剑士",
+    detail: "近战前锋",
+  },
+  archer: {
+    iconSrc: "/assets/ui/deployables/archer.png",
+    name: "弓箭手",
+    detail: "远程单体",
+  },
+  mage: {
+    iconSrc: "/assets/ui/deployables/mage.png",
+    name: "法师",
+    detail: "范围法术",
+  },
+  catapult: {
+    iconSrc: "/assets/ui/deployables/catapult.png",
+    name: "投石车",
+    detail: "重型攻城",
+  },
 } as const satisfies Readonly<Record<TroopKind, PresentationMetadata>>;
 
 const BUILDING_PRESENTATION = {
   "gold-mine": {
-    glyph: "◆",
+    iconSrc: "/assets/ui/deployables/gold-mine.png",
     name: "金矿",
     detail: `每 ${GAME_RULES.buildings.goldMine.productionIntervalSeconds} 秒产出 ${GAME_RULES.buildings.goldMine.goldPerProduction}`,
   },
   barracks: {
-    glyph: "▰",
+    iconSrc: "/assets/ui/deployables/barracks.png",
     name: "兵营",
     detail: `每 ${GAME_RULES.buildings.barracks.spawnIntervalSeconds} 秒生成 ${TROOP_PRESENTATION[GAME_RULES.buildings.barracks.spawnedUnit].name}`,
   },
@@ -176,8 +192,13 @@ function DeployableGroup({
               onClick={() => onSelect(item.kind)}
               key={item.kind}
             >
-              <span className={styles.glyph} aria-hidden="true">
-                {item.glyph}
+              <span className={styles.iconFrame} aria-hidden="true">
+                <img
+                  className={styles.deployableIcon}
+                  src={item.iconSrc}
+                  alt=""
+                  draggable={false}
+                />
                 {DEPLOYABLE_CATEGORIES[item.kind] === "troop" && (
                   <b className={styles.squadSize}>
                     ×{GAME_RULES.deployment.troopCounts[item.kind as TroopKind]}

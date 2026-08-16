@@ -15,6 +15,7 @@
     "test:watch": "vitest tests",
     "arena": "vitest run --config vitest.arena.config.ts --reporter=verbose",
     "check:audio": "node scripts/check-audio-assets.mjs",
+    "generate:combat-sfx": "node scripts/generate-missing-combat-sfx.mjs",
     "generate:models": "node scripts/generate-tripo-assets.mjs",
     "check:models": "node scripts/check-tripo-runtime-assets.mjs",
     "check:scene-assets": "node scripts/check-scene-runtime-assets.mjs",
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@fal-ai/client": "1.10.1",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "@types/three": "0.182.0",

@@ -13,6 +13,32 @@ export interface AudioVoice {
 
 export type UiAudioCue = "select" | "place-unit" | "place-building";
 
+export type CombatAudioCue =
+  | "ranger.attack"
+  | "catapult.attack"
+  | "catapult.impact";
+
+export type CombatAudioBus = "projectiles" | "siege";
+
+export interface CombatAudioCueRequest {
+  readonly cue: CombatAudioCue;
+  readonly sequence: number;
+}
+
+interface CombatAudioCueSettings {
+  readonly bus: CombatAudioBus;
+  readonly variants: readonly string[];
+  readonly gain: readonly [number, number];
+  readonly pitch: readonly [number, number];
+}
+
+export interface CombatAudioPlayback {
+  readonly bus: CombatAudioBus;
+  readonly src: string;
+  readonly gain: number;
+  readonly playbackRate: number;
+}
+
 export type BattleMusicScene = "victory" | "defeat";
 
 export const DEFAULT_AUDIO_ENABLED = true;
@@ -34,6 +60,32 @@ export const UI_AUDIO_CUES: Readonly<
   select: { src: "/audio/ui/organic/hover.mp3", gain: 0.25 },
   "place-unit": { src: "/audio/ui/organic/drop.mp3", gain: 1 },
   "place-building": { src: "/audio/ui/organic/snap.mp3", gain: 0.35 },
+};
+
+export const COMBAT_AUDIO_BUS_CAPACITIES: Readonly<Record<CombatAudioBus, number>> = {
+  projectiles: 4,
+  siege: 3,
+};
+
+export const COMBAT_AUDIO_CUES: Readonly<Record<CombatAudioCue, CombatAudioCueSettings>> = {
+  "ranger.attack": {
+    bus: "projectiles",
+    variants: ["draw-bow.wav"],
+    gain: [0.7, 0.84],
+    pitch: [0.97, 1.03],
+  },
+  "catapult.attack": {
+    bus: "siege",
+    variants: ["catapult_launch_01.wav", "catapult_launch_02.wav"],
+    gain: [0.74, 0.88],
+    pitch: [0.97, 1.03],
+  },
+  "catapult.impact": {
+    bus: "siege",
+    variants: ["catapult_impact_01.wav", "catapult_impact_02.wav"],
+    gain: [0.82, 0.98],
+    pitch: [0.96, 1.02],
+  },
 };
 
 export function scaleAudioGain(gain: number): number {
@@ -100,13 +152,19 @@ export class BattleMusicPlayer {
 
 export class ReusableAudioPool {
   readonly #voices: AudioVoice[];
+  readonly #scaleGain: (gain: number) => number;
   #nextVoice = 0;
 
-  constructor(capacity: number, createVoice: () => AudioVoice) {
+  constructor(
+    capacity: number,
+    createVoice: () => AudioVoice,
+    scaleGain: (gain: number) => number = clampAudioGain,
+  ) {
     this.#voices = Array.from(
       { length: Math.max(1, Math.floor(capacity)) },
       createVoice,
     );
+    this.#scaleGain = scaleGain;
   }
 
   play(src: string, volume: number, playbackRate: number, loop = false): void {
@@ -117,7 +175,7 @@ export class ReusableAudioPool {
     if (!voice.paused) voice.pause();
     voice.src = src;
     voice.currentTime = 0;
-    voice.volume = clampAudioGain(volume);
+    voice.volume = this.#scaleGain(volume);
     voice.playbackRate = playbackRate;
     voice.loop = loop;
     const result = voice.play();
@@ -131,6 +189,58 @@ export class ReusableAudioPool {
       voice.loop = false;
     }
   }
+}
+
+export class CombatAudioEventRouter {
+  #lastSequence = -1;
+
+  consume(events: readonly BattleEvent[]): CombatAudioCueRequest[] {
+    const requests: CombatAudioCueRequest[] = [];
+    for (const event of [...events].sort((first, second) => first.sequence - second.sequence)) {
+      if (event.sequence <= this.#lastSequence) continue;
+      this.#lastSequence = event.sequence;
+      for (const cue of combatEventCues(event)) {
+        requests.push({ cue, sequence: event.sequence });
+      }
+    }
+    return requests;
+  }
+
+  reset(): void {
+    this.#lastSequence = -1;
+  }
+}
+
+export function resolveCombatAudioPlayback(
+  request: CombatAudioCueRequest,
+): CombatAudioPlayback | null {
+  const settings = COMBAT_AUDIO_CUES[request.cue];
+  const variant = settings.variants[positiveModulo(
+    request.sequence,
+    settings.variants.length,
+  )]!;
+  const mix = deterministicUnitValue(request.sequence * 17 + request.cue.length * 31);
+  return {
+    bus: settings.bus,
+    src: `/audio/battle/${variant}`,
+    gain: lerp(settings.gain[0], settings.gain[1], mix),
+    playbackRate: lerp(settings.pitch[0], settings.pitch[1], 1 - mix),
+  };
+}
+
+function combatEventCues(event: BattleEvent): CombatAudioCue[] {
+  if (event.type === "attack-started") {
+    if (event.role === "ranger" || event.role === "castle" || event.role === "arrow-tower") {
+      return ["ranger.attack"];
+    }
+    if (event.role === "catapult") return ["catapult.attack"];
+    return [];
+  }
+  if (event.type === "projectile-hit") {
+    if (event.role === "catapult") return ["catapult.impact"];
+    return [];
+  }
+  return [];
 }
 
 function clampAudioGain(gain: number): number {
@@ -154,4 +264,17 @@ export class DeploymentAudioEventRouter {
   reset(): void {
     this.#lastSequence = -1;
   }
+}
+
+function deterministicUnitValue(seed: number): number {
+  const value = Math.sin(seed * 12.9898) * 43758.5453;
+  return value - Math.floor(value);
+}
+
+function positiveModulo(value: number, divisor: number): number {
+  return ((value % divisor) + divisor) % divisor;
+}
+
+function lerp(start: number, end: number, alpha: number): number {
+  return start + (end - start) * alpha;
 }

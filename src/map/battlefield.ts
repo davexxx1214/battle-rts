@@ -2,6 +2,7 @@ import type { Faction, WorldPoint } from "../game/types";
 import {
   BATTLEFIELD_RADIUS,
   BATTLEFIELD_BRIDGE_LAYOUTS,
+  BATTLEFIELD_VERDANT_FLANK_BLACKSMITH_COORDINATE,
   BATTLEFIELD_VERDANT_MINE_COORDINATES,
   battlefieldCastleRockAt,
   battlefieldCoordinates,
@@ -125,9 +126,7 @@ export const BATTLEFIELD_STATIC_STRUCTURES: readonly BattlefieldStructure[] = (
   ))
 );
 
-export const BATTLEFIELD_DECORATIONS: readonly BattlefieldDecoration[] = [
-  ...createCampDecorations("crimson"),
-];
+export const BATTLEFIELD_DECORATIONS: readonly BattlefieldDecoration[] = [];
 
 const STRUCTURE_FOOTPRINT_KEYS = new Set(
   BATTLEFIELD_STRUCTURES.flatMap((structure) => (
@@ -320,17 +319,14 @@ function createCampStructures(faction: Faction): BattlefieldStructure[] {
     };
   };
 
-  const supportStructures = faction === "verdant"
-    ? BATTLEFIELD_VERDANT_MINE_COORDINATES.map((mineCoordinate, index) => structure(
-        "mine",
-        index === 0 ? "mine-upper" : "mine",
-        mineCoordinate.q,
-        mineCoordinate.r,
-      ))
-    : [
-        structure("barracks", "barracks", -7, 8, 0.12),
-        structure("mine", "mine", -1, 8),
-      ];
+  const supportStructures = BATTLEFIELD_VERDANT_MINE_COORDINATES.map(
+    (mineCoordinate, index) => structure(
+      "mine",
+      index === 0 ? "mine-upper" : "mine",
+      mineCoordinate.q,
+      mineCoordinate.r,
+    ),
+  );
 
   return [
     {
@@ -342,6 +338,13 @@ function createCampStructures(faction: Faction): BattlefieldStructure[] {
       rotationY: facing,
     },
     ...supportStructures,
+    structure(
+      "blacksmith",
+      "flank-blacksmith",
+      BATTLEFIELD_VERDANT_FLANK_BLACKSMITH_COORDINATE.q,
+      BATTLEFIELD_VERDANT_FLANK_BLACKSMITH_COORDINATE.r,
+      Math.PI / 3,
+    ),
     structure("arrow-tower", "arrow-tower-left", -4, 6),
     structure("wall-straight", "wall-left", -5, 8, Math.PI / 3),
     structure("wall-corner", "wall-left-corner", -4, 7, Math.PI),
@@ -354,30 +357,4 @@ function createCampStructures(faction: Faction): BattlefieldStructure[] {
 
 function mirrorCoordinate(coordinate: HexCoordinate): HexCoordinate {
   return { q: -coordinate.q, r: -coordinate.r };
-}
-
-function createCampDecorations(faction: Faction): BattlefieldDecoration[] {
-  const mirror = faction === "verdant" ? 1 : -1;
-  const coordinate = (q: number, r: number): HexCoordinate => ({
-    q: q * mirror,
-    r: r * mirror,
-  });
-  return [
-    {
-      id: `${faction}-mining-cart`,
-      kind: "mining-cart",
-      faction,
-      coordinate: coordinate(0, 7),
-      rotationY: faction === "verdant" ? 0 : Math.PI,
-      targetStructureId: `${faction}-mine`,
-      phase: faction === "verdant" ? 0 : 0.5,
-    },
-    {
-      id: `${faction}-ore-pile`,
-      kind: "ore-pile",
-      faction,
-      coordinate: coordinate(-1, 7),
-      rotationY: 0,
-    },
-  ];
 }

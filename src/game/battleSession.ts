@@ -1,7 +1,11 @@
 import { stepBattle, type BattleState } from "./battle";
 import type { BattlePhase, BattleSessionState } from "./battleSessionState";
 import { advanceOpponentAi } from "./opponentAi";
-import { GAME_RULES } from "./rules";
+import {
+  DEFAULT_AI_DIFFICULTY,
+  GAME_RULES,
+  type AiDifficulty,
+} from "./rules";
 
 export type { BattlePhase, BattleSessionState } from "./battleSessionState";
 
@@ -34,6 +38,7 @@ export function advanceBattleSession(
   phase: BattlePhase,
   steps: number,
   stepSeconds: number,
+  aiDifficulty: AiDifficulty = DEFAULT_AI_DIFFICULTY,
 ): BattleState {
   if (phase !== "engaged") return state;
   let next = state;
@@ -43,19 +48,29 @@ export function advanceBattleSession(
     const decisionCount = crossedDecisionCount(
       previousMatchElapsed,
       next.matchElapsed,
+      aiDifficulty,
     );
     for (let decision = 0; decision < decisionCount; decision += 1) {
-      next = advanceOpponentAi({ battle: next, phase }).battle;
+      next = advanceOpponentAi({ battle: next, phase }, aiDifficulty).battle;
     }
   }
   return next;
 }
 
-function crossedDecisionCount(start: number, end: number): number {
-  const interval = GAME_RULES.opponentAi.decisionIntervalSeconds;
-  if (end <= start || interval <= 0) return 0;
+function crossedDecisionCount(
+  start: number,
+  end: number,
+  difficulty: AiDifficulty,
+): number {
+  const strategy = GAME_RULES.opponentAi.strategies[difficulty];
+  const interval = strategy.decisionIntervalSeconds;
+  const firstDecision = strategy.firstDecisionSeconds;
+  if (end <= start || interval <= 0 || firstDecision <= 0) return 0;
   const epsilon = 1e-9;
-  const first = Math.floor((start + epsilon) / interval) + 1;
-  const last = Math.floor((end + epsilon) / interval);
-  return Math.max(0, last - first + 1);
+  const decisionsThrough = (elapsed: number) => (
+    elapsed + epsilon < firstDecision
+      ? 0
+      : Math.floor((elapsed - firstDecision + epsilon) / interval) + 1
+  );
+  return Math.max(0, decisionsThrough(end) - decisionsThrough(start));
 }

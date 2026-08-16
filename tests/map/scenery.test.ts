@@ -11,8 +11,8 @@ import {
 } from "../../src/map/battlefieldScenery";
 import {
   battlefieldCombatZoneAt,
+  battlefieldFarmPassageAt,
   battlefieldOuterFlankAt,
-  battlefieldRightFarmPassageAt,
 } from "../../src/map/battlefieldLayout";
 
 describe("battlefield scenery layout", () => {
@@ -26,7 +26,6 @@ describe("battlefield scenery layout", () => {
       ));
       expect(scenery.filter((item) => groveKinds.has(item.kind))).toHaveLength(1);
     }
-    expect(BATTLEFIELD_SCENERY.some((item) => item.kind === "hill-grove")).toBe(true);
     expect(BATTLEFIELD_SCENERY.filter((item) => item.kind === "bush").length)
       .toBeGreaterThanOrEqual(Math.floor(forestCells.length / 2));
   });
@@ -35,7 +34,7 @@ describe("battlefield scenery layout", () => {
     const rockCells = BATTLEFIELD_MAP.cells.filter((cell) => (
       cell.surface === "rock"
       && !BATTLEFIELD_SCENERY.some((item) => (
-        item.zone === "left-mine"
+        (item.zone === "left-mine" || item.zone === "right-mine")
         && item.coordinate.q === cell.q
         && item.coordinate.r === cell.r
       ))
@@ -68,14 +67,9 @@ describe("battlefield scenery layout", () => {
     }
   });
 
-  it("mirrors shared camp props while the expanded farm stays verdant-only", () => {
+  it("mirrors the shared camp props after moving both farms into flank zones", () => {
     const blue = BATTLEFIELD_SCENERY.filter((item) => item.zone === "verdant-camp");
-    const red = BATTLEFIELD_SCENERY.filter((item) => (
-      item.zone === "crimson-camp"
-      && item.kind !== "farm-dirt"
-      && item.kind !== "farm-grain"
-      && item.id !== "crimson-field-bush"
-    ));
+    const red = BATTLEFIELD_SCENERY.filter((item) => item.zone === "crimson-camp");
 
     expect(blue).toHaveLength(red.length);
     expect(red.map((item) => ({
@@ -89,25 +83,21 @@ describe("battlefield scenery layout", () => {
     })));
   });
 
-  it("keeps the crimson camp farms away from all major structures", () => {
+  it("keeps mirrored flank farms out of both camp zones and major structures", () => {
     const structureKeys = new Set(BATTLEFIELD_STRUCTURES.flatMap((structure) => (
       structure.footprint.map(({ q, r }) => `${q},${r}`)
     )));
-    const verdantCampFarms = BATTLEFIELD_SCENERY.filter((item) => (
-      item.zone === "verdant-camp"
+    const campFarms = BATTLEFIELD_SCENERY.filter((item) => (
+      (item.zone === "verdant-camp" || item.zone === "crimson-camp")
       && (item.kind === "farm-dirt" || item.kind === "farm-grain")
     ));
-    const crimsonCampFarms = BATTLEFIELD_SCENERY.filter((item) => (
-      item.zone === "crimson-camp"
-      && (item.kind === "farm-dirt" || item.kind === "farm-grain")
+    const flankFarms = BATTLEFIELD_SCENERY.filter((item) => (
+      item.zone === "right-farm" || item.zone === "left-farm"
     ));
 
-    expect(verdantCampFarms).toEqual([]);
-    expect(crimsonCampFarms.map(({ coordinate }) => coordinate)).toEqual([
-      { q: -1, r: -7 },
-      { q: -2, r: -7 },
-    ]);
-    expect(crimsonCampFarms.every((farm) => !structureKeys.has(
+    expect(campFarms).toEqual([]);
+    expect(flankFarms.length).toBeGreaterThan(0);
+    expect(flankFarms.every((farm) => !structureKeys.has(
       `${farm.coordinate.q},${farm.coordinate.r}`,
     ))).toBe(true);
   });
@@ -124,16 +114,16 @@ describe("battlefield scenery layout", () => {
       && battlefieldOuterFlankAt(cell.q, cell.r)
     ));
     const blockingOuterFlanks = outerFlanks.filter((cell) => (
-      !battlefieldRightFarmPassageAt(cell.q, cell.r)
+      !battlefieldFarmPassageAt(cell.q, cell.r)
     ));
     const passageOuterFlanks = outerFlanks.filter((cell) => (
-      battlefieldRightFarmPassageAt(cell.q, cell.r)
+      battlefieldFarmPassageAt(cell.q, cell.r)
     ));
 
-    expect(outerFlanks.length).toBeGreaterThanOrEqual(88);
+    expect(outerFlanks).toHaveLength(64);
     expect(blockingOuterFlanks.every((cell) => !cell.walkable)).toBe(true);
     expect(blockingOuterFlanks.every((cell) => !cell.buildable)).toBe(true);
-    expect(passageOuterFlanks).toHaveLength(1);
+    expect(passageOuterFlanks).toHaveLength(2);
     expect(passageOuterFlanks.every((cell) => cell.walkable && cell.buildable)).toBe(true);
     expect(blockingOuterFlanks.every((cell) => {
       const key = `${cell.q},${cell.r}`;
@@ -150,7 +140,6 @@ describe("battlefield scenery layout", () => {
       "stone",
       "village-house",
       "village-market",
-      "village-farm",
     ] as const) {
       expect(outerKinds.has(kind), `outer flanks should include ${kind}`).toBe(true);
     }
@@ -163,7 +152,7 @@ describe("battlefield scenery layout", () => {
       expect(buildable.length).toBeLessThanOrEqual(45);
       expect(buildable.every((cell) => (
         battlefieldCombatZoneAt(cell.q, cell.r)
-        || battlefieldRightFarmPassageAt(cell.q, cell.r)
+        || battlefieldFarmPassageAt(cell.q, cell.r)
       ))).toBe(true);
     }
   });
