@@ -130,24 +130,26 @@ export function DeploymentRail({
         </p>
       </header>
 
-      <DeployableGroup
-        title="作战单位"
-        items={TROOPS}
-        session={session}
-        selectedKind={selectedKind}
-        onSelect={onSelect}
-      />
-      <DeployableGroup
-        title="建筑工事"
-        items={BUILDINGS}
-        session={session}
-        selectedKind={selectedKind}
-        onSelect={onSelect}
-      />
-      <footer className={styles.instructions}>
-        <span>选择卡牌后点击己方势力范围</span>
-        <kbd>ESC / 右键取消</kbd>
-      </footer>
+      <div className={styles.deployablesDock}>
+        <DeployableGroup
+          title="作战单位"
+          items={TROOPS}
+          session={session}
+          selectedKind={selectedKind}
+          onSelect={onSelect}
+        />
+        <DeployableGroup
+          title="建筑工事"
+          items={BUILDINGS}
+          session={session}
+          selectedKind={selectedKind}
+          onSelect={onSelect}
+        />
+        <footer className={styles.instructions}>
+          <span>选择卡牌后点击己方势力范围</span>
+          <kbd>ESC / 右键取消</kbd>
+        </footer>
+      </div>
     </aside>
   );
 }

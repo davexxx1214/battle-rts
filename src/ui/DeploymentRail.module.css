@@ -21,6 +21,14 @@
   animation: railDeploy 280ms 70ms ease-out both;
 }
 
+.deployablesDock {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .goldHeader {
   position: relative;
   isolation: isolate;
@@ -418,6 +426,7 @@
 
 @media (max-height: 720px) {
   .rail { gap: 6px; padding-block: 8px; }
+  .deployablesDock { gap: 6px; }
   .goldReadout strong { font-size: 21px; }
   .card { min-height: 44px; padding-block: 4px; }
   .iconFrame { width: 34px; height: 34px; }
@@ -443,6 +452,172 @@
   .fullPrompt { grid-column: 1 / -1; }
   .cardList { display: grid; grid-template-columns: repeat(2, 1fr); }
   .instructions { display: none; }
+}
+
+@media (orientation: landscape) and (max-height: 520px),
+  (orientation: portrait) and (max-width: 1024px) {
+  .rail {
+    inset: 0;
+    width: auto;
+    max-height: none;
+    display: block;
+    padding: 0;
+    overflow: visible;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    pointer-events: none;
+    animation: none;
+  }
+
+  .rail[data-full="true"] {
+    border: 0;
+    box-shadow: none;
+    animation: none;
+  }
+
+  .goldHeader {
+    position: absolute;
+    z-index: 2;
+    top: max(8px, env(safe-area-inset-top));
+    left: max(8px, env(safe-area-inset-left));
+    width: 160px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0 6px;
+    padding: 6px 8px;
+    border: 1px solid var(--line-strong);
+    border-left: 3px solid var(--amber);
+    background:
+      linear-gradient(135deg, rgb(229 184 77 / 13%), transparent 55%),
+      rgb(15 17 15 / 92%);
+    box-shadow: 8px 10px 28px rgb(0 0 0 / 28%);
+    pointer-events: auto;
+  }
+
+  .goldTitle {
+    grid-template-columns: 24px auto;
+    gap: 4px;
+  }
+
+  .goldTitle > span {
+    width: 23px;
+    height: 23px;
+  }
+
+  .goldTitle > div {
+    display: none;
+  }
+
+  .goldTitle em {
+    padding: 2px 4px;
+    font-size: 7px;
+  }
+
+  .goldReadout {
+    gap: 3px;
+    margin-top: 0;
+  }
+
+  .goldReadout strong {
+    font-size: 19px;
+  }
+
+  .goldReadout span {
+    font-size: 6px;
+  }
+
+  .goldTrack {
+    grid-column: 1 / -1;
+    height: 4px;
+    margin-top: 4px;
+  }
+
+  .recoveryStatus,
+  .fullPrompt,
+  .rail[data-full="true"] .fullPrompt {
+    display: none;
+  }
+
+  .deployablesDock {
+    position: absolute;
+    z-index: 2;
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: max(8px, env(safe-area-inset-left));
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 4px;
+    padding: 5px;
+    border: 1px solid var(--line-strong);
+    border-bottom: 2px solid rgb(90 174 255 / 64%);
+    background:
+      linear-gradient(180deg, rgb(90 174 255 / 8%), transparent 62%),
+      rgb(13 15 13 / 92%);
+    box-shadow: 0 -10px 34px rgb(0 0 0 / 24%);
+    pointer-events: auto;
+  }
+
+  .group,
+  .cardList {
+    display: contents;
+  }
+
+  .group h2,
+  .instructions {
+    display: none;
+  }
+
+  .card {
+    height: 64px;
+    min-height: 64px;
+    grid-template-columns: 34px minmax(0, 1fr);
+    grid-template-rows: 1fr 1fr;
+    gap: 0 5px;
+    margin-top: 0;
+    padding: 5px;
+  }
+
+  .iconFrame {
+    width: 34px;
+    height: 34px;
+    grid-row: 1 / -1;
+    align-self: center;
+  }
+
+  .squadSize {
+    top: -5px;
+    right: -5px;
+  }
+
+  .identity strong {
+    font-size: 8px;
+  }
+
+  .identity {
+    align-self: end;
+  }
+
+  .identity small,
+  .price small {
+    display: none;
+  }
+
+  .price {
+    min-width: 0;
+    align-self: start;
+    text-align: left;
+  }
+
+  .price b {
+    font-size: 10px;
+  }
+
+  .card[data-selected="true"] {
+    transform: translateY(-2px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

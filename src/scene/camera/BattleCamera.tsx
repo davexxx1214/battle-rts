@@ -18,6 +18,7 @@ export function BattleCamera({
   readonly onViewChange?: (view: CameraViewSnapshot) => void;
 }) {
   const { camera, size } = useThree();
+  const compactViewport = Math.min(size.width, size.height) <= 520;
   const target = useRef(new Vector3(0, 0, 0));
   const keys = useRef(new Set<string>());
   const yaw = useRef(0.68);
@@ -33,12 +34,12 @@ export function BattleCamera({
     yaw.current = 0.68;
     shakeEnergy.current = 0;
     if (camera instanceof OrthographicCamera) {
-      camera.zoom = 32;
+      camera.zoom = compactViewport ? 13 : 32;
       camera.updateProjectionMatrix();
     }
     viewReportDelay.current = 0.1;
     lastViewSignature.current = "";
-  }, [camera, resetToken]);
+  }, [camera, compactViewport, resetToken]);
 
   useEffect(() => {
     if (!shake) return;

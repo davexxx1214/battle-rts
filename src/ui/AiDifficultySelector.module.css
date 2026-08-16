@@ -52,6 +52,21 @@
   }
 }
 
+@media (orientation: landscape) and (max-height: 520px),
+  (orientation: portrait) and (max-width: 1024px) {
+  .selector {
+    grid-template-columns: repeat(3, minmax(32px, 1fr));
+    padding: 2px;
+  }
+
+  .option {
+    min-height: 44px;
+    padding-inline: 4px;
+    font-size: 7px;
+    letter-spacing: 0.03em;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .option {
     transition: none;

@@ -55,6 +55,13 @@ import {
 } from "./ui/DeploymentRail";
 import { AiDifficultySelector } from "./ui/AiDifficultySelector";
 import { GameModeSelector } from "./ui/GameModeSelector";
+import {
+  fieldPointerCoordinates,
+  fieldPointerDistance,
+  pinchZoomFactor,
+  shouldStartFieldPointerInteraction,
+  type FieldPoint,
+} from "./ui/fieldInput";
 
 interface AppState {
   readonly session: BattleSessionState;
@@ -90,6 +97,9 @@ export function App() {
   const [audioEnabled, setAudioEnabled] = useState(DEFAULT_AUDIO_ENABLED);
   const [benchmark, setBenchmark] = useState<BenchmarkSnapshot | null>(null);
   const bridgeRef = useRef(createSceneInteractionBridge());
+  const activeTouchPointersRef = useRef(new Map<number, FieldPoint>());
+  const previousPinchDistanceRef = useRef<number | null>(null);
+  const suppressTouchDeploymentRef = useRef(false);
   const cameraViewStore = useMemo(createCameraViewStore, []);
   const clock = getMatchClock(battle.matchElapsed);
   const armyCounts = useMemo(() => countArmies(battle), [battle]);
@@ -184,14 +194,80 @@ export function App() {
     }));
   }, [playUiCue]);
 
+  const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (
+      event.pointerType !== "touch"
+      || !shouldStartFieldPointerInteraction(event.button, event.target as Element | null)
+    ) return;
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    activeTouchPointersRef.current.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    });
+    const pinchDistance = activeTouchDistance(activeTouchPointersRef.current);
+    if (pinchDistance === null) return;
+
+    previousPinchDistanceRef.current = pinchDistance;
+    suppressTouchDeploymentRef.current = true;
+    setCursorWorld(null);
+    event.preventDefault();
+  }, []);
+
   const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "touch") {
+      if (!activeTouchPointersRef.current.has(event.pointerId)) return;
+      activeTouchPointersRef.current.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+      const pinchDistance = activeTouchDistance(activeTouchPointersRef.current);
+      if (pinchDistance !== null) {
+        const previousDistance = previousPinchDistanceRef.current;
+        if (previousDistance !== null) {
+          bridgeRef.current.zoomByFactor(pinchZoomFactor(previousDistance, pinchDistance));
+        }
+        previousPinchDistanceRef.current = pinchDistance;
+        suppressTouchDeploymentRef.current = true;
+        setCursorWorld(null);
+        event.preventDefault();
+        return;
+      }
+      if (suppressTouchDeploymentRef.current) {
+        event.preventDefault();
+        return;
+      }
+    }
+
+    if (!shouldStartFieldPointerInteraction(0, event.target as Element | null)) {
+      setCursorWorld(null);
+      return;
+    }
     if (!app.selectedDeployable) return;
     const point = localPointer(event);
     setCursorWorld(bridgeRef.current.screenToWorld(point.x, point.y));
   }, [app.selectedDeployable]);
 
   const handlePointerUp = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || !app.selectedDeployable || !deploymentEnabled) return;
+    if (event.pointerType === "touch") {
+      const trackedPointer = activeTouchPointersRef.current.has(event.pointerId);
+      const suppressDeployment = suppressTouchDeploymentRef.current;
+      activeTouchPointersRef.current.delete(event.pointerId);
+      previousPinchDistanceRef.current = activeTouchDistance(activeTouchPointersRef.current);
+      if (activeTouchPointersRef.current.size === 0) {
+        suppressTouchDeploymentRef.current = false;
+      }
+      if (!trackedPointer || suppressDeployment) {
+        setCursorWorld(null);
+        return;
+      }
+    }
+
+    if (
+      !shouldStartFieldPointerInteraction(event.button, event.target as Element | null)
+      || !app.selectedDeployable
+      || !deploymentEnabled
+    ) return;
     const point = localPointer(event);
     const worldPosition = bridgeRef.current.screenToWorld(point.x, point.y);
     if (!worldPosition) return;
@@ -216,6 +292,16 @@ export function App() {
       };
     });
   }, [app.selectedDeployable, deploymentEnabled]);
+
+  const handlePointerCancel = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== "touch") return;
+    activeTouchPointersRef.current.delete(event.pointerId);
+    previousPinchDistanceRef.current = activeTouchDistance(activeTouchPointersRef.current);
+    if (activeTouchPointersRef.current.size === 0) {
+      suppressTouchDeploymentRef.current = false;
+    }
+    setCursorWorld(null);
+  }, []);
 
   const cancelDeployment = useCallback(() => {
     setCursorWorld(null);
@@ -305,9 +391,11 @@ export function App() {
         <div
           className={styles.battlefield}
           data-deploying={app.selectedDeployable !== null}
+          onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerLeave={() => setCursorWorld(null)}
           onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
           onContextMenu={(event) => {
             event.preventDefault();
             cancelDeployment();
@@ -348,6 +436,29 @@ export function App() {
               : fieldFeedback?.message ?? (app.selectedDeployable
                 ? "移动到己方区域，绿色预览表示可以部署"
                 : "选择建筑或兵种进入部署模式")}</strong>
+          </div>
+          <div
+            className={styles.zoomControls}
+            data-field-ui
+            role="group"
+            aria-label="战场缩放"
+          >
+            <button
+              className={styles.zoomButton}
+              type="button"
+              aria-label="缩小战场"
+              onClick={() => bridgeRef.current.zoomByFactor(0.85)}
+            >
+              <span aria-hidden="true">−</span>
+            </button>
+            <button
+              className={styles.zoomButton}
+              type="button"
+              aria-label="放大战场"
+              onClick={() => bridgeRef.current.zoomByFactor(1.18)}
+            >
+              <span aria-hidden="true">+</span>
+            </button>
           </div>
           <div
             className={styles.victoryBanner}
@@ -427,7 +538,20 @@ function localPointer(
   event: Pick<ReactPointerEvent<HTMLDivElement>, "clientX" | "clientY" | "currentTarget">,
 ) {
   const bounds = event.currentTarget.getBoundingClientRect();
-  return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+  return fieldPointerCoordinates(
+    { x: event.clientX, y: event.clientY },
+    bounds,
+    {
+      width: event.currentTarget.clientWidth,
+      height: event.currentTarget.clientHeight,
+    },
+    window.matchMedia("(orientation: portrait)").matches,
+  );
+}
+
+function activeTouchDistance(touches: ReadonlyMap<number, FieldPoint>): number | null {
+  const [first, second] = touches.values();
+  return first && second ? fieldPointerDistance(first, second) : null;
 }
 
 function countArmies(battle: BattleState) {

@@ -36,6 +36,7 @@ import { FrameBenchmark, type BenchmarkSnapshot } from "../game/benchmark";
 export interface SceneInteractionBridge {
   screenToWorld: (x: number, y: number) => WorldPoint | null;
   zoomBy: (deltaY: number) => void;
+  zoomByFactor: (factor: number) => void;
 }
 
 interface BattlefieldCanvasProps {
@@ -59,6 +60,7 @@ export function createSceneInteractionBridge(): SceneInteractionBridge {
   return {
     screenToWorld: () => null,
     zoomBy: () => undefined,
+    zoomByFactor: () => undefined,
   };
 }
 
@@ -88,6 +90,7 @@ export function BattlefieldCanvas({
       dpr={onBenchmarkUpdate ? 1 : [1, 1.5]}
       camera={{ position: [16, 18, 20], zoom: 32, near: 0.1, far: 140 }}
       gl={{ antialias: true, alpha: false }}
+      resize={{ offsetSize: true }}
       style={{ width: "100%", height: "100%", background: "#aeb9ad" }}
     >
       <color attach="background" args={["#aeb9ad"]} />
@@ -273,10 +276,19 @@ function SceneBridge({
       const point = raycaster.ray.intersectPlane(ground, hit);
       return point ? { x: point.x, z: point.z } : null;
     };
-    bridgeRef.current.zoomBy = (deltaY) => {
+    bridgeRef.current.zoomByFactor = (factor) => {
       if (!(camera instanceof OrthographicCamera)) return;
-      camera.zoom = MathUtils.clamp(camera.zoom * (deltaY > 0 ? 0.9 : 1.1), 22, 56);
+      if (!Number.isFinite(factor) || factor <= 0) return;
+      const minimumZoom = Math.min(size.width, size.height) <= 520 ? 11 : 22;
+      camera.zoom = MathUtils.clamp(
+        camera.zoom * factor,
+        minimumZoom,
+        56,
+      );
       camera.updateProjectionMatrix();
+    };
+    bridgeRef.current.zoomBy = (deltaY) => {
+      bridgeRef.current.zoomByFactor(deltaY > 0 ? 0.9 : 1.1);
     };
   });
   return null;

@@ -8,12 +8,15 @@
   width: 100%;
   min-width: 320px;
   height: 100%;
+  height: 100dvh;
   margin: 0;
 }
 
 :global(body) {
   overflow: hidden;
+  overscroll-behavior: none;
   background: #0c0b09;
+  -webkit-text-size-adjust: 100%;
 }
 
 :global(button) {
@@ -36,6 +39,7 @@
   width: 100%;
   height: 100%;
   position: relative;
+  overflow: hidden;
   isolation: isolate;
   color: var(--parchment);
   background:
@@ -307,6 +311,42 @@
   color: #a9d8ff;
 }
 
+.zoomControls {
+  display: none;
+}
+
+.zoomButton {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  color: var(--parchment);
+  background: rgb(18 19 16 / 91%);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 28%);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.zoomButton span {
+  font-family: var(--text);
+  font-size: 25px;
+  line-height: 1;
+}
+
+.zoomButton:active {
+  border-color: var(--amber);
+  color: var(--amber);
+  background: #222117;
+  transform: translateY(1px);
+}
+
+.zoomButton:focus-visible {
+  outline: 2px solid var(--parchment);
+  outline-offset: 2px;
+}
+
 .victoryBanner {
   position: absolute;
   z-index: 15;
@@ -557,6 +597,151 @@
   .fieldCaption {
     left: 8px;
     bottom: 8px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px),
+  (orientation: portrait) and (max-width: 1024px) {
+  .commandBar {
+    height: 56px;
+    grid-template-columns: auto 1fr auto;
+    gap: 6px;
+    padding-right: max(8px, env(safe-area-inset-right));
+    padding-left: max(8px, env(safe-area-inset-left));
+  }
+
+  .brandLockup {
+    gap: 0;
+  }
+
+  .brandSigil {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+
+  .brandLockup > div:last-child,
+  .battlePulse {
+    display: none;
+  }
+
+  .commandCenter,
+  .headerActions {
+    gap: 4px;
+  }
+
+  .restartButton,
+  .audioToggle,
+  .engagementOrder {
+    min-height: 44px;
+  }
+
+  .restartButton {
+    width: 54px;
+    padding: 6px;
+    font-size: 8px;
+    letter-spacing: 0.04em;
+  }
+
+  .audioToggle {
+    width: 44px;
+    min-width: 44px;
+    padding: 6px;
+    font-size: 0;
+  }
+
+  .audioToggle span {
+    width: auto;
+    font-size: 14px;
+  }
+
+  .audioToggle strong {
+    display: none;
+  }
+
+  .engagementOrder {
+    width: 64px;
+    min-width: 64px;
+    height: 44px;
+    padding: 5px 7px;
+  }
+
+  .engagementOrder span {
+    display: none;
+  }
+
+  .engagementOrder strong {
+    font-size: 13px;
+  }
+
+  .warTable {
+    height: calc(100% - 56px);
+  }
+
+  .battlefield {
+    bottom: 85px;
+  }
+
+  .enemyRail,
+  .fieldCaption {
+    display: none;
+  }
+
+  .objectiveFlag {
+    top: 8px;
+    right: max(8px, env(safe-area-inset-right));
+    left: auto;
+    width: max-content;
+    max-width: min(230px, calc(100% - 190px));
+    padding: 8px 10px;
+    border-right: 3px solid var(--amber);
+    border-left: 0;
+    text-align: right;
+    transform: none;
+  }
+
+  .objectiveFlag span {
+    display: none;
+  }
+
+  .objectiveFlag strong {
+    margin-top: 0;
+    font-size: 10px;
+  }
+
+  .objectiveFlag[data-tone="error"] {
+    border-right-color: var(--crimson);
+  }
+
+  .objectiveFlag[data-tone="success"] {
+    border-right-color: var(--verdant);
+  }
+
+  .zoomControls {
+    position: absolute;
+    z-index: 12;
+    right: max(8px, env(safe-area-inset-right));
+    bottom: 8px;
+    display: grid;
+    grid-template-columns: repeat(2, 44px);
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid rgb(222 211 183 / 18%);
+    background: rgb(10 11 9 / 72%);
+    box-shadow: 0 8px 22px rgb(0 0 0 / 26%);
+  }
+}
+
+@media (orientation: portrait) {
+  .appShell {
+    width: 100vh;
+    width: 100dvh;
+    height: 100vw;
+    height: 100dvw;
+    position: absolute;
+    inset: 0 auto auto 0;
+    transform: rotate(90deg) translateY(-100%);
+    transform-origin: top left;
   }
 }
 
