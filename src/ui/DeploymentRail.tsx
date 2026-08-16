@@ -211,7 +211,6 @@ export function deploymentReasonLabel(reason: DeploymentFailureReason): string {
     case "unbuildable-hex": return "此格不可建造";
     case "unwalkable-hex": return "此处不可部署";
     case "occupied-hex": return "格子已被占用";
-    case "blocked-route": return "会阻断进攻路线";
     case "duplicate-building-id": return "部署编号冲突";
     case "match-over": return "战斗已经结束";
   }

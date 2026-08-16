@@ -44,7 +44,7 @@ export type BattleEventInput =
       readonly attackerId: string;
       readonly targetId: string;
       readonly targetType: CombatTargetType;
-      readonly role: UnitRole | "castle";
+      readonly role: UnitRole | "castle" | "arrow-tower";
       readonly origin: WorldPoint;
       readonly targetPosition: WorldPoint;
     }
@@ -71,7 +71,7 @@ export type BattleEventInput =
   | {
       readonly type: "damage-applied";
       readonly sourceId: string;
-      readonly sourceRole: UnitRole | "castle";
+      readonly sourceRole: UnitRole | "castle" | "arrow-tower";
       readonly sourcePosition: WorldPoint;
       readonly targetId: string;
       readonly targetType: CombatTargetType;

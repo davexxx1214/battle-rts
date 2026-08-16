@@ -166,11 +166,12 @@ export const STRUCTURE_SCENE_ASSETS = {
 
 export const BATTLE_BUILDING_ASSET_KEYS = {
   castle: "castle",
+  "arrow-tower": "arrow-tower",
   "gold-mine": "mine",
   barracks: "barracks",
 } as const satisfies Readonly<Record<
   BattleBuildingKind,
-  "castle" | "mine" | "barracks"
+  "castle" | "arrow-tower" | "mine" | "barracks"
 >>;
 
 const BUILDING_PROP_ROOT = "/assets/kaykit/medieval-hex/decoration/props";
@@ -213,6 +214,7 @@ function createBattleBuildingDetails(color: "blue" | "red") {
         -0.72, 0.09, 0.64,
       ], 0.16),
     ],
+    "arrow-tower": [],
     "gold-mine": [
       buildingDetail("ore-pile", `${BUILDING_PROP_ROOT}/resource_stone.gltf`, 1.45, [
         0.68, 0.08, 0.46,

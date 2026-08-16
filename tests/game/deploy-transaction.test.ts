@@ -23,10 +23,12 @@ const VERDANT_BUILDING_CELL = requiredCell(BATTLEFIELD_MAP.cells.find((cell) => 
     kind: "gold-mine",
     faction: "verdant",
     worldPosition: axialToWorld(cell),
-  }).ok;
+  }, []).ok;
 }), "verdant buildable");
 const VERDANT_TROOP_CELL = requiredCell(BATTLEFIELD_MAP.cells.find((cell) => (
-  cell.territory === "verdant" && cell.walkable
+  cell.territory === "verdant"
+  && cell.walkable
+  && coordinateKey(cell) !== coordinateKey(VERDANT_BUILDING_CELL)
 )), "verdant troop");
 const CRIMSON_TROOP_CELL = requiredCell(BATTLEFIELD_MAP.cells.find((cell) => (
   cell.territory === "crimson" && cell.walkable
@@ -181,15 +183,19 @@ describe("atomic battle deployment", () => {
     ))).toHaveLength(1);
   });
 
-  it("rejects a troop deployment on a walkable hex disconnected from the battle route", () => {
-    const isolatedCell = { q: -1, r: 7 };
+  it("rejects troop deployment on a walkable hex occupied by an active arrow tower", () => {
+    const session = unresolvedSession();
+    const arrowTower = session.battle.buildings.find((building) => (
+      building.faction === "verdant" && building.kind === "arrow-tower"
+    ));
+    if (!arrowTower) throw new Error("Missing active verdant arrow tower");
 
-    expect(getMapCell(BATTLEFIELD_MAP, isolatedCell)?.walkable).toBe(true);
-    expect(previewDeployment(unresolvedSession(), {
+    expect(getMapCell(BATTLEFIELD_MAP, arrowTower.coordinate)?.walkable).toBe(true);
+    expect(previewDeployment(session, {
       faction: "verdant",
       kind: "swordsman",
-      worldPosition: axialToWorld(isolatedCell),
-    })).toMatchObject({ valid: false, reason: "unwalkable-hex" });
+      worldPosition: arrowTower.position,
+    })).toMatchObject({ valid: false, reason: "occupied-hex" });
   });
 
   it.each([
@@ -275,5 +281,37 @@ describe("atomic battle deployment", () => {
       position: axialToWorld(VERDANT_BUILDING_CELL),
     });
     expect(invalid).toMatchObject({ valid: false, reason: "enemy-territory" });
+  });
+
+  it("rejects a building preview and commit on a hex occupied by a living unit", () => {
+    const session = unresolvedSession();
+    const blocker = createBattleUnit({
+      id: "verdant-building-blocker",
+      faction: "verdant",
+      role: "knight",
+      position: axialToWorld(VERDANT_BUILDING_CELL),
+    });
+    const occupied = {
+      ...session,
+      battle: {
+        ...session.battle,
+        units: [...session.battle.units, blocker],
+      },
+    };
+    const request = {
+      faction: "verdant" as const,
+      kind: "barracks" as const,
+      worldPosition: axialToWorld(VERDANT_BUILDING_CELL),
+    };
+
+    expect(previewDeployment(occupied, request)).toMatchObject({
+      valid: false,
+      reason: "occupied-hex",
+    });
+    expect(deployBattleSessionEntity(occupied, request)).toMatchObject({
+      ok: false,
+      state: occupied,
+      reason: "occupied-hex",
+    });
   });
 });

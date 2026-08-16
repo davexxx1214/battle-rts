@@ -124,7 +124,7 @@ describe("building simulation", () => {
     expect(advanced.events.filter((event) => event.type === "building-destroyed")).toHaveLength(0);
   });
 
-  it("spawns three deterministic friendly swordsmen from a full-lived barracks", () => {
+  it("spawns four deterministic friendly swordsmen from a full-lived barracks", () => {
     const barracks = createBattleBuilding({
       id: "verdant-barracks-1",
       kind: "barracks",
@@ -147,16 +147,18 @@ describe("building simulation", () => {
     const second = advanceBuildings(input);
 
     expect(first.unitSpawns).toEqual(second.unitSpawns);
-    expect(first.unitSpawns).toHaveLength(3);
+    expect(first.unitSpawns).toHaveLength(4);
     expect(first.unitSpawns.map((spawn) => spawn.unitId)).toEqual([
       `${barracks.id}-swordsman-1`,
       `${barracks.id}-swordsman-2`,
       `${barracks.id}-swordsman-3`,
+      `${barracks.id}-swordsman-4`,
     ]);
+    expect(first.unitSpawns.map((spawn) => spawn.scheduledAt)).toEqual([15, 23, 31, 39]);
     expect(first.unitSpawns.every((spawn) => (
       spawn.faction === "verdant" && spawn.role === "knight"
     ))).toBe(true);
-    expect(new Set(first.unitSpawns.map((spawn) => JSON.stringify(spawn.position))).size).toBe(3);
+    expect(new Set(first.unitSpawns.map((spawn) => JSON.stringify(spawn.position))).size).toBe(4);
   });
 
   it("skips a blocked barracks spawn without queueing it for later", () => {
@@ -288,6 +290,58 @@ describe("building simulation", () => {
     expect(advanced.events).toEqual([]);
   });
 
+  it("creates permanent arrow towers that can be damaged, destroyed, and removed", () => {
+    const tower = createBattleBuilding({
+      id: "verdant-arrow-tower-left",
+      kind: "arrow-tower",
+      faction: "verdant",
+      coordinate: { q: -4, r: 6 },
+      createdAt: 0,
+    });
+
+    expect(tower).toMatchObject({
+      maxHealth: GAME_RULES.castle.maxHealth / 4,
+      health: GAME_RULES.castle.maxHealth / 4,
+      lifetimeSeconds: null,
+      status: "active",
+    });
+    const destroyed = advanceBuildings({
+      buildings: [tower],
+      economy: createEconomyState(),
+      occupancy: {},
+      map: BATTLEFIELD_MAP,
+      units: [],
+      elapsedSeconds: 0,
+      deltaSeconds: 0.1,
+      damageIntents: [{
+        sourceId: "crimson-attacker",
+        sourceType: "unit",
+        targetId: tower.id,
+        targetType: "building",
+        amount: tower.maxHealth,
+      }],
+    });
+
+    expect(destroyed.buildings[0]).toMatchObject({ health: 0, status: "destroyed" });
+    expect(destroyed.events).toContainEqual(expect.objectContaining({
+      type: "building-destroyed",
+      buildingId: tower.id,
+      cause: "damage",
+    }));
+
+    const removed = advanceBuildings({
+      buildings: destroyed.buildings,
+      economy: destroyed.economy,
+      occupancy: destroyed.occupancy,
+      map: BATTLEFIELD_MAP,
+      units: [],
+      elapsedSeconds: 0.1,
+      deltaSeconds: GAME_RULES.buildings.destructionSeconds,
+      damageIntents: [],
+    });
+    expect(removed.buildings).toEqual([]);
+  });
+
   it("produces the same mine state with one large update or fixed small updates", () => {
     const mine = createBattleBuilding({
       id: "granularity-mine",
@@ -340,7 +394,7 @@ function occupy(building: BattleBuilding): BuildingOccupancy {
   return {
     [coordinateKey(building.coordinate)]: {
       buildingId: building.id,
-      kind: building.kind === "castle" ? "barracks" : building.kind,
+      kind: building.kind === "gold-mine" ? "gold-mine" : "barracks",
       faction: building.faction,
       coordinate: building.coordinate,
     },

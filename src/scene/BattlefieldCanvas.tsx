@@ -101,12 +101,16 @@ export function BattlefieldCanvas({
       {onBenchmarkUpdate && <BenchmarkProbe onUpdate={onBenchmarkUpdate} />}
       <Suspense fallback={<ArenaFallback />}>
         <BattlefieldTerrain />
+      </Suspense>
+      <Suspense fallback={null}>
         <BattleBuildingLayer battle={battle} />
-        <UnitShadowInstances battle={battle} />
-        {battle.units.map((unit) => {
-          const damage = latestDamagePresentation(battle, unit.id);
-          const attack = attackPresentations.get(unit.id);
-          return (
+      </Suspense>
+      <UnitShadowInstances battle={battle} />
+      {battle.units.map((unit) => {
+        const damage = latestDamagePresentation(battle, unit.id);
+        const attack = attackPresentations.get(unit.id);
+        return (
+          <Suspense fallback={null} key={unit.id}>
             <UnitModel
               unit={unit}
               selected={false}
@@ -115,10 +119,11 @@ export function BattlefieldCanvas({
               battleTime={battle.elapsed}
               damageTime={damage?.time}
               damageSourcePosition={damage?.sourcePosition}
-              key={unit.id}
             />
-          );
-        })}
+          </Suspense>
+        );
+      })}
+      <Suspense fallback={null}>
         <BattleEffects battle={battle} />
       </Suspense>
       {deploymentPreview && <DeploymentPreviewVisual preview={deploymentPreview} />}

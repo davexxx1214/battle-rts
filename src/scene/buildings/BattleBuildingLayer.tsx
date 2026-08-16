@@ -9,7 +9,7 @@ import {
   SpriteMaterial,
 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 
 import type { BattleState } from "../../game/battle";
 import type { BattleBuilding } from "../../game/buildings";
@@ -37,7 +37,9 @@ export function BattleBuildingLayer({ battle }: { readonly battle: BattleState }
   return (
     <group>
       {battle.buildings.map((building) => (
-        <BattleBuildingVisual battle={battle} building={building} key={building.id} />
+        <Suspense fallback={null} key={building.id}>
+          <BattleBuildingVisual battle={battle} building={building} />
+        </Suspense>
       ))}
     </group>
   );
@@ -70,11 +72,15 @@ function BattleBuildingVisual({
       {building.kind === "castle"
         ? <CastleBuildingModel faction={building.faction} />
         : <DeployedBuildingModel faction={building.faction} kind={building.kind} />}
-      <BuildingDetailModels faction={building.faction} kind={building.kind} />
+      {building.kind !== "arrow-tower" && (
+        <BuildingDetailModels faction={building.faction} kind={building.kind} />
+      )}
       <BuildingHealthBar
         ratio={presentation.healthRatio}
         tone={presentation.healthTone}
-        height={building.kind === "castle" ? 4.3 : building.kind === "barracks" ? 2.35 : 1.9}
+        height={building.kind === "castle"
+          ? 4.3
+          : building.kind === "arrow-tower" ? 3.25 : building.kind === "barracks" ? 2.35 : 1.9}
       />
       {presentation.productionProgress !== null && (
         <ProductionProgress
@@ -84,7 +90,9 @@ function BattleBuildingVisual({
       )}
       {signal && <BuildingSignalEffect signal={signal} building={building} />}
       {presentation.kingVisible && building.kind === "castle" && (
-        <CastleBattleStandard faction={building.faction} />
+        <Suspense fallback={null}>
+          <CastleBattleStandard faction={building.faction} />
+        </Suspense>
       )}
       {presentation.lifecycle === "destroying" && (
         <DestructionBurst progress={presentation.destructionProgress} />

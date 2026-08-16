@@ -1,4 +1,4 @@
-import type { WorldPoint } from "./types";
+import type { Faction, WorldPoint } from "./types";
 import {
   axialToWorld,
   getMapCell,
@@ -18,6 +18,10 @@ const NEIGHBORS: readonly HexCoordinate[] = [
 ];
 
 const componentIndexes = new WeakMap<BattlefieldMap, ReadonlyMap<string, number>>();
+
+export function castleChargeNavigationKey(targetFaction: Faction): string {
+  return `charge:${targetFaction}-castle`;
+}
 
 export function areWorldPointsConnected(
   map: BattlefieldMap,

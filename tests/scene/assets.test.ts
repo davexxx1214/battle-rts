@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   BATTLE_BUILDING_DETAIL_URLS,
+  BATTLE_BUILDING_ASSET_KEYS,
   FACTION_SCENE_COLORS,
   SCENERY_SCENE_ASSETS,
   SCENE_MODEL_URLS,
@@ -76,6 +77,12 @@ describe("scene asset presentation", () => {
       .toContain("/assets/kaykit/medieval-hex/decoration/props/flag_blue.gltf");
     expect(battleBuildingDetailAssets("crimson", "castle").map(({ url }) => url))
       .toContain("/assets/kaykit/medieval-hex/decoration/props/flag_red.gltf");
+  });
+
+  it("renders arrow towers through the authoritative battle-building asset path", () => {
+    expect(BATTLE_BUILDING_ASSET_KEYS["arrow-tower"]).toBe("arrow-tower");
+    expect(battleBuildingDetailAssets("verdant", "arrow-tower")).toEqual([]);
+    expect(battleBuildingDetailAssets("crimson", "arrow-tower")).toEqual([]);
   });
 
   it("maps every battlefield scenery kind to a local KayKit model", () => {

@@ -15,6 +15,7 @@ import { Suspense, useLayoutEffect, useMemo, useRef } from "react";
 import {
   BATTLEFIELD_DECORATIONS,
   BATTLEFIELD_MAP,
+  BATTLEFIELD_STATIC_STRUCTURES,
   BATTLEFIELD_STRUCTURES,
   axialToWorld,
   terrainHeightAt,
@@ -156,7 +157,7 @@ function BattlefieldProps() {
   );
   return (
     <group>
-      {BATTLEFIELD_STRUCTURES.filter((structure) => structure.kind !== "castle").map((structure) => {
+      {BATTLEFIELD_STATIC_STRUCTURES.map((structure) => {
         const world = axialToWorld(structure.coordinate);
         const asset = sceneAssetForStructure(structure);
         return (

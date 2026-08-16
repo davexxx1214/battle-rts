@@ -64,6 +64,13 @@ export interface GameRules {
   };
   readonly buildings: {
     readonly destructionSeconds: number;
+    readonly arrowTower: {
+      readonly maxHealth: number;
+      readonly damage: number;
+      readonly attackRange: number;
+      readonly attackCooldown: number;
+      readonly projectileSpeed: number;
+    };
     readonly goldMine: {
       readonly cost: number;
       readonly maxHealth: number;
@@ -152,7 +159,8 @@ export const TROOP_ROLE_BY_DEPLOYABLE = {
 } as const satisfies Readonly<Record<TroopKind, UnitRole>>;
 
 const GOLD_MINE_COST = 700;
-const BARRACKS_COST = 600;
+const BARRACKS_COST = 500;
+const CASTLE_MAX_HEALTH = 2000;
 
 export const GAME_RULES = {
   match: {
@@ -195,6 +203,13 @@ export const GAME_RULES = {
   },
   buildings: {
     destructionSeconds: 0.8,
+    arrowTower: {
+      maxHealth: CASTLE_MAX_HEALTH / 4,
+      damage: UNIT_SPECS.ranger.damage,
+      attackRange: UNIT_SPECS.ranger.attackRange,
+      attackCooldown: UNIT_SPECS.ranger.attackCooldown,
+      projectileSpeed: UNIT_SPECS.ranger.projectileSpeed,
+    },
     goldMine: {
       cost: GOLD_MINE_COST,
       maxHealth: 900,
@@ -209,14 +224,14 @@ export const GAME_RULES = {
       maxHealth: 1200,
       lifetimeSeconds: 30,
       firstSpawnSeconds: 5,
-      spawnIntervalSeconds: 10,
-      spawnCount: 3,
+      spawnIntervalSeconds: 8,
+      spawnCount: 4,
       spawnedUnit: "swordsman",
       maximumActivePerFaction: 2,
     },
   },
   castle: {
-    maxHealth: 2000,
+    maxHealth: CASTLE_MAX_HEALTH,
     damage: 60,
     attackRange: 8,
     attackCooldown: 1.5,
@@ -345,6 +360,13 @@ export function validateGameRules(rules: GameRules): string[] {
     "spawnCount",
     "maximumActivePerFaction",
   ]);
+  validatePositiveGroup(errors, "buildings.arrowTower", buildings.arrowTower, [
+    "maxHealth",
+    "damage",
+    "attackRange",
+    "attackCooldown",
+    "projectileSpeed",
+  ]);
   if (buildings.goldMine.firstProductionSeconds > buildings.goldMine.lifetimeSeconds) {
     errors.push("gold mine must produce before its lifetime ends");
   }
@@ -372,6 +394,12 @@ export function validateGameRules(rules: GameRules): string[] {
   ]);
   if (castle.attackRange < Math.max(units.ranger.attackRange, units.mage.attackRange)) {
     errors.push("castle.attackRange must reach ranger and mage attack ranges");
+  }
+  if (buildings.arrowTower.maxHealth !== castle.maxHealth / 4) {
+    errors.push("arrow tower health must equal one-quarter castle health");
+  }
+  if (buildings.arrowTower.attackRange !== units.ranger.attackRange) {
+    errors.push("arrow tower range must equal ranger attack range");
   }
 
   for (const [role, spec] of Object.entries(units)) {

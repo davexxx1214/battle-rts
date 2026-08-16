@@ -118,7 +118,7 @@ export function getDeployableAvailability(
       building.faction === faction && building.kind === kind
     )).length;
     if (existing >= maximum) return { enabled: false, reason: "building-limit" };
-    if (!hasBuildableHex(BATTLEFIELD_MAP, faction, state.buildingOccupancy)) {
+    if (!hasBuildableHex(BATTLEFIELD_MAP, faction, state.buildingOccupancy, state.units)) {
       return { enabled: false, reason: "no-buildable-hex" };
     }
   }
@@ -150,7 +150,7 @@ export function previewDeployment(
       kind: request.kind,
       faction: request.faction,
       worldPosition: request.worldPosition,
-    });
+    }, state.units);
     if (!placement.ok) {
       return invalidPreview(placement.reason, request.worldPosition);
     }
@@ -169,14 +169,15 @@ export function previewDeployment(
   if (cell.territory !== request.faction || !cell.walkable) {
     return invalidPreview("unwalkable-hex", request.worldPosition);
   }
-  if (state.buildingOccupancy[coordinateKey(coordinate)]) {
+  const occupiedBuildings = occupiedBuildingKeys(state);
+  if (occupiedBuildings.has(coordinateKey(coordinate))) {
     return invalidPreview("occupied-hex", request.worldPosition);
   }
   const unitPositions = planTroopPositions(
     request.faction,
     request.kind,
     coordinate,
-    state.buildingOccupancy,
+    occupiedBuildings,
   );
   if (!unitPositions.ok) {
     return invalidPreview(unitPositions.reason, request.worldPosition);
@@ -216,7 +217,7 @@ export function deployBattleSessionEntity(
       kind: request.kind,
       faction: request.faction,
       worldPosition: request.worldPosition,
-    });
+    }, units);
     // This is a deterministic replay of the validated preview and cannot fail
     // without a programming error. Do not commit a partial state if it does.
     if (!placement.ok) {
@@ -324,7 +325,7 @@ function planTroopPositions(
   faction: Faction,
   kind: TroopKind,
   coordinate: HexCoordinate,
-  occupancy: BattleSessionState["battle"]["buildingOccupancy"],
+  occupiedBuildings: ReadonlySet<string>,
 ): { readonly ok: true; readonly positions: readonly WorldPoint[] }
   | { readonly ok: false; readonly reason: DeploymentFailureReason } {
   const center = axialToWorld(coordinate);
@@ -351,11 +352,22 @@ function planTroopPositions(
     if (!areWorldPointsConnected(BATTLEFIELD_MAP, position, destination)) {
       return { ok: false, reason: "unwalkable-hex" };
     }
-    if (occupancy[coordinateKey(memberCoordinate)]) {
+    if (occupiedBuildings.has(coordinateKey(memberCoordinate))) {
       return { ok: false, reason: "occupied-hex" };
     }
   }
   return { ok: true, positions };
+}
+
+function occupiedBuildingKeys(
+  state: BattleSessionState["battle"],
+): ReadonlySet<string> {
+  return new Set([
+    ...Object.keys(state.buildingOccupancy),
+    ...state.buildings
+      .filter((building) => building.health > 0 && building.status === "active")
+      .map((building) => coordinateKey(building.coordinate)),
+  ]);
 }
 
 function invalidPreview(

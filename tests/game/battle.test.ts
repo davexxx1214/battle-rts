@@ -19,13 +19,15 @@ function runSteps(initial: BattleState, count: number, delta = 0.1): BattleState
 }
 
 describe("automatic battle simulation", () => {
-  it("starts with castles and economy but no pre-deployed troops", () => {
+  it("starts with castles, defensive arrow towers, and no pre-deployed troops", () => {
     const initial = createInitialBattle();
 
     expect(initial.units).toEqual([]);
     expect(initial.squads).toEqual([]);
     expect(initial.buildings.filter((building) => building.kind === "castle"))
       .toHaveLength(2);
+    expect(initial.buildings.filter((building) => building.kind === "arrow-tower"))
+      .toHaveLength(4);
   });
 
   it("applies the defender's configured damage reduction to incoming attacks", () => {

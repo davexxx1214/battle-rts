@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { createBattleState } from "../../src/game/battle";
+import { createBattleState, createBattleUnit } from "../../src/game/battle";
 import type { BattleSessionState } from "../../src/game/battleSession";
 import { advanceOpponentAi } from "../../src/game/opponentAi";
 import { GAME_RULES } from "../../src/game/rules";
-import { BATTLEFIELD_MAP, coordinateKey, getMapCell } from "../../src/map/battlefield";
+import {
+  BATTLEFIELD_MAP,
+  axialToWorld,
+  coordinateKey,
+  getMapCell,
+} from "../../src/map/battlefield";
 
 function engagedSession(crimsonGold: number): BattleSessionState {
   const battle = createBattleState([]);
@@ -109,22 +114,19 @@ describe("deterministic opponent deployment AI", () => {
     expect(next.battle.nextDeploymentSequence).toBe(3);
   });
 
-  it("falls back to a troop when every crimson building hex is occupied", () => {
+  it("falls back to a troop when living units occupy every crimson building hex", () => {
     const initial = engagedSession(GAME_RULES.economy.maximumGold);
-    const occupied = BATTLEFIELD_MAP.cells
+    const blockers = BATTLEFIELD_MAP.cells
       .filter((cell) => cell.territory === "crimson" && cell.buildable)
-      .reduce((result, cell, index) => ({
-        ...result,
-        [coordinateKey(cell)]: {
-          buildingId: `blocker-${index}`,
-          kind: "barracks" as const,
-          faction: "crimson" as const,
-          coordinate: { q: cell.q, r: cell.r },
-        },
-      }), initial.battle.buildingOccupancy);
+      .map((cell, index) => createBattleUnit({
+        id: `crimson-building-blocker-${index}`,
+        faction: "crimson",
+        role: "knight",
+        position: axialToWorld(cell),
+      }));
     const blocked: BattleSessionState = {
       ...initial,
-      battle: { ...initial.battle, buildingOccupancy: occupied },
+      battle: { ...initial.battle, units: blockers },
     };
 
     const next = advanceOpponentAi(blocked);

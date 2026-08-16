@@ -112,6 +112,18 @@ export const BATTLEFIELD_STRUCTURES: readonly BattlefieldStructure[] = [
   ...createCampStructures("crimson"),
 ];
 
+export const BATTLEFIELD_BATTLE_STRUCTURES: readonly BattlefieldStructure[] = (
+  BATTLEFIELD_STRUCTURES.filter((structure) => (
+    structure.kind === "castle" || structure.kind === "arrow-tower"
+  ))
+);
+
+export const BATTLEFIELD_STATIC_STRUCTURES: readonly BattlefieldStructure[] = (
+  BATTLEFIELD_STRUCTURES.filter((structure) => (
+    structure.kind !== "castle" && structure.kind !== "arrow-tower"
+  ))
+);
+
 export const BATTLEFIELD_DECORATIONS: readonly BattlefieldDecoration[] = [
   ...createCampDecorations("verdant"),
   ...createCampDecorations("crimson"),
@@ -121,6 +133,16 @@ const STRUCTURE_FOOTPRINT_KEYS = new Set(
   BATTLEFIELD_STRUCTURES.flatMap((structure) => (
     structure.footprint.map(({ q, r }) => `${q},${r}`)
   )),
+);
+const PERMANENT_STRUCTURE_FOOTPRINT_KEYS = new Set(
+  BATTLEFIELD_STATIC_STRUCTURES
+    .concat(BATTLEFIELD_BATTLE_STRUCTURES.filter((structure) => structure.kind === "castle"))
+    .flatMap((structure) => structure.footprint.map(({ q, r }) => `${q},${r}`)),
+);
+const CASTLE_GATE_KEYS = new Set(
+  BATTLEFIELD_STRUCTURES
+    .filter((structure) => structure.kind === "wall-gate")
+    .map((structure) => coordinateKey(structure.coordinate)),
 );
 
 export const BATTLEFIELD_MAP: BattlefieldMap = createBattlefieldMap();
@@ -227,7 +249,7 @@ function createCell(q: number, r: number): BattlefieldCell {
   const walkable = surface !== "water"
     && surface !== "forest"
     && surface !== "rock"
-    && !STRUCTURE_FOOTPRINT_KEYS.has(coordinateKey({ q, r }))
+    && !PERMANENT_STRUCTURE_FOOTPRINT_KEYS.has(coordinateKey({ q, r }))
     && !battlefieldStaticObstacleAt(q, r);
   const territory: Faction | null = r >= 2
     ? "verdant"
@@ -246,7 +268,8 @@ function createCell(q: number, r: number): BattlefieldCell {
     buildable: territory !== null
       && walkable
       && surface !== "bridge"
-      && !reservedForPath,
+      && !STRUCTURE_FOOTPRINT_KEYS.has(coordinateKey({ q, r }))
+      && !CASTLE_GATE_KEYS.has(coordinateKey({ q, r })),
   };
 }
 

@@ -4,6 +4,7 @@ import type { UnitRole, WorldPoint } from "./types";
 export interface BattleProjectile {
   readonly id: string;
   readonly attackerId: string;
+  readonly sourceType: CombatTargetType;
   readonly targetId: string;
   readonly targetType: CombatTargetType;
   readonly role: UnitRole;

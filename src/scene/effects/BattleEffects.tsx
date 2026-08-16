@@ -161,7 +161,13 @@ function ProjectilePool({
         ).normalize();
         dummy.position.set(
           projectile.position.x,
-          terrainHeightAt(projectile.position) + 0.92 + projectileArcOffset("ranger", progress),
+          terrainHeightAt(projectile.position)
+            + MathUtils.lerp(
+              projectile.sourceType === "building" ? 2.65 : 0.92,
+              0.92,
+              progress,
+            )
+            + projectileArcOffset("ranger", progress),
           projectile.position.z,
         );
         dummy.quaternion.copy(rotation.setFromUnitVectors(up, direction));

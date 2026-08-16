@@ -172,7 +172,7 @@ function withBuilding(state: BattleState, building: BattleBuilding): BattleState
   const occupancy: BuildingOccupancy = {
     [coordinateKey(building.coordinate)]: {
       buildingId: building.id,
-      kind: building.kind === "castle" ? "barracks" : building.kind,
+      kind: building.kind === "gold-mine" ? "gold-mine" : "barracks",
       faction: building.faction,
       coordinate: building.coordinate,
     },

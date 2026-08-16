@@ -1,6 +1,13 @@
-import { axialToWorld, BATTLEFIELD_MAP } from "../map/battlefield";
+import {
+  axialToWorld,
+  BATTLEFIELD_MAP,
+  coordinateKey,
+  worldToAxial,
+  type HexCoordinate,
+} from "../map/battlefield";
 import type { BattleBuilding } from "./buildings";
 import type { CombatTarget, CombatTargetRef } from "./combat";
+import { castleChargeNavigationKey, findHexPath } from "./navigation";
 import { GAME_RULES, UNIT_SPECS } from "./rules";
 import type { Faction, UnitRole, WorldPoint } from "./types";
 
@@ -9,6 +16,8 @@ export interface AutomaticCombatUnit extends CombatTarget {
   readonly role: UnitRole;
   readonly behavior: "charging" | "engaging" | "castle-locked";
   readonly currentTarget: CombatTargetRef | null;
+  readonly waypoints: readonly WorldPoint[];
+  readonly navigationKey: string | null;
 }
 
 export type AutomaticCombatTarget = AutomaticCombatUnit | BattleBuilding;
@@ -20,6 +29,7 @@ export interface AutomaticTargetSelectionInput {
 }
 
 const POSITION_EPSILON = 1e-9;
+const castleRouteCache = new Map<string, readonly HexCoordinate[]>();
 
 export function selectAutomaticTarget(
   input: AutomaticTargetSelectionInput,
@@ -42,13 +52,6 @@ export function selectAutomaticTarget(
         && candidate.id === input.unit.currentTarget.targetId
       )) ?? null
     : null;
-  if (input.unit.behavior === "castle-locked") {
-    return current?.targetType === "building" && current.kind === "castle"
-      ? current
-      : null;
-  }
-  if (current && (current.targetType === "unit" || current.kind !== "castle")) return current;
-
   const destination = axialToWorld(
     BATTLEFIELD_MAP.castleApproaches[oppositeFaction(input.unit.faction)],
   );
@@ -59,6 +62,34 @@ export function selectAutomaticTarget(
     && distanceToSegment(target.position, input.unit.position, destination)
       <= GAME_RULES.targeting.routeCorridorWidth + POSITION_EPSILON
   ));
+  const potentialBlockingBuildings = targets.filter((target): target is BattleBuilding => (
+    target.targetType === "building"
+    && target.kind !== "castle"
+    && distance(input.unit.position, target.position) <= aggroRange + POSITION_EPSILON
+    && forwardProgress(input.unit.faction, input.unit.position, target.position)
+      >= -POSITION_EPSILON
+  ));
+  if (potentialBlockingBuildings.length > 0) {
+    const attackRoute = new Set(castleAttackRoute(input.unit).map(coordinateKey));
+    const blockingBuildings = potentialBlockingBuildings.filter((target) => (
+      attackRoute.has(coordinateKey(target.coordinate))
+    ));
+    if (blockingBuildings.length > 0) {
+      return [...blockingBuildings].sort((first, second) => (
+        distance(input.unit.position, first.position)
+        - distance(input.unit.position, second.position)
+        || first.id.localeCompare(second.id)
+      ))[0]!;
+    }
+  }
+  if (input.unit.behavior === "castle-locked") {
+    if (current?.targetType === "building" && current.kind === "castle") return current;
+    return targets.find((target) => (
+      target.targetType === "building" && target.kind === "castle"
+    )) ?? null;
+  }
+  if (current && (current.targetType === "unit" || current.kind !== "castle")) return current;
+
   const ordinary = eligible.filter((target) => (
     target.targetType === "unit" || target.kind !== "castle"
   ));
@@ -70,6 +101,25 @@ export function selectAutomaticTarget(
     - distance(input.unit.position, second.position)
     || first.id.localeCompare(second.id)
   ))[0] ?? null;
+}
+
+function castleAttackRoute(unit: AutomaticCombatUnit) {
+  const enemyFaction = oppositeFaction(unit.faction);
+  const chargeNavigationKey = castleChargeNavigationKey(enemyFaction);
+  if (unit.navigationKey === chargeNavigationKey && unit.waypoints.length > 0) {
+    return [unit.position, ...unit.waypoints].map(worldToAxial);
+  }
+  const start = worldToAxial(unit.position);
+  const cacheKey = `${unit.faction}:${coordinateKey(start)}`;
+  const cached = castleRouteCache.get(cacheKey);
+  if (cached) return cached;
+  const route = findHexPath(
+    BATTLEFIELD_MAP,
+    start,
+    BATTLEFIELD_MAP.castleApproaches[enemyFaction],
+  );
+  castleRouteCache.set(cacheKey, route);
+  return route;
 }
 
 export function forwardProgress(

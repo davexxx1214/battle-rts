@@ -9,6 +9,7 @@ import {
 } from "../../src/game/deployment";
 import {
   BATTLEFIELD_MAP,
+  BATTLEFIELD_STRUCTURES,
   axialToWorld,
   coordinateKey,
   type BattlefieldMap,
@@ -23,6 +24,23 @@ function firstBuildable(faction: "verdant" | "crimson") {
 }
 
 describe("building deployment", () => {
+  it("allows an empty reserved path hex inside friendly territory", () => {
+    const reserved = BATTLEFIELD_MAP.cells.find((cell) => (
+      cell.territory === "verdant" && cell.buildable && cell.reservedForPath
+    ));
+    if (!reserved) throw new Error("Missing verdant reserved path cell");
+
+    expect(requestBuildingPlacement(BATTLEFIELD_MAP, createBuildingOccupancy(), {
+      buildingId: "reserved-path-barracks",
+      kind: "barracks",
+      faction: "verdant",
+      worldPosition: axialToWorld(reserved),
+    }, [])).toMatchObject({
+      ok: true,
+      coordinate: { q: reserved.q, r: reserved.r },
+    });
+  });
+
   it("allows a complete empty hex only inside the requesting faction territory", () => {
     const verdantCell = firstBuildable("verdant");
     const crimsonCell = firstBuildable("crimson");
@@ -31,13 +49,13 @@ describe("building deployment", () => {
       kind: "gold-mine",
       faction: "verdant",
       worldPosition: axialToWorld(verdantCell),
-    });
+    }, []);
     const enemySide = requestBuildingPlacement(BATTLEFIELD_MAP, createBuildingOccupancy(), {
       buildingId: "mine-2",
       kind: "gold-mine",
       faction: "verdant",
       worldPosition: axialToWorld(crimsonCell),
-    });
+    }, []);
 
     expect(placed).toMatchObject({
       ok: true,
@@ -46,14 +64,18 @@ describe("building deployment", () => {
     expect(enemySide).toMatchObject({ ok: false, reason: "enemy-territory" });
   });
 
-  it("rejects bridges, castle cells, occupied cells, and positions outside the map", () => {
+  it("rejects bridges, castle and gate cells, occupied cells, and outside positions", () => {
     const cell = firstBuildable("verdant");
+    const gate = BATTLEFIELD_STRUCTURES.find((structure) => (
+      structure.faction === "verdant" && structure.kind === "wall-gate"
+    ));
+    if (!gate) throw new Error("Missing verdant castle gate");
     const first = requestBuildingPlacement(BATTLEFIELD_MAP, createBuildingOccupancy(), {
       buildingId: "barracks-1",
       kind: "barracks",
       faction: "verdant",
       worldPosition: axialToWorld(cell),
-    });
+    }, []);
     if (!first.ok) throw new Error(first.reason);
 
     const occupied = requestBuildingPlacement(BATTLEFIELD_MAP, first.occupancy, {
@@ -61,29 +83,36 @@ describe("building deployment", () => {
       kind: "gold-mine",
       faction: "verdant",
       worldPosition: axialToWorld(cell),
-    });
+    }, []);
     const bridge = requestBuildingPlacement(BATTLEFIELD_MAP, first.occupancy, {
       buildingId: "mine-bridge",
       kind: "gold-mine",
       faction: "verdant",
       worldPosition: axialToWorld(BATTLEFIELD_MAP.center),
-    });
+    }, []);
     const castle = requestBuildingPlacement(BATTLEFIELD_MAP, first.occupancy, {
       buildingId: "mine-castle",
       kind: "gold-mine",
       faction: "verdant",
       worldPosition: axialToWorld(BATTLEFIELD_MAP.castles.verdant),
-    });
+    }, []);
+    const castleGate = requestBuildingPlacement(BATTLEFIELD_MAP, first.occupancy, {
+      buildingId: "mine-castle-gate",
+      kind: "gold-mine",
+      faction: "verdant",
+      worldPosition: axialToWorld(gate.coordinate),
+    }, []);
     const outside = requestBuildingPlacement(BATTLEFIELD_MAP, first.occupancy, {
       buildingId: "mine-outside",
       kind: "gold-mine",
       faction: "verdant",
       worldPosition: { x: 999, z: 999 },
-    });
+    }, []);
 
     expect(occupied).toMatchObject({ ok: false, reason: "occupied-hex" });
     expect(bridge).toMatchObject({ ok: false, reason: "unbuildable-hex" });
     expect(castle).toMatchObject({ ok: false, reason: "unbuildable-hex" });
+    expect(castleGate).toMatchObject({ ok: false, reason: "unbuildable-hex" });
     expect(outside).toMatchObject({ ok: false, reason: "outside-battlefield" });
   });
 
@@ -94,7 +123,7 @@ describe("building deployment", () => {
       kind: "gold-mine",
       faction: "verdant",
       worldPosition: axialToWorld(cell),
-    });
+    }, []);
     if (!first.ok) throw new Error(first.reason);
 
     const released = removeBuildingFromOccupancy(first.occupancy, "mine-releasable");
@@ -103,12 +132,12 @@ describe("building deployment", () => {
       kind: "barracks",
       faction: "verdant",
       worldPosition: axialToWorld(cell),
-    });
+    }, []);
 
     expect(second.ok).toBe(true);
   });
 
-  it("fills the central buildable area without allowing a route-blocking placement", () => {
+  it("fills every empty friendly land hex even when placements block the route", () => {
     let occupancy = createBuildingOccupancy();
     for (const cell of BATTLEFIELD_MAP.cells.filter((candidate) => (
       candidate.territory === "verdant" && candidate.buildable
@@ -118,11 +147,11 @@ describe("building deployment", () => {
         kind: "barracks",
         faction: "verdant",
         worldPosition: axialToWorld(cell),
-      });
+      }, []);
       expect(result.ok).toBe(true);
       if (result.ok) occupancy = result.occupancy;
     }
-    expect(hasBuildableHex(BATTLEFIELD_MAP, "verdant", occupancy)).toBe(false);
+    expect(hasBuildableHex(BATTLEFIELD_MAP, "verdant", occupancy, [])).toBe(false);
   });
 
   it("returns no-buildable-hex when every valid cell is occupied", () => {
@@ -140,16 +169,16 @@ describe("building deployment", () => {
         ]),
     ) satisfies BuildingOccupancy;
 
-    expect(hasBuildableHex(BATTLEFIELD_MAP, "verdant", filled)).toBe(false);
+    expect(hasBuildableHex(BATTLEFIELD_MAP, "verdant", filled, [])).toBe(false);
     expect(requestBuildingPlacement(BATTLEFIELD_MAP, filled, {
       buildingId: "no-room",
       kind: "barracks",
       faction: "verdant",
       worldPosition: axialToWorld(firstBuildable("verdant")),
-    })).toMatchObject({ ok: false, reason: "no-buildable-hex" });
+    }, [])).toMatchObject({ ok: false, reason: "no-buildable-hex" });
   });
 
-  it("rejects a buildable chokepoint when another safe hex remains", () => {
+  it("allows a friendly chokepoint because blockers become combat targets", () => {
     const map: BattlefieldMap = {
       cells: [
         {
@@ -183,6 +212,6 @@ describe("building deployment", () => {
       kind: "barracks",
       faction: "verdant",
       worldPosition: axialToWorld({ q: 0, r: -1 }),
-    })).toMatchObject({ ok: false, reason: "blocked-route" });
+    }, [])).toMatchObject({ ok: true, coordinate: { q: 0, r: -1 } });
   });
 });

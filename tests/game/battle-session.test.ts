@@ -18,7 +18,9 @@ describe("battle session gate", () => {
       expect(battle.elapsed).toBe(0);
       expect(battle.events).toEqual([]);
       expect(battle.buildingOccupancy).toEqual({});
-      expect(battle.buildings.every((building) => building.kind === "castle")).toBe(true);
+      expect(battle.buildings.every((building) => (
+        building.kind === "castle" || building.kind === "arrow-tower"
+      ))).toBe(true);
       expect(battle.units.every((unit) => (
         unit.behavior === "charging" && unit.currentTarget === null && unit.health > 0
       ))).toBe(true);

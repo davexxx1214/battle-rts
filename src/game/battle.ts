@@ -19,17 +19,19 @@ import {
 } from "./formation";
 import {
   areWorldPointsConnected,
+  castleChargeNavigationKey,
   findWorldPath,
 } from "./navigation";
 import {
   BATTLEFIELD_MAP,
+  BATTLEFIELD_BATTLE_STRUCTURES,
   axialToWorld,
   getBattlefieldCell,
   worldToAxial,
 } from "../map/battlefield";
 import type { Faction, UnitRole, WorldPoint } from "./types";
 import { BattleSpatialIndex } from "./spatialIndex";
-import { UNIT_SPECS } from "./rules";
+import { GAME_RULES, UNIT_SPECS } from "./rules";
 import {
   advanceEconomy,
   createEconomyState,
@@ -64,6 +66,7 @@ import {
   activateCastlesFromDamage,
   advanceCastleAttacks,
 } from "./castleCombat";
+import { advanceArrowTowerAttacks } from "./arrowTowerCombat";
 
 export type { Faction, UnitRole, WorldPoint } from "./types";
 export { UNIT_SPECS } from "./rules";
@@ -157,7 +160,7 @@ export function createBattleState(units: readonly BattleUnit[]): BattleState {
     events: [],
     economy: createEconomyState(),
     matchElapsed: 0,
-    buildings: createInitialCastles(),
+    buildings: createInitialDefensiveBuildings(),
     buildingOccupancy: createBuildingOccupancy(),
     deploymentCounts: createDeploymentCounts(),
     nextDeploymentSequence: 0,
@@ -284,15 +287,26 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     spawnedProjectiles,
     emit,
   ));
-  const separatedUnits = separateLivingAllies(advancedUnits).map((unit, index) => ({
-    ...unit,
-    position: clampToForwardProgress(
+  const separatedUnits = separateLivingAllies(advancedUnits).map((unit, index) => {
+    const position = clampToForwardProgress(
       unit.faction,
       advancedUnits[index]!.position,
       unit.position,
-    ),
-  }));
-  const damagedUnits = applyDamageIntents(separatedUnits, damage, elapsed, emit);
+    );
+    return {
+      ...unit,
+      position: getBattlefieldCell(worldToAxial(position))?.walkable
+        ? position
+        : advancedUnits[index]!.position,
+    };
+  });
+  const damagedUnits = applyDamageIntents(
+    separatedUnits,
+    damage,
+    elapsed,
+    emit,
+    state.buildings,
+  );
   const castleActivationStep = matchIsActive && activeMatchDeltaSeconds > 0
     ? activateCastlesFromDamage(state.buildings, damage, elapsed)
     : { buildings: state.buildings, events: [] };
@@ -333,15 +347,60 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
         newlyFullFactions: [],
       };
   for (const event of buildingStep.events) emit(event);
-  const castleAttackStep = castleWinnerAfterBuildingHealth === null
+  const arrowTowerAttackStep = castleWinnerAfterBuildingHealth === null
     && matchIsActive
     && activeMatchDeltaSeconds > 0
-    ? advanceCastleAttacks(
+    ? advanceArrowTowerAttacks(
         buildingStep.buildings,
         damagedUnits,
         activeMatchDeltaSeconds,
       )
-    : { buildings: buildingStep.buildings, attacks: [], damageIntents: [] };
+    : { buildings: buildingStep.buildings, attacks: [] };
+  for (const attack of arrowTowerAttackStep.attacks) {
+    const attackEvent = emit({
+      type: "attack-started",
+      attackerId: attack.towerId,
+      targetId: attack.targetId,
+      targetType: "unit",
+      role: "arrow-tower",
+      origin: attack.origin,
+      targetPosition: attack.targetPosition,
+    });
+    const projectileId = `projectile-${attackEvent.sequence}`;
+    spawnedProjectiles.push({
+      id: projectileId,
+      attackerId: attack.towerId,
+      sourceType: "building",
+      targetId: attack.targetId,
+      targetType: "unit",
+      role: "ranger",
+      origin: { ...attack.origin },
+      position: { ...attack.origin },
+      destination: { ...attack.targetPosition },
+      speed: GAME_RULES.buildings.arrowTower.projectileSpeed,
+      damage: GAME_RULES.buildings.arrowTower.damage,
+      splashRadius: 0,
+    });
+    emit({
+      type: "projectile-spawned",
+      projectileId,
+      attackerId: attack.towerId,
+      targetId: attack.targetId,
+      targetType: "unit",
+      role: "ranger",
+      origin: attack.origin,
+      destination: attack.targetPosition,
+    });
+  }
+  const castleAttackStep = castleWinnerAfterBuildingHealth === null
+    && matchIsActive
+    && activeMatchDeltaSeconds > 0
+    ? advanceCastleAttacks(
+        arrowTowerAttackStep.buildings,
+        damagedUnits,
+        activeMatchDeltaSeconds,
+      )
+    : { buildings: arrowTowerAttackStep.buildings, attacks: [], damageIntents: [] };
   for (const attack of castleAttackStep.attacks) {
     emit({
       type: "attack-started",
@@ -496,6 +555,7 @@ function advanceUnit(
     const projectile: BattleProjectile = {
       id: projectileId,
       attackerId: next.id,
+      sourceType: "unit",
       targetId: target.id,
       targetType: target.targetType,
       role: next.role,
@@ -534,7 +594,7 @@ function advanceTowardDestination(
   destination: WorldPoint,
   deltaSeconds: number,
 ): BattleUnit {
-  const navigationKey = `charge:${oppositeFaction(unit.faction)}-castle`;
+  const navigationKey = castleChargeNavigationKey(oppositeFaction(unit.faction));
   const waypoints = unit.navigationKey === navigationKey && unit.waypoints.length > 0
     ? unit.waypoints
     : findWorldPath(BATTLEFIELD_MAP, unit.position, destination);
@@ -553,7 +613,8 @@ function advanceTowardDestination(
     : ARRIVAL_DISTANCE;
   if (remaining <= arrivalDistance) {
     const remainingWaypoints = waypoints.slice(1);
-    const position = clampToForwardProgress(unit.faction, unit.position, waypoint);
+    const position = walkableForwardPosition(unit.faction, unit.position, waypoint)
+      ?? unit.position;
     if (remainingWaypoints.length > 0) {
       return {
         ...unit,
@@ -565,7 +626,8 @@ function advanceTowardDestination(
     }
     return {
       ...unit,
-      position: clampToForwardProgress(unit.faction, unit.position, destination),
+      position: walkableForwardPosition(unit.faction, unit.position, destination)
+        ?? unit.position,
       status: "idle",
       waypoints: [],
       navigationKey: null,
@@ -577,9 +639,13 @@ function advanceTowardDestination(
     waypoint,
     UNIT_SPECS[unit.role].moveSpeed * deltaSeconds,
   );
+  const position = walkableForwardPosition(unit.faction, unit.position, requested);
+  if (!position) {
+    return { ...unit, status: "idle", waypoints: [], navigationKey: null };
+  }
   return {
     ...unit,
-    position: clampToForwardProgress(unit.faction, unit.position, requested),
+    position,
     waypoints,
     facing,
     status: "moving",
@@ -616,7 +682,7 @@ function resolveProjectileImpact(
 
   damage.push({
     sourceId: projectile.attackerId,
-    sourceType: "unit",
+    sourceType: projectile.sourceType,
     targetId: target.id,
     targetType: projectile.targetType,
     amount: projectile.damage,
@@ -670,7 +736,9 @@ function applyDamageIntents(
     emit({
       type: "damage-applied",
       sourceId: intent.sourceId,
-      sourceRole: source.targetType === "unit" ? source.role : "castle",
+      sourceRole: source.targetType === "unit"
+        ? source.role
+        : source.kind === "arrow-tower" ? "arrow-tower" : "castle",
       sourcePosition: { ...source.position },
       targetId: intent.targetId,
       targetType: "unit",
@@ -743,10 +811,11 @@ function advanceTowardTarget(
   let waypoints = unit.navigationKey === navigationKey ? unit.waypoints : [];
   if (waypoints.length === 0) {
     const proposed = moveToward(unit.position, target.position, maximumDistance);
-    if (getBattlefieldCell(worldToAxial(proposed))?.walkable) {
+    const position = walkableForwardPosition(unit.faction, unit.position, proposed);
+    if (position) {
       return {
         ...unit,
-        position: clampToForwardProgress(unit.faction, unit.position, proposed),
+        position,
         facing,
         status: "moving",
         waypoints: [],
@@ -759,7 +828,9 @@ function advanceTowardTarget(
     waypoints = route;
   }
   const waypoint = waypoints[0] ?? target.position;
-  const moved = moveToward(unit.position, waypoint, maximumDistance);
+  const requested = moveToward(unit.position, waypoint, maximumDistance);
+  const moved = walkableForwardPosition(unit.faction, unit.position, requested);
+  if (!moved) return { ...unit, facing, status: "idle", waypoints: [], navigationKey: null };
   const arrivalDistance = waypoints.length > 1
     ? NAVIGATION_WAYPOINT_ARRIVAL_DISTANCE
     : ARRIVAL_DISTANCE;
@@ -785,24 +856,28 @@ function advanceTowardCombatPosition(
   if (unit.navigationKey === navigationKey && unit.waypoints.length > 0) {
     let waypoints = unit.waypoints;
     const waypoint = waypoints[0]!;
-    const position = moveToward(unit.position, waypoint, maximumDistance);
-    if (distance(position, waypoint) <= NAVIGATION_WAYPOINT_ARRIVAL_DISTANCE) {
-      waypoints = waypoints.slice(1);
+    const requested = moveToward(unit.position, waypoint, maximumDistance);
+    const position = walkableForwardPosition(unit.faction, unit.position, requested);
+    if (position) {
+      if (distance(position, waypoint) <= NAVIGATION_WAYPOINT_ARRIVAL_DISTANCE) {
+        waypoints = waypoints.slice(1);
+      }
+      return {
+        ...unit,
+        position,
+        facing,
+        status: "moving",
+        waypoints,
+        navigationKey,
+      };
     }
-    return {
-      ...unit,
-      position: clampToForwardProgress(unit.faction, unit.position, position),
-      facing,
-      status: "moving",
-      waypoints,
-      navigationKey,
-    };
   }
-  const direct = moveToward(unit.position, destination, maximumDistance);
-  if (getBattlefieldCell(worldToAxial(direct))?.walkable) {
+  const requestedDirect = moveToward(unit.position, destination, maximumDistance);
+  const direct = walkableForwardPosition(unit.faction, unit.position, requestedDirect);
+  if (direct) {
     return {
       ...unit,
-      position: clampToForwardProgress(unit.faction, unit.position, direct),
+      position: direct,
       facing,
       status: "moving",
       waypoints: [],
@@ -812,11 +887,14 @@ function advanceTowardCombatPosition(
   const route = findWorldPath(BATTLEFIELD_MAP, unit.position, destination);
   const waypoint = route[0];
   if (!waypoint) return { ...unit, facing, status: "idle", waypoints: [] };
-  const position = clampToForwardProgress(
+  const position = walkableForwardPosition(
     unit.faction,
     unit.position,
     moveToward(unit.position, waypoint, maximumDistance),
   );
+  if (!position) {
+    return { ...unit, facing, status: "idle", waypoints: route, navigationKey };
+  }
   return {
     ...unit,
     position,
@@ -854,14 +932,20 @@ export function appendUnitsToSquads(
   return [...next.values()];
 }
 
-function createInitialCastles(): BattleBuilding[] {
-  return (["verdant", "crimson"] as const).map((faction) => createBattleBuilding({
-    id: `${faction}-castle`,
-    kind: "castle",
-    faction,
-    coordinate: BATTLEFIELD_MAP.castles[faction],
-    createdAt: 0,
-  }));
+function createInitialDefensiveBuildings(): BattleBuilding[] {
+  return BATTLEFIELD_BATTLE_STRUCTURES.flatMap((structure) => {
+    if (
+      (structure.kind !== "castle" && structure.kind !== "arrow-tower")
+      || structure.faction === null
+    ) return [];
+    return [createBattleBuilding({
+      id: structure.id,
+      kind: structure.kind,
+      faction: structure.faction,
+      coordinate: structure.coordinate,
+      createdAt: 0,
+    })];
+  });
 }
 
 function moveToward(origin: WorldPoint, destination: WorldPoint, maximumDistance: number): WorldPoint {
@@ -875,6 +959,15 @@ function moveToward(origin: WorldPoint, destination: WorldPoint, maximumDistance
 
 function distance(first: WorldPoint, second: WorldPoint): number {
   return Math.hypot(first.x - second.x, first.z - second.z);
+}
+
+function walkableForwardPosition(
+  faction: Faction,
+  origin: WorldPoint,
+  requested: WorldPoint,
+): WorldPoint | null {
+  const position = clampToForwardProgress(faction, origin, requested);
+  return getBattlefieldCell(worldToAxial(position))?.walkable ? position : null;
 }
 
 function cloneUnit(unit: BattleUnit): BattleUnit {

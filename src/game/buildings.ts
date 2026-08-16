@@ -19,11 +19,15 @@ import {
 } from "./rules";
 import type { Faction, UnitRole, WorldPoint } from "./types";
 
-export type BattleBuildingKind = BuildingKind | "castle";
+export type BattleBuildingKind = BuildingKind | "castle" | "arrow-tower";
 export type BattleBuildingStatus = "active" | "destroyed";
 
 export interface CastleCombatState {
   readonly activatedAt: number | null;
+  readonly cooldownRemaining: number;
+}
+
+export interface ArrowTowerCombatState {
   readonly cooldownRemaining: number;
 }
 
@@ -39,6 +43,7 @@ export interface BattleBuilding extends CombatTarget {
   readonly lifetimeSeconds: number | null;
   readonly productionSequence: number;
   readonly castleCombat: CastleCombatState | null;
+  readonly arrowTowerCombat: ArrowTowerCombatState | null;
   readonly status: BattleBuildingStatus;
   readonly diedAt: number | null;
   readonly removeAt: number | null;
@@ -223,6 +228,9 @@ export function createBattleBuilding(
     productionSequence: 0,
     castleCombat: input.kind === "castle"
       ? { activatedAt: null, cooldownRemaining: 0 }
+      : null,
+    arrowTowerCombat: input.kind === "arrow-tower"
+      ? { cooldownRemaining: 0 }
       : null,
     status: "active",
     diedAt: null,
@@ -451,7 +459,7 @@ function collectProductionActions(
   building: BattleBuilding,
   cutoff: number,
 ): readonly BuildingProductionAction[] {
-  if (building.kind === "castle") return [];
+  if (building.kind === "castle" || building.kind === "arrow-tower") return [];
   const config = building.kind === "gold-mine"
     ? {
         first: GAME_RULES.buildings.goldMine.firstProductionSeconds,
@@ -587,6 +595,9 @@ function buildingHealthSpec(kind: BattleBuildingKind): {
 } {
   if (kind === "gold-mine") return GAME_RULES.buildings.goldMine;
   if (kind === "barracks") return GAME_RULES.buildings.barracks;
+  if (kind === "arrow-tower") {
+    return { maxHealth: GAME_RULES.buildings.arrowTower.maxHealth, lifetimeSeconds: null };
+  }
   return { maxHealth: GAME_RULES.castle.maxHealth, lifetimeSeconds: null };
 }
 

@@ -55,6 +55,130 @@ describe("automatic combat target selection", () => {
     })?.id).toBe(mine.id);
   });
 
+  it("switches from a soldier to a building blocking the castle route", () => {
+    const blocker = createBattleBuilding({
+      id: "crimson-route-blocker",
+      kind: "barracks",
+      faction: "crimson",
+      coordinate: { q: -1, r: 3 },
+      createdAt: 0,
+    });
+    const soldier = createBattleUnit({
+      id: "crimson-closer-soldier",
+      faction: "crimson",
+      role: "knight",
+      position: { x: blocker.position.x, z: blocker.position.z + 1.5 },
+    });
+    const attacker = {
+      ...chargingVerdant(),
+      behavior: "engaging" as const,
+      currentTarget: { targetType: "unit" as const, targetId: soldier.id },
+    };
+
+    expect(selectAutomaticTarget({
+      unit: attacker,
+      units: [attacker, soldier],
+      buildings: [blocker],
+    })).toMatchObject({ targetType: "building", id: blocker.id });
+  });
+
+  it("does not prioritize a nearby building outside the chosen hex route", () => {
+    const sideBuilding = createBattleBuilding({
+      id: "crimson-side-building",
+      kind: "barracks",
+      faction: "crimson",
+      coordinate: { q: 0, r: 3 },
+      createdAt: 0,
+    });
+    const soldier = createBattleUnit({
+      id: "crimson-current-soldier",
+      faction: "crimson",
+      role: "knight",
+      position: { x: 1, z: 7 },
+    });
+    const attacker = {
+      ...chargingVerdant(),
+      behavior: "engaging" as const,
+      currentTarget: { targetType: "unit" as const, targetId: soldier.id },
+    };
+
+    expect(selectAutomaticTarget({
+      unit: attacker,
+      units: [attacker, soldier],
+      buildings: [sideBuilding],
+    })).toMatchObject({ targetType: "unit", id: soldier.id });
+  });
+
+  it("uses cached charge waypoints as the canonical blocking route", () => {
+    const blocker = createBattleBuilding({
+      id: "crimson-astar-only-blocker",
+      kind: "barracks",
+      faction: "crimson",
+      coordinate: { q: -1, r: 3 },
+      createdAt: 0,
+    });
+    const soldier = createBattleUnit({
+      id: "crimson-cached-route-target",
+      faction: "crimson",
+      role: "knight",
+      position: { x: blocker.position.x, z: blocker.position.z + 1.5 },
+    });
+    const attacker = {
+      ...chargingVerdant(),
+      behavior: "engaging" as const,
+      currentTarget: { targetType: "unit" as const, targetId: soldier.id },
+      navigationKey: "charge:crimson-castle",
+      waypoints: [
+        axialToWorld({ q: 0, r: 3 }),
+        axialToWorld(BATTLEFIELD_MAP.castleApproaches.crimson),
+      ],
+    };
+
+    expect(selectAutomaticTarget({
+      unit: attacker,
+      units: [attacker, soldier],
+      buildings: [blocker],
+    })).toMatchObject({ targetType: "unit", id: soldier.id });
+  });
+
+  it("interrupts a castle lock for a building newly placed in front", () => {
+    const castle = createBattleBuilding({
+      id: "crimson-castle",
+      kind: "castle",
+      faction: "crimson",
+      coordinate: BATTLEFIELD_MAP.castles.crimson,
+      createdAt: 0,
+    });
+    const blocker = createBattleBuilding({
+      id: "crimson-late-blocker",
+      kind: "gold-mine",
+      faction: "crimson",
+      coordinate: { q: -1, r: 3 },
+      createdAt: 0,
+    });
+    const attacker = {
+      ...chargingVerdant(),
+      behavior: "castle-locked" as const,
+      currentTarget: { targetType: "building" as const, targetId: castle.id },
+    };
+
+    expect(selectAutomaticTarget({
+      unit: attacker,
+      units: [attacker],
+      buildings: [castle, blocker],
+    })).toMatchObject({ targetType: "building", id: blocker.id });
+
+    const afterBlocker = {
+      ...attacker,
+      currentTarget: { targetType: "building" as const, targetId: blocker.id },
+    };
+    expect(selectAutomaticTarget({
+      unit: afterBlocker,
+      units: [afterBlocker],
+      buildings: [castle],
+    })).toMatchObject({ targetType: "building", id: castle.id });
+  });
+
   it("ignores enemies behind the unit or far outside its forward route", () => {
     const attacker = chargingVerdant();
     const behind = createBattleUnit({

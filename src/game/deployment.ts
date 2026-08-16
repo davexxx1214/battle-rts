@@ -1,4 +1,3 @@
-import { findHexPath } from "./navigation";
 import {
   DEPLOYABLE_CATEGORIES,
   type BuildingKind,
@@ -20,6 +19,11 @@ export interface OccupiedBuildingHex {
   readonly coordinate: HexCoordinate;
 }
 
+export interface BuildingPlacementUnit {
+  readonly position: WorldPoint;
+  readonly health: number;
+}
+
 export type BuildingOccupancy = Readonly<Record<string, OccupiedBuildingHex>>;
 export type DeploymentCounts = Readonly<
   Record<Faction, Readonly<Record<DeployableKind, number>>>
@@ -31,7 +35,6 @@ export type BuildingPlacementFailureReason =
   | "unbuildable-hex"
   | "occupied-hex"
   | "duplicate-building-id"
-  | "blocked-route"
   | "no-buildable-hex";
 
 export interface BuildingPlacementRequest {
@@ -85,8 +88,9 @@ export function requestBuildingPlacement(
   map: BattlefieldMap,
   occupancy: BuildingOccupancy,
   request: BuildingPlacementRequest,
+  units: readonly BuildingPlacementUnit[],
 ): BuildingPlacementResult {
-  if (!hasBuildableHex(map, request.faction, occupancy)) {
+  if (!hasBuildableHex(map, request.faction, occupancy, units)) {
     return { ok: false, reason: "no-buildable-hex", occupancy };
   }
   const coordinate = resolveWorldHex(map, request.worldPosition);
@@ -94,7 +98,13 @@ export function requestBuildingPlacement(
   if (Object.values(occupancy).some(({ buildingId }) => buildingId === request.buildingId)) {
     return { ok: false, reason: "duplicate-building-id", occupancy };
   }
-  const failure = validateCoordinate(map, request.faction, coordinate, occupancy);
+  const failure = validateCoordinate(
+    map,
+    request.faction,
+    coordinate,
+    occupancy,
+    occupiedUnitKeys(units),
+  );
   if (failure) return { ok: false, reason: failure, occupancy };
 
   return {
@@ -129,11 +139,13 @@ export function hasBuildableHex(
   map: BattlefieldMap,
   faction: Faction,
   occupancy: BuildingOccupancy,
+  units: readonly BuildingPlacementUnit[],
 ): boolean {
+  const occupiedByUnits = occupiedUnitKeys(units);
   return map.cells.some((cell) => (
     cell.territory === faction
     && cell.buildable
-    && validateCoordinate(map, faction, cell, occupancy) === null
+    && validateCoordinate(map, faction, cell, occupancy, occupiedByUnits) === null
   ));
 }
 
@@ -152,8 +164,9 @@ export function validateBuildingCoordinate(
   faction: Faction,
   coordinate: HexCoordinate,
   occupancy: BuildingOccupancy,
+  units: readonly BuildingPlacementUnit[],
 ): BuildingPlacementFailureReason | null {
-  return validateCoordinate(map, faction, coordinate, occupancy);
+  return validateCoordinate(map, faction, coordinate, occupancy, occupiedUnitKeys(units));
 }
 
 function validateCoordinate(
@@ -161,35 +174,23 @@ function validateCoordinate(
   faction: Faction,
   coordinate: HexCoordinate,
   occupancy: BuildingOccupancy,
+  occupiedByUnits: ReadonlySet<string>,
 ): BuildingPlacementFailureReason | null {
   const cell = getMapCell(map, coordinate);
   if (!cell) return "outside-battlefield";
   if (cell.territory !== null && cell.territory !== faction) return "enemy-territory";
   if (!cell.buildable || cell.territory !== faction) return "unbuildable-hex";
-  if (occupancy[coordinateKey(coordinate)]) return "occupied-hex";
-  if (!keepsAllAttackRoutesOpen(map, occupancy, coordinate)) return "blocked-route";
+  const key = coordinateKey(coordinate);
+  if (occupancy[key] || occupiedByUnits.has(key)) return "occupied-hex";
   return null;
 }
 
-function keepsAllAttackRoutesOpen(
-  map: BattlefieldMap,
-  occupancy: BuildingOccupancy,
-  candidate: HexCoordinate,
-): boolean {
-  const blocked = new Set([...Object.keys(occupancy), coordinateKey(candidate)]);
-  const mapWithOccupancy: BattlefieldMap = {
-    ...map,
-    cells: map.cells.map((cell) => (
-      blocked.has(coordinateKey(cell)) ? { ...cell, walkable: false } : cell
-    )),
-  };
-  return findHexPath(
-    mapWithOccupancy,
-    map.verdantCamp,
-    map.castleApproaches.crimson,
-  ).length > 0 && findHexPath(
-    mapWithOccupancy,
-    map.crimsonCamp,
-    map.castleApproaches.verdant,
-  ).length > 0;
+function occupiedUnitKeys(units: readonly BuildingPlacementUnit[]): ReadonlySet<string> {
+  return new Set(units
+    .filter((unit) => (
+      unit.health > 0
+      && Number.isFinite(unit.position.x)
+      && Number.isFinite(unit.position.z)
+    ))
+    .map((unit) => coordinateKey(worldToAxial(unit.position))));
 }

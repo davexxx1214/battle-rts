@@ -39,7 +39,7 @@ describe("central game rules", () => {
 
   it("stores the first playable mine and barracks production baselines", () => {
     expect(GAME_RULES.buildings.destructionSeconds).toBe(0.8);
-    expect(GAME_RULES.deployment.costs.barracks).toBe(600);
+    expect(GAME_RULES.deployment.costs.barracks).toBe(500);
     expect(GAME_RULES.buildings.goldMine).toMatchObject({
       cost: 700,
       maxHealth: 900,
@@ -50,14 +50,32 @@ describe("central game rules", () => {
       maximumActivePerFaction: 1,
     });
     expect(GAME_RULES.buildings.barracks).toMatchObject({
-      cost: 600,
+      cost: 500,
       maxHealth: 1200,
       lifetimeSeconds: 30,
       firstSpawnSeconds: 5,
-      spawnIntervalSeconds: 10,
-      spawnCount: 3,
+      spawnIntervalSeconds: 8,
+      spawnCount: 4,
       maximumActivePerFaction: 2,
     });
+
+    const directSwordsmanCost = GAME_RULES.deployment.costs.swordsman
+      / GAME_RULES.deployment.troopCounts.swordsman;
+    const barracksSwordsmanCost = GAME_RULES.buildings.barracks.cost
+      / GAME_RULES.buildings.barracks.spawnCount;
+    expect(directSwordsmanCost / barracksSwordsmanCost).toBeCloseTo(16 / 15);
+    const swordsmanEmpiricalDamagePer100Gold = 71.799;
+    const barracksEmpiricalDamagePer100Gold = swordsmanEmpiricalDamagePer100Gold
+      * (GAME_RULES.buildings.barracks.spawnCount
+        / GAME_RULES.deployment.troopCounts.swordsman)
+      * (GAME_RULES.deployment.costs.swordsman
+        / GAME_RULES.buildings.barracks.cost);
+    expect(barracksEmpiricalDamagePer100Gold).toBeCloseTo(76.586, 3);
+    expect(
+      GAME_RULES.buildings.barracks.firstSpawnSeconds
+      + (GAME_RULES.buildings.barracks.spawnCount - 1)
+        * GAME_RULES.buildings.barracks.spawnIntervalSeconds,
+    ).toBe(29);
   });
 
   it("keeps every current combat role in the same tunable rules module", () => {
@@ -72,6 +90,16 @@ describe("central game rules", () => {
       expect(spec.attackCooldown).toBeGreaterThan(0);
       expect(spec.moveSpeed).toBeGreaterThan(0);
     }
+  });
+
+  it("gives arrow towers one-quarter castle health and archer combat reach", () => {
+    expect(GAME_RULES.buildings.arrowTower).toMatchObject({
+      maxHealth: GAME_RULES.castle.maxHealth / 4,
+      damage: UNIT_SPECS.ranger.damage,
+      attackRange: UNIT_SPECS.ranger.attackRange,
+      attackCooldown: UNIT_SPECS.ranger.attackCooldown,
+      projectileSpeed: UNIT_SPECS.ranger.projectileSpeed,
+    });
   });
 
   it("maps every deployable troop name to one existing combat role", () => {

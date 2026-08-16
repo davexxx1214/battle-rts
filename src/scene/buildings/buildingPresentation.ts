@@ -94,7 +94,11 @@ export function latestBuildingSignal(
 }
 
 function productionProgress(building: BattleBuilding, elapsed: number): number | null {
-  if (building.kind === "castle" || building.status !== "active") return null;
+  if (
+    building.kind === "castle"
+    || building.kind === "arrow-tower"
+    || building.status !== "active"
+  ) return null;
   const config = building.kind === "gold-mine"
     ? {
         first: GAME_RULES.buildings.goldMine.firstProductionSeconds,

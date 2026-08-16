@@ -80,6 +80,27 @@ describe("building presentation state", () => {
     });
   });
 
+  it("shows arrow tower health without treating it as a production building", () => {
+    const tower = {
+      ...createBattleBuilding({
+        id: "verdant-arrow-tower-left",
+        kind: "arrow-tower",
+        faction: "verdant",
+        coordinate: { q: -4, r: 6 },
+        createdAt: 0,
+      }),
+      health: 125,
+    };
+
+    expect(buildingPresentation(tower, 20)).toMatchObject({
+      healthRatio: 0.25,
+      healthTone: "critical",
+      lifecycle: "active",
+      productionProgress: null,
+      kingVisible: false,
+    });
+  });
+
   it("distinguishes credited gold, wasted gold, spawning, destruction, and activation", () => {
     const mine = createBattleBuilding({
       id: "mine-1",

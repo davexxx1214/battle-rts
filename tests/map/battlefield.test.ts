@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BATTLEFIELD_BATTLE_STRUCTURES,
+  BATTLEFIELD_STATIC_STRUCTURES,
   BATTLEFIELD_MAP,
   BATTLEFIELD_WORLD_BOUNDS,
   BATTLEFIELD_DECORATIONS,
@@ -118,7 +120,7 @@ describe("battlefield island", () => {
     }
   });
 
-  it("marks every battlefield structure footprint as blocked terrain", () => {
+  it("blocks permanent structures while keeping destructible tower ruins traversable", () => {
     const functionalKinds = ["castle", "blacksmith", "barracks", "arrow-tower", "mine"];
 
     expect(BATTLEFIELD_STRUCTURES).toHaveLength(20);
@@ -142,13 +144,40 @@ describe("battlefield island", () => {
       expect(factionDecorations.filter((decoration) => decoration.kind === "ore-pile"))
         .toHaveLength(1);
     }
-    for (const structure of BATTLEFIELD_STRUCTURES) {
+    for (const structure of BATTLEFIELD_STATIC_STRUCTURES.concat(
+      BATTLEFIELD_BATTLE_STRUCTURES.filter((candidate) => candidate.kind === "castle"),
+    )) {
       for (const coordinate of structure.footprint) {
         expect(getBattlefieldCell(coordinate)?.walkable).toBe(false);
       }
     }
+    for (const tower of BATTLEFIELD_BATTLE_STRUCTURES.filter(
+      (structure) => structure.kind === "arrow-tower",
+    )) {
+      expect(getBattlefieldCell(tower.coordinate)).toMatchObject({
+        walkable: true,
+        buildable: false,
+      });
+    }
     expect(new Set(BATTLEFIELD_STRUCTURES.map((structure) => structure.footprint.length)))
       .toEqual(new Set([0, 1]));
+  });
+
+  it("separates battle-managed castles and arrow towers from static map props", () => {
+    expect(BATTLEFIELD_BATTLE_STRUCTURES.map((structure) => structure.kind).sort())
+      .toEqual([
+        "arrow-tower",
+        "arrow-tower",
+        "arrow-tower",
+        "arrow-tower",
+        "castle",
+        "castle",
+      ]);
+    expect(BATTLEFIELD_STATIC_STRUCTURES.every((structure) => (
+      structure.kind !== "castle" && structure.kind !== "arrow-tower"
+    ))).toBe(true);
+    expect(BATTLEFIELD_BATTLE_STRUCTURES.length + BATTLEFIELD_STATIC_STRUCTURES.length)
+      .toBe(BATTLEFIELD_STRUCTURES.length);
   });
 
   it("frames each castle with a five-piece wall and two symmetric front towers", () => {
@@ -280,10 +309,21 @@ describe("battlefield island", () => {
       .every((cell) => cell.territory === null)).toBe(true);
   });
 
-  it("marks reserved routes, obstacles, bridges, and castle cells as unbuildable", () => {
+  it("keeps friendly reserved routes buildable while obstacles remain unbuildable", () => {
     const reserved = BATTLEFIELD_MAP.cells.filter((cell) => cell.reservedForPath);
+    const structureReservedKeys = new Set(BATTLEFIELD_STRUCTURES.flatMap((structure) => [
+      ...structure.footprint.map((coordinate) => `${coordinate.q},${coordinate.r}`),
+      ...(structure.kind === "wall-gate"
+        ? [`${structure.coordinate.q},${structure.coordinate.r}`]
+        : []),
+    ]));
     expect(reserved.length).toBeGreaterThan(0);
-    expect(reserved.every((cell) => !cell.buildable)).toBe(true);
+    const friendlyReservedLand = reserved.filter((cell) => (
+      cell.territory !== null && cell.walkable && cell.surface !== "bridge"
+      && !structureReservedKeys.has(`${cell.q},${cell.r}`)
+    ));
+    expect(friendlyReservedLand.length).toBeGreaterThan(0);
+    expect(friendlyReservedLand.every((cell) => cell.buildable)).toBe(true);
     expect(BATTLEFIELD_MAP.cells.filter((cell) => (
       cell.surface === "water"
       || cell.surface === "bridge"
@@ -292,6 +332,19 @@ describe("battlefield island", () => {
     )).every((cell) => !cell.buildable)).toBe(true);
     expect(getBattlefieldCell(BATTLEFIELD_MAP.castles.verdant)?.buildable).toBe(false);
     expect(getBattlefieldCell(BATTLEFIELD_MAP.castles.crimson)?.buildable).toBe(false);
+  });
+
+  it("keeps both castle gate openings walkable but unbuildable", () => {
+    const gates = BATTLEFIELD_STRUCTURES.filter((structure) => structure.kind === "wall-gate");
+
+    expect(gates).toHaveLength(2);
+    for (const gate of gates) {
+      expect(getBattlefieldCell(gate.coordinate)).toMatchObject({
+        territory: gate.faction,
+        walkable: true,
+        buildable: false,
+      });
+    }
   });
 
   it("derives the minimap world bounds from the battlefield cells", () => {

@@ -21,6 +21,10 @@ describe("castle melee engagement", () => {
       })
     ));
     let state = createBattleState(attackers);
+    state = {
+      ...state,
+      buildings: state.buildings.filter((building) => building.kind === "castle"),
+    };
 
     for (let step = 0; step < 50; step += 1) state = stepBattle(state, 0.05);
 
