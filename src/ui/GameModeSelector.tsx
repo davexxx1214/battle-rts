@@ -2,7 +2,8 @@ import type { GameMode } from "../app/gameMode";
 import styles from "./GameModeSelector.module.css";
 
 const GAME_MODES = [
-  { mode: "normal", label: "普通模式" },
+  { mode: "campaign", label: "战役模式" },
+  { mode: "normal", label: "自由对战" },
   { mode: "arena", label: "竞技场模式" },
 ] as const satisfies readonly { readonly mode: GameMode; readonly label: string }[];
 

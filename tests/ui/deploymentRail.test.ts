@@ -48,4 +48,19 @@ describe("deployment rail", () => {
     expect(markup).toContain("金币已满，立即部署！");
     expect(markup).toContain("储备已封顶");
   });
+
+  it("only presents deployables allowed by a campaign mission", () => {
+    const markup = renderToStaticMarkup(createElement(DeploymentRail, {
+      session: { phase: "engaged", battle: createInitialBattle() },
+      selectedKind: null,
+      allowedKinds: ["spearman", "archer"],
+      onSelect: () => undefined,
+    }));
+
+    expect(markup.match(/<img /g)).toHaveLength(2);
+    expect(markup).toContain("长枪兵");
+    expect(markup).toContain("弓箭手");
+    expect(markup).not.toContain("建筑工事");
+    expect(markup).not.toContain("剑士");
+  });
 });

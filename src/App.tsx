@@ -15,6 +15,17 @@ import {
   DEFAULT_GAME_MODE,
   type GameMode,
 } from "./app/gameMode";
+import { CampaignMap, DEPLOYABLE_LABELS } from "./campaign/CampaignMap";
+import {
+  completeCampaignMission,
+  createCampaignBattle,
+  evaluateCampaignMission,
+  getCampaignMission,
+  getMissionDeployables,
+  loadCampaignProgress,
+  saveCampaignProgress,
+  type CampaignMission,
+} from "./campaign/campaign";
 import { DEFAULT_AUDIO_ENABLED } from "./audio/battleAudio";
 import { useBattleAudio } from "./audio/useBattleAudio";
 import {
@@ -100,10 +111,18 @@ export function App() {
   ), []);
   const [mode, setMode] = useState<GameMode>(DEFAULT_GAME_MODE);
   const [difficulty, setDifficulty] = useState<AiDifficulty>(DEFAULT_AI_DIFFICULTY);
+  const [campaignProgress, setCampaignProgress] = useState(loadCampaignProgress);
+  const [activeCampaignMissionId, setActiveCampaignMissionId] = useState<string | null>(null);
   const [app, setApp] = useState<AppState>(() => (
     createAppState(benchmarkMode, DEFAULT_GAME_MODE)
   ));
   const { battle, phase: battlePhase } = app.session;
+  const activeCampaignMission = activeCampaignMissionId
+    ? getCampaignMission(activeCampaignMissionId) ?? null
+    : null;
+  const campaignDeployables = activeCampaignMission
+    ? getMissionDeployables(activeCampaignMission, campaignProgress)
+    : undefined;
   const [cursorWorld, setCursorWorld] = useState<WorldPoint | null>(null);
   const [cameraResetToken, setCameraResetToken] = useState(0);
   const [battleInstanceRevision, setBattleInstanceRevision] = useState(0);
@@ -143,7 +162,28 @@ export function App() {
     enabled: audioEnabled,
   });
 
-  useBattleLoop(setApp, assetsReady ? battlePhase : "briefing", difficulty);
+  const battleLoopPhase = mode === "campaign" && !activeCampaignMission
+    ? "briefing"
+    : assetsReady ? battlePhase : "briefing";
+  const opponentDifficulty = activeCampaignMission?.aiDifficulty ?? difficulty;
+  const campaignResult = activeCampaignMission && battle.winner
+    ? evaluateCampaignMission(activeCampaignMission, battle)
+    : null;
+
+  useBattleLoop(setApp, battleLoopPhase, opponentDifficulty);
+
+  useEffect(() => {
+    saveCampaignProgress(campaignProgress);
+  }, [campaignProgress]);
+
+  useEffect(() => {
+    if (!activeCampaignMission || !campaignResult?.success) return;
+    setCampaignProgress((current) => completeCampaignMission(
+      current,
+      activeCampaignMission.id,
+      campaignResult.stars,
+    ));
+  }, [activeCampaignMission, campaignResult]);
 
   useEffect(() => {
     const feedback = app.feedback;
@@ -175,22 +215,48 @@ export function App() {
   }, []);
 
   const resetBattle = useCallback(() => {
-    setApp(createAppState(benchmarkMode, mode));
+    setApp(createAppState(benchmarkMode, mode, activeCampaignMission));
+    setCursorWorld(null);
+    setCameraResetToken((current) => current + 1);
+    cameraViewStore.publish(DEFAULT_CAMERA_VIEW);
+    setBattleInstanceRevision((current) => current + 1);
+  }, [activeCampaignMission, benchmarkMode, cameraViewStore, mode]);
+
+  const changeMode = useCallback((nextMode: GameMode) => {
+    if (nextMode === mode) return;
+    setMode(nextMode);
+    setActiveCampaignMissionId(null);
+    setApp(createAppState(benchmarkMode, nextMode));
+    setAssetsReady(false);
+    setAssetLoadProgress({ loaded: 0, total: 0 });
+    setAssetLoadError(null);
     setCursorWorld(null);
     setCameraResetToken((current) => current + 1);
     cameraViewStore.publish(DEFAULT_CAMERA_VIEW);
     setBattleInstanceRevision((current) => current + 1);
   }, [benchmarkMode, cameraViewStore, mode]);
 
-  const changeMode = useCallback((nextMode: GameMode) => {
-    if (nextMode === mode) return;
-    setMode(nextMode);
-    setApp(createAppState(benchmarkMode, nextMode));
+  const startCampaignMission = useCallback((mission: CampaignMission) => {
+    setActiveCampaignMissionId(mission.id);
+    setApp(createAppState(false, "campaign", mission));
+    setAssetsReady(false);
+    setAssetLoadProgress({ loaded: 0, total: 0 });
+    setAssetLoadError(null);
     setCursorWorld(null);
     setCameraResetToken((current) => current + 1);
     cameraViewStore.publish(DEFAULT_CAMERA_VIEW);
     setBattleInstanceRevision((current) => current + 1);
-  }, [benchmarkMode, cameraViewStore, mode]);
+  }, [cameraViewStore]);
+
+  const returnToCampaignMap = useCallback(() => {
+    setActiveCampaignMissionId(null);
+    setApp(createAppState(false, "campaign"));
+    setAssetsReady(false);
+    setAssetLoadProgress({ loaded: 0, total: 0 });
+    setAssetLoadError(null);
+    setCursorWorld(null);
+    setBattleInstanceRevision((current) => current + 1);
+  }, []);
 
   const changeDifficulty = useCallback((nextDifficulty: AiDifficulty) => {
     if (battlePhase !== "briefing" || nextDifficulty === difficulty) return;
@@ -216,13 +282,14 @@ export function App() {
   }, []);
 
   const selectDeployable = useCallback((kind: DeployableKind) => {
+    if (campaignDeployables && !campaignDeployables.includes(kind)) return;
     playUiCue("select");
     setApp((current) => ({
       ...current,
       selectedDeployable: kind,
       feedback: { tone: "info", message: "移动到己方区域，绿色预览表示可以部署" },
     }));
-  }, [playUiCue]);
+  }, [campaignDeployables, playUiCue]);
 
   const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (
@@ -341,6 +408,7 @@ export function App() {
     setApp((current) => {
       const kind = current.selectedDeployable;
       if (!kind || current.session.phase !== "engaged") return current;
+      if (campaignDeployables && !campaignDeployables.includes(kind)) return current;
       const result = deployBattleSessionEntity(current.session, {
         faction: "verdant",
         kind,
@@ -358,7 +426,7 @@ export function App() {
         feedback: { tone: "success", message: "部署成功，金币已扣除" },
       };
     });
-  }, [app.selectedDeployable, deploymentEnabled]);
+  }, [app.selectedDeployable, campaignDeployables, deploymentEnabled]);
 
   const handlePointerCancel = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType !== "touch") return;
@@ -393,6 +461,19 @@ export function App() {
     ? { tone: "error" as const, message: deploymentReasonLabel(deploymentPreview.reason) }
     : app.feedback;
 
+  if (!benchmarkMode && mode === "campaign" && !activeCampaignMission) {
+    return (
+      <main className={styles.appShell}>
+        <CampaignMap
+          mode={mode}
+          progress={campaignProgress}
+          onStartMission={startCampaignMission}
+          onChangeMode={changeMode}
+        />
+      </main>
+    );
+  }
+
   return (
     <main className={styles.appShell} aria-busy={!assetsReady}>
       <header
@@ -409,7 +490,7 @@ export function App() {
         </div>
         <div className={styles.commandCenter}>
           {!benchmarkMode && <GameModeSelector mode={mode} onChange={changeMode} />}
-          {!benchmarkMode && (
+          {!benchmarkMode && mode !== "campaign" && (
             <AiDifficultySelector
               difficulty={difficulty}
               disabled={battlePhase !== "briefing"}
@@ -418,7 +499,7 @@ export function App() {
           )}
           <div className={styles.battlePulse} aria-live="polite">
             <span>{battlePhase === "briefing"
-              ? "等待交战"
+              ? activeCampaignMission ? "任务待命" : "等待交战"
               : battle.winner
                 ? "战斗结束"
                 : clock.phase === "double" ? "双倍金币" : "战线交锋中"}</span>
@@ -426,6 +507,11 @@ export function App() {
           </div>
         </div>
         <div className={styles.headerActions}>
+          {activeCampaignMission && (
+            <button className={styles.restartButton} type="button" onClick={returnToCampaignMap}>
+              返回地图
+            </button>
+          )}
           <button
             className={styles.engagementOrder}
             data-open={battlePhase === "briefing"}
@@ -435,8 +521,8 @@ export function App() {
             autoFocus={assetsReady}
             onClick={engageBattle}
           >
-            <span>BEGIN DEPLOYMENT</span>
-            <strong><b aria-hidden="true">⚔</b> 交战</strong>
+            <span>{activeCampaignMission ? "BEGIN MISSION" : "BEGIN DEPLOYMENT"}</span>
+            <strong><b aria-hidden="true">⚔</b> {activeCampaignMission ? "开始任务" : "交战"}</strong>
           </button>
           <button
             className={styles.audioToggle}
@@ -464,6 +550,7 @@ export function App() {
         <DeploymentRail
           session={app.session}
           selectedKind={app.selectedDeployable}
+          allowedKinds={campaignDeployables}
           onSelect={selectDeployable}
         />
 
@@ -512,9 +599,11 @@ export function App() {
             <span>{app.selectedDeployable ? "左键部署 · 右键取消" : "从左侧选择部署单位"}</span>
           </div>
           <div className={styles.objectiveFlag} data-tone={fieldFeedback?.tone ?? "info"}>
-            <span>{app.selectedDeployable ? "DEPLOYMENT MODE" : "FORTIFIED FRONT"}</span>
+            <span>{app.selectedDeployable
+              ? "DEPLOYMENT MODE"
+              : activeCampaignMission ? activeCampaignMission.title : "FORTIFIED FRONT"}</span>
             <strong aria-live="polite">{battlePhase === "briefing"
-              ? "点击交战，开始三分钟攻防"
+              ? activeCampaignMission?.primaryObjective ?? "点击交战，开始三分钟攻防"
               : fieldFeedback?.message ?? (app.selectedDeployable
                 ? "移动到己方区域，绿色预览表示可以部署"
                 : "选择建筑或兵种进入部署模式")}</strong>
@@ -548,9 +637,39 @@ export function App() {
             aria-hidden={battle.winner === null}
             inert={battle.winner === null}
           >
-            <span>THE FIELD IS DECIDED</span>
-            <strong>{winnerLabel(battle.winner)}</strong>
-            <button type="button" onClick={resetBattle}>再次交锋</button>
+            <span>{activeCampaignMission ? "MISSION REPORT" : "THE FIELD IS DECIDED"}</span>
+            <strong>{campaignResult
+              ? campaignResult.success
+                ? `任务完成 · ${"★".repeat(campaignResult.stars)}${"☆".repeat(3 - campaignResult.stars)}`
+                : battle.winner === "verdant" && !campaignResult.primaryConditionMet
+                  ? "试炼条件未完成"
+                  : winnerLabel(battle.winner)
+              : winnerLabel(battle.winner)}</strong>
+            {campaignResult && (
+              <div className={styles.campaignObjectives}>
+                <small data-complete={campaignResult.primaryConditionMet}>
+                  {campaignResult.primaryConditionMet ? "✓" : "×"} {activeCampaignMission?.primaryObjective}
+                </small>
+                {campaignResult.optionalResults.map((objective) => (
+                  <small data-complete={objective.completed} key={objective.label}>
+                    {objective.completed ? "★" : "☆"} {objective.label}
+                  </small>
+                ))}
+                {campaignResult.success && activeCampaignMission?.reward && (
+                  <em>军备解锁：{DEPLOYABLE_LABELS[activeCampaignMission.reward]}</em>
+                )}
+              </div>
+            )}
+            <div className={styles.resultActions}>
+              {activeCampaignMission && (
+                <button type="button" onClick={returnToCampaignMap}>
+                  {campaignResult?.success ? "领取奖励" : "返回地图"}
+                </button>
+              )}
+              <button type="button" onClick={resetBattle}>
+                {activeCampaignMission ? "重新挑战" : "再次交锋"}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -625,12 +744,18 @@ function AssetLoadingScreen({
   );
 }
 
-function createAppState(benchmarkMode: boolean, mode: GameMode): AppState {
+function createAppState(
+  benchmarkMode: boolean,
+  mode: GameMode,
+  campaignMission: CampaignMission | null = null,
+): AppState {
   return {
     session: {
       battle: benchmarkMode
         ? createBenchmarkBattle(80)
-        : mode === "arena" ? createArenaBattle() : createInitialBattle(),
+        : campaignMission
+          ? createCampaignBattle(campaignMission)
+          : mode === "arena" ? createArenaBattle() : createInitialBattle(),
       phase: benchmarkMode ? "engaged" : "briefing",
     },
     selectedDeployable: null,

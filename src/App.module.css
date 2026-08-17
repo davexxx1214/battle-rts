@@ -528,6 +528,45 @@
   letter-spacing: 0.12em;
 }
 
+.campaignObjectives {
+  display: grid;
+  gap: 7px;
+  margin: -6px 0 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  background: rgb(255 255 255 / 3%);
+  text-align: left;
+}
+
+.campaignObjectives small,
+.campaignObjectives em {
+  display: block;
+  color: var(--muted);
+  font-size: 8px;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.campaignObjectives small[data-complete="true"] {
+  color: #a9d8ff;
+}
+
+.campaignObjectives em {
+  margin-top: 3px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  color: var(--amber);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+.resultActions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
 .engagementOrder {
   min-width: 104px;
   height: 48px;

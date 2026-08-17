@@ -16,6 +16,7 @@ import styles from "./DeploymentRail.module.css";
 interface DeploymentRailProps {
   readonly session: BattleSessionState;
   readonly selectedKind: DeployableKind | null;
+  readonly allowedKinds?: readonly DeployableKind[];
   readonly onSelect: (kind: DeployableKind) => void;
 }
 
@@ -94,6 +95,7 @@ const TROOPS = DEPLOYABLES.filter(({ kind }) => (
 export function DeploymentRail({
   session,
   selectedKind,
+  allowedKinds,
   onSelect,
 }: DeploymentRailProps) {
   const battle = session.battle;
@@ -103,6 +105,12 @@ export function DeploymentRail({
     ? GAME_RULES.economy.doubleRecoverySeconds
     : GAME_RULES.economy.normalRecoverySeconds;
   const secondsToGold = recoveryInterval * (1 - account.recoveryProgress);
+  const availableTroops = allowedKinds
+    ? TROOPS.filter(({ kind }) => allowedKinds.includes(kind))
+    : TROOPS;
+  const availableBuildings = allowedKinds
+    ? BUILDINGS.filter(({ kind }) => allowedKinds.includes(kind))
+    : BUILDINGS;
 
   return (
     <aside
@@ -141,20 +149,24 @@ export function DeploymentRail({
       </header>
 
       <div className={styles.deployablesDock}>
-        <DeployableGroup
-          title="作战单位"
-          items={TROOPS}
-          session={session}
-          selectedKind={selectedKind}
-          onSelect={onSelect}
-        />
-        <DeployableGroup
-          title="建筑工事"
-          items={BUILDINGS}
-          session={session}
-          selectedKind={selectedKind}
-          onSelect={onSelect}
-        />
+        {availableTroops.length > 0 && (
+          <DeployableGroup
+            title="作战单位"
+            items={availableTroops}
+            session={session}
+            selectedKind={selectedKind}
+            onSelect={onSelect}
+          />
+        )}
+        {availableBuildings.length > 0 && (
+          <DeployableGroup
+            title="建筑工事"
+            items={availableBuildings}
+            session={session}
+            selectedKind={selectedKind}
+            onSelect={onSelect}
+          />
+        )}
         <footer className={styles.instructions}>
           <span>选择卡牌后点击己方势力范围</span>
           <kbd>ESC / 右键取消</kbd>
