@@ -24,12 +24,14 @@ describe("central game rules", () => {
 
   it("stores direct troop purchases as fixed squads instead of single units", () => {
     expect(GAME_RULES.deployment.costs).toMatchObject({
+      spearman: 200,
       swordsman: 400,
       archer: 300,
       mage: 600,
       catapult: 800,
     });
     expect(GAME_RULES.deployment.troopCounts).toEqual({
+      spearman: 2,
       swordsman: 3,
       archer: 2,
       mage: 2,
@@ -78,9 +80,24 @@ describe("central game rules", () => {
     ).toBe(29);
   });
 
+  it("stores the deployable guard tower separately from permanent castle towers", () => {
+    expect(GAME_RULES.deployment.costs["guard-tower"]).toBe(300);
+    expect(GAME_RULES.buildings.guardTower).toMatchObject({
+      cost: 300,
+      maxHealth: 450,
+      lifetimeSeconds: 20,
+      damage: 7,
+      attackRange: 7,
+      attackCooldown: 1.35,
+      projectileSpeed: 14,
+      maximumActivePerFaction: 1,
+    });
+    expect(GAME_RULES.buildings.arrowTower).not.toHaveProperty("lifetimeSeconds");
+  });
+
   it("keeps every current combat role in the same tunable rules module", () => {
     expect(new Set(Object.keys(UNIT_SPECS))).toEqual(
-      new Set(["knight", "ranger", "mage", "catapult"]),
+      new Set(["knight", "spearman", "ranger", "mage", "catapult"]),
     );
     for (const spec of Object.values(UNIT_SPECS)) {
       expect(spec.maxHealth).toBeGreaterThan(0);
@@ -104,9 +121,10 @@ describe("central game rules", () => {
 
   it("maps every deployable troop name to one existing combat role", () => {
     expect(new Set(TROOP_KINDS)).toEqual(
-      new Set(["swordsman", "archer", "mage", "catapult"]),
+      new Set(["spearman", "swordsman", "archer", "mage", "catapult"]),
     );
     expect(TROOP_ROLE_BY_DEPLOYABLE).toEqual({
+      spearman: "spearman",
       swordsman: "knight",
       archer: "ranger",
       mage: "mage",
@@ -141,14 +159,14 @@ describe("central game rules", () => {
           firstDecisionSeconds: 4,
           decisionIntervalSeconds: 24,
           buildingGoals: [],
-          troopCycle: ["swordsman", "archer"],
+          troopCycle: ["spearman", "archer", "swordsman"],
           deploymentPosture: "defensive",
         },
         normal: {
           firstDecisionSeconds: 6,
           decisionIntervalSeconds: 10,
           buildingGoals: [{ kind: "gold-mine", desiredActive: 1 }],
-          troopCycle: ["swordsman", "archer", "mage"],
+          troopCycle: ["spearman", "swordsman", "archer", "mage"],
           deploymentPosture: "balanced",
         },
         hard: {
@@ -157,8 +175,9 @@ describe("central game rules", () => {
           buildingGoals: [
             { kind: "gold-mine", desiredActive: 1 },
             { kind: "barracks", desiredActive: 1 },
+            { kind: "guard-tower", desiredActive: 1 },
           ],
-          troopCycle: ["swordsman", "archer", "mage", "catapult"],
+          troopCycle: ["spearman", "swordsman", "archer", "mage", "catapult"],
           deploymentPosture: "aggressive",
         },
       },

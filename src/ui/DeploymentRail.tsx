@@ -30,6 +30,11 @@ interface DeployableDefinition extends PresentationMetadata {
 }
 
 const TROOP_PRESENTATION = {
+  spearman: {
+    iconSrc: "/assets/ui/deployables/spearman.png",
+    name: "长枪兵",
+    detail: "低费长柄近战",
+  },
   swordsman: {
     iconSrc: "/assets/ui/deployables/swordsman.png",
     name: "剑士",
@@ -53,6 +58,11 @@ const TROOP_PRESENTATION = {
 } as const satisfies Readonly<Record<TroopKind, PresentationMetadata>>;
 
 const BUILDING_PRESENTATION = {
+  "guard-tower": {
+    iconSrc: "/assets/ui/deployables/guard-tower.png",
+    name: "箭塔",
+    detail: `射程 ${GAME_RULES.buildings.guardTower.attackRange} · 持续 ${GAME_RULES.buildings.guardTower.lifetimeSeconds} 秒`,
+  },
   "gold-mine": {
     iconSrc: "/assets/ui/deployables/gold-mine.png",
     name: "金矿",

@@ -14,7 +14,9 @@ describe("deployment rail", () => {
     }));
 
     expect(markup.indexOf("作战单位")).toBeLessThan(markup.indexOf("建筑工事"));
-    expect(markup.match(/<img /g)).toHaveLength(6);
+    expect(markup.match(/<img /g)).toHaveLength(8);
+    expect(markup).toContain("长枪兵");
+    expect(markup).toContain("箭塔");
     expect(markup).not.toContain(">⚔<");
     expect(markup).not.toContain(">➶<");
   });

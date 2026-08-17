@@ -80,8 +80,8 @@ describe("battle session gate", () => {
     const beforeDecision = advanceBattleSession(initial, "engaged", 79, 0.05);
     const afterDecision = advanceBattleSession(initial, "engaged", 80, 0.05);
 
-    expect(beforeDecision.deploymentCounts.crimson.swordsman).toBe(0);
-    expect(afterDecision.deploymentCounts.crimson.swordsman).toBe(1);
+    expect(beforeDecision.deploymentCounts.crimson.spearman).toBe(0);
+    expect(afterDecision.deploymentCounts.crimson.spearman).toBe(1);
     expect(afterDecision.buildings.some(({ faction, kind }) => (
       faction === "crimson" && (kind === "gold-mine" || kind === "barracks")
     ))).toBe(false);

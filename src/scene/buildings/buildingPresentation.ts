@@ -97,6 +97,7 @@ function productionProgress(building: BattleBuilding, elapsed: number): number |
   if (
     building.kind === "castle"
     || building.kind === "arrow-tower"
+    || building.kind === "guard-tower"
     || building.status !== "active"
   ) return null;
   const config = building.kind === "gold-mine"

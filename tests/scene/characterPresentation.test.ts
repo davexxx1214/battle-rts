@@ -15,6 +15,21 @@ describe("character presentation", () => {
     }
   });
 
+  it("builds the spearman from KayKit's medium knight rig and faction spear models", () => {
+    const asset = CHARACTER_SCENE_ASSETS.spearman;
+    expect(asset.modelUrl).toBe("/assets/kaykit/adventurers/characters/Knight.glb");
+    expect(asset.equipment?.boneName).toBe("handslot.r");
+    expect(asset.equipment?.modelUrls).toEqual({
+      verdant: "/assets/kaykit/medieval-hex/units/blue/spear_blue_accent.gltf",
+      crimson: "/assets/kaykit/medieval-hex/units/red/spear_red_accent.gltf",
+    });
+    expect(characterAnimationForState({
+      id: "blue-spearman",
+      role: "spearman",
+      status: "attacking",
+    })).toBe("Melee_1H_Attack_Stab");
+  });
+
   it("loads the advanced movement library required by the bow-carry run", () => {
     expect(CHARACTER_ANIMATION_URLS).toContain(
       "/assets/kaykit/character-animations/rig-medium/Rig_Medium_MovementAdvanced.glb",

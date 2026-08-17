@@ -31,7 +31,7 @@ import {
 } from "../map/battlefield";
 import type { Faction, UnitRole, WorldPoint } from "./types";
 import { BattleSpatialIndex } from "./spatialIndex";
-import { GAME_RULES, UNIT_SPECS } from "./rules";
+import { UNIT_SPECS } from "./rules";
 import {
   advanceEconomy,
   createEconomyState,
@@ -377,8 +377,8 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       origin: { ...attack.origin },
       position: { ...attack.origin },
       destination: { ...attack.targetPosition },
-      speed: GAME_RULES.buildings.arrowTower.projectileSpeed,
-      damage: GAME_RULES.buildings.arrowTower.damage,
+      speed: attack.projectileSpeed,
+      damage: attack.damage,
       splashRadius: 0,
     });
     emit({
@@ -738,7 +738,9 @@ function applyDamageIntents(
       sourceId: intent.sourceId,
       sourceRole: source.targetType === "unit"
         ? source.role
-        : source.kind === "arrow-tower" ? "arrow-tower" : "castle",
+        : source.kind === "arrow-tower" || source.kind === "guard-tower"
+          ? "arrow-tower"
+          : "castle",
       sourcePosition: { ...source.position },
       targetId: intent.targetId,
       targetType: "unit",

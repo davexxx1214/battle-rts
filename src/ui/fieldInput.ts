@@ -56,3 +56,11 @@ export function pinchZoomFactor(previousDistance: number, currentDistance: numbe
   if (previousDistance <= 0 || currentDistance <= 0) return 1;
   return Math.min(1.25, Math.max(0.8, currentDistance / previousDistance));
 }
+
+export function pointerDragExceedsThreshold(
+  start: FieldPoint,
+  current: FieldPoint,
+  threshold: number,
+): boolean {
+  return fieldPointerDistance(start, current) >= Math.max(0, threshold);
+}

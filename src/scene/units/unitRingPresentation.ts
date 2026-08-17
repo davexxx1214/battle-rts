@@ -1,4 +1,4 @@
-import type { DeployableKind } from "../../game/rules";
+import { isBuildingDeployable, type DeployableKind } from "../../game/rules";
 import type { UnitRole } from "../../game/types";
 import { UNIT_BASE_RING_GEOMETRY } from "../assets";
 
@@ -21,14 +21,14 @@ const MAGE_PLACEMENT_RING = {
 } as const satisfies UnitRingGeometry;
 
 export function unitBaseRingGeometry(role: UnitRole): UnitRingGeometry {
-  return role === "knight" || role === "ranger" || role === "catapult"
+  return role === "knight" || role === "spearman" || role === "ranger" || role === "catapult"
     ? UNIT_BASE_RING_GEOMETRY.catapult
     : UNIT_BASE_RING_GEOMETRY.character;
 }
 
 export function deploymentPreviewRingGeometry(kind: DeployableKind): UnitRingGeometry {
-  if (kind === "gold-mine" || kind === "barracks") return BUILDING_PLACEMENT_RING;
-  return kind === "swordsman" || kind === "archer" || kind === "catapult"
+  if (isBuildingDeployable(kind)) return BUILDING_PLACEMENT_RING;
+  return kind === "spearman" || kind === "swordsman" || kind === "archer" || kind === "catapult"
     ? UNIT_BASE_RING_GEOMETRY.catapult
     : MAGE_PLACEMENT_RING;
 }

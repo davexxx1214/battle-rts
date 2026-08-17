@@ -15,6 +15,7 @@ import { BATTLEFIELD_MAP, axialToWorld } from "../map/battlefield";
 export const ARENA_STARTING_UNITS_PER_FACTION = 40;
 
 const ARENA_ROSTER = [
+  "spearman",
   "swordsman",
   "archer",
   "mage",

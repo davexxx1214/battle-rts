@@ -246,7 +246,8 @@
 }
 
 .card[data-kind="gold-mine"],
-.card[data-kind="barracks"] {
+.card[data-kind="barracks"],
+.card[data-kind="guard-tower"] {
   border-left-color: rgb(229 184 77 / 62%);
 }
 
@@ -548,7 +549,7 @@
     left: max(8px, env(safe-area-inset-left));
     min-height: 0;
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(8, minmax(0, 1fr));
     gap: 4px;
     padding: 5px;
     border: 1px solid var(--line-strong);
@@ -573,17 +574,19 @@
   .card {
     height: 64px;
     min-height: 64px;
-    grid-template-columns: 34px minmax(0, 1fr);
-    grid-template-rows: 1fr 1fr;
-    gap: 0 5px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 34px 12px 12px;
+    justify-items: center;
+    gap: 0;
     margin-top: 0;
-    padding: 5px;
+    padding: 3px 2px;
+    text-align: center;
   }
 
   .iconFrame {
-    width: 34px;
-    height: 34px;
-    grid-row: 1 / -1;
+    width: 32px;
+    height: 32px;
+    grid-row: auto;
     align-self: center;
   }
 
@@ -593,11 +596,12 @@
   }
 
   .identity strong {
-    font-size: 8px;
+    font-size: 7px;
   }
 
   .identity {
-    align-self: end;
+    width: 100%;
+    align-self: center;
   }
 
   .identity small,
@@ -606,13 +610,14 @@
   }
 
   .price {
+    width: 100%;
     min-width: 0;
-    align-self: start;
-    text-align: left;
+    align-self: center;
+    text-align: center;
   }
 
   .price b {
-    font-size: 10px;
+    font-size: 9px;
   }
 
   .card[data-selected="true"] {

@@ -28,6 +28,7 @@ import {
   characterAnimationForState,
   characterTintStrength,
   type CharacterRole,
+  type CharacterSceneAsset,
 } from "./characterPresentation";
 import { unitBaseRingGeometry } from "./unitRingPresentation";
 import {
@@ -71,10 +72,14 @@ function CharacterUnitModel({
   readonly damageSourcePosition?: WorldPoint;
 }) {
   const role = unit.role as CharacterRole;
-  const gltf = useLoader(
+  const asset: CharacterSceneAsset = CHARACTER_SCENE_ASSETS[role];
+  const equipment = asset.equipment;
+  const equipmentUrl = equipment?.modelUrls[unit.faction];
+  const characterGltfs = useLoader(
     GLTFLoader,
-    CHARACTER_SCENE_ASSETS[role].modelUrl,
+    equipmentUrl ? [asset.modelUrl, equipmentUrl] : [asset.modelUrl],
   );
+  const gltf = characterGltfs[0]!;
   const animationGltfs = useLoader(GLTFLoader, [...CHARACTER_ANIMATION_URLS]);
   const root = useRef<Object3D>(null);
   const healthRoot = useRef<Object3D>(null);
@@ -82,8 +87,15 @@ function CharacterUnitModel({
   const healthCameraRotation = useMemo(() => new Quaternion(), []);
   const activeAction = useRef<AnimationAction | null>(null);
   const model = useMemo(
-    () => prepareCharacterModel(gltf.scene, unit.faction, role),
-    [gltf.scene, role, unit.faction],
+    () => prepareCharacterModel(
+      gltf.scene,
+      unit.faction,
+      role,
+      equipment && characterGltfs[1]
+        ? { ...equipment, source: characterGltfs[1].scene }
+        : null,
+    ),
+    [characterGltfs, equipment, gltf.scene, role, unit.faction],
   );
   const clips = useMemo(
     () => animationGltfs.flatMap((animation) => animation.animations),
@@ -267,8 +279,22 @@ function prepareCharacterModel(
   source: Object3D,
   faction: BattleUnit["faction"],
   role: CharacterRole,
+  equipment: (NonNullable<CharacterSceneAsset["equipment"]> & {
+    readonly source: Object3D;
+  }) | null,
 ): Object3D {
   const model = cloneSkeleton(source);
+  if (equipment) {
+    const handSlot = model.getObjectByName(equipment.boneName);
+    if (handSlot) {
+      const attached = equipment.source.clone(true);
+      attached.name = `${role}-equipment`;
+      attached.position.set(...equipment.position);
+      attached.rotation.set(...equipment.rotation);
+      attached.scale.setScalar(equipment.scale);
+      handSlot.add(attached);
+    }
+  }
   const tint = new Color(FACTION_SCENE_COLORS[faction].tint);
   model.scale.setScalar(CHARACTER_SCALE);
   model.updateMatrixWorld(true);

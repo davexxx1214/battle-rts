@@ -8,7 +8,7 @@ import {
 } from "../src/game/balanceArena";
 import { GAME_RULES, type TroopKind } from "../src/game/rules";
 
-const TROOPS = ["archer", "swordsman", "mage", "catapult"] as const;
+const TROOPS = ["spearman", "archer", "swordsman", "mage", "catapult"] as const;
 const LANES = ["west", "east"] as const;
 const MAX_GOLD_EFFICIENCY_SPREAD = 1.2;
 
@@ -42,7 +42,7 @@ test("runs the mirrored troop balance tournament", () => {
     每百金币有效生命: profile.effectiveHealthPer100Gold,
     每百金币单体秒伤: profile.singleTargetDpsPer100Gold,
   })));
-  console.log("\n32 场换边竞技结果");
+  console.log(`\n${results.length} 场换边竞技结果`);
   const summaries = summarizeBalanceArena(results);
   console.table(summaries.map((summary) => ({
     兵团: troopLabel(summary.kind),
@@ -90,6 +90,7 @@ test("runs the mirrored troop balance tournament", () => {
 
 function troopLabel(kind: TroopKind): string {
   return {
+    spearman: "长枪兵",
     swordsman: "剑士",
     archer: "弓箭手",
     mage: "法师",

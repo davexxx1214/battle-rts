@@ -184,6 +184,49 @@ describe("atomic battle deployment", () => {
     ))).toHaveLength(1);
   });
 
+  it("deploys two long-reach spearmen for 200 gold", () => {
+    const result = deployBattleSessionEntity(unresolvedSession(500), {
+      faction: "verdant",
+      kind: "spearman",
+      worldPosition: axialToWorld(VERDANT_TROOP_CELL),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.state.battle.economy.accounts.verdant.gold).toBe(300);
+    expect(result.state.battle.units.filter((unit) => (
+      unit.squadId === "verdant-spearman-1-squad" && unit.role === "spearman"
+    ))).toHaveLength(2);
+  });
+
+  it("deploys one temporary guard tower and enforces its active limit", () => {
+    const result = deployBattleSessionEntity(unresolvedSession(500), {
+      faction: "verdant",
+      kind: "guard-tower",
+      worldPosition: axialToWorld(VERDANT_BUILDING_CELL),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.state.battle.economy.accounts.verdant.gold).toBe(200);
+    expect(result.state.battle.buildings).toContainEqual(expect.objectContaining({
+      id: "verdant-guard-tower-1",
+      kind: "guard-tower",
+      maxHealth: 450,
+      lifetimeSeconds: 20,
+      arrowTowerCombat: { cooldownRemaining: 0 },
+    }));
+    expect(getDeployableAvailability(result.state, "verdant", "guard-tower"))
+      .toEqual({ enabled: false, reason: "insufficient-gold" });
+    const funded = unresolvedSession(1000);
+    const withTower = { ...result.state, battle: {
+      ...result.state.battle,
+      economy: funded.battle.economy,
+    } };
+    expect(getDeployableAvailability(withTower, "verdant", "guard-tower"))
+      .toEqual({ enabled: false, reason: "building-limit" });
+  });
+
   it("rejects troop deployment on a walkable hex occupied by an active arrow tower", () => {
     const session = unresolvedSession();
     const arrowTower = session.battle.buildings.find((building) => (

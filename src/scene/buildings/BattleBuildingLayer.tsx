@@ -72,7 +72,7 @@ function BattleBuildingVisual({
       {building.kind === "castle"
         ? <CastleBuildingModel faction={building.faction} />
         : <DeployedBuildingModel faction={building.faction} kind={building.kind} />}
-      {building.kind !== "arrow-tower" && (
+      {building.kind !== "arrow-tower" && building.kind !== "guard-tower" && (
         <BuildingDetailModels faction={building.faction} kind={building.kind} />
       )}
       <BuildingHealthBar
@@ -80,7 +80,9 @@ function BattleBuildingVisual({
         tone={presentation.healthTone}
         height={building.kind === "castle"
           ? 4.3
-          : building.kind === "arrow-tower" ? 3.25 : building.kind === "barracks" ? 2.35 : 1.9}
+          : building.kind === "arrow-tower" || building.kind === "guard-tower"
+            ? 3.25
+            : building.kind === "barracks" ? 2.35 : 1.9}
       />
       {presentation.productionProgress !== null && (
         <ProductionProgress

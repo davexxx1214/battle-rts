@@ -7,8 +7,9 @@ import {
   type BattleState,
 } from "../../src/game/battle";
 import type { BattleBuilding } from "../../src/game/buildings";
+import { createBattleBuilding } from "../../src/game/buildings";
 import { GAME_RULES, UNIT_SPECS } from "../../src/game/rules";
-import { BATTLEFIELD_MAP, getMapCell } from "../../src/map/battlefield";
+import { BATTLEFIELD_MAP, axialToWorld, getMapCell } from "../../src/map/battlefield";
 
 function verdantTower(state: BattleState): BattleBuilding {
   const tower = state.buildings.find((building) => (
@@ -113,6 +114,53 @@ describe("authoritative arrow tower combat", () => {
       type: "building-destroyed",
       buildingId: tower.id,
       cause: "damage",
+    }));
+  });
+
+  it("uses the cheaper deployable tower stats and expires after twenty seconds", () => {
+    const coordinate = BATTLEFIELD_MAP.cells.find((cell) => (
+      cell.territory === "verdant" && cell.buildable
+    ));
+    if (!coordinate) throw new Error("Missing guard tower coordinate.");
+    const tower = createBattleBuilding({
+      id: "verdant-guard-tower-test",
+      kind: "guard-tower",
+      faction: "verdant",
+      coordinate,
+      createdAt: 0,
+    });
+    const target = createBattleUnit({
+      id: "crimson-guard-tower-target",
+      faction: "crimson",
+      role: "ranger",
+      position: {
+        x: axialToWorld(coordinate).x,
+        z: axialToWorld(coordinate).z - 5,
+      },
+    });
+    let state: BattleState = { ...createBattleState([target]), buildings: [tower] };
+
+    state = stepBattle(state, 0.1);
+    expect(state.projectiles).toContainEqual(expect.objectContaining({
+      attackerId: tower.id,
+      speed: GAME_RULES.buildings.guardTower.projectileSpeed,
+      damage: GAME_RULES.buildings.guardTower.damage,
+    }));
+
+    state = { ...createBattleState([]), buildings: [tower] };
+    for (
+      let elapsed = 0;
+      elapsed < GAME_RULES.buildings.guardTower.lifetimeSeconds;
+      elapsed += 0.1
+    ) state = stepBattle(state, 0.1);
+    expect(state.buildings.find(({ id }) => id === tower.id)).toMatchObject({
+      status: "destroyed",
+      health: 0,
+    });
+    expect(state.events).toContainEqual(expect.objectContaining({
+      type: "building-destroyed",
+      buildingId: tower.id,
+      cause: "expired",
     }));
   });
 });

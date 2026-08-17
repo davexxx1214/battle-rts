@@ -1,7 +1,14 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { MathUtils, OrthographicCamera, Vector3 } from "three";
 import { useEffect, useRef } from "react";
+import type { MutableRefObject } from "react";
+import { BATTLEFIELD_WORLD_BOUNDS } from "../../map/battlefield";
 import type { CameraViewSnapshot } from "./cameraViewStore";
+import { clampCameraTarget, screenPanWorldDelta } from "./cameraPan";
+import type { SceneInteractionBridge } from "../sceneInteractionBridge";
+
+const CAMERA_HEIGHT = 18;
+const CAMERA_GROUND_DISTANCE = 25;
 
 export interface CameraShakeImpulse {
   readonly sequence: number;
@@ -12,10 +19,12 @@ export function BattleCamera({
   resetToken,
   shake,
   onViewChange,
+  bridgeRef,
 }: {
   readonly resetToken: number;
   readonly shake: CameraShakeImpulse | null;
   readonly onViewChange?: (view: CameraViewSnapshot) => void;
+  readonly bridgeRef: MutableRefObject<SceneInteractionBridge>;
 }) {
   const { camera, size } = useThree();
   const compactViewport = Math.min(size.width, size.height) <= 520;
@@ -87,20 +96,41 @@ export function BattleCamera({
   }, []);
 
   useFrame((_, delta) => {
+    bridgeRef.current.panByScreenDelta = (deltaX, deltaY) => {
+      const worldDelta = screenPanWorldDelta(
+        deltaX,
+        deltaY,
+        yaw.current,
+        camera instanceof OrthographicCamera ? camera.zoom : 1,
+        CAMERA_HEIGHT,
+        CAMERA_GROUND_DISTANCE,
+      );
+      target.current.x += worldDelta.x;
+      target.current.z += worldDelta.z;
+    };
     const speed = 8 * delta;
     if (keys.current.has("arrowleft")) target.current.x -= speed;
     if (keys.current.has("arrowright")) target.current.x += speed;
     if (keys.current.has("arrowup")) target.current.z -= speed;
     if (keys.current.has("arrowdown")) target.current.z += speed;
-    target.current.x = MathUtils.clamp(target.current.x, -11, 11);
-    target.current.z = MathUtils.clamp(target.current.z, -9, 9);
+    const panProgress = camera instanceof OrthographicCamera
+      ? normalizedPanProgress(camera.zoom, compactViewport ? 11 : 22, 56)
+      : 1;
+    const clampedTarget = clampCameraTarget(
+      target.current,
+      BATTLEFIELD_WORLD_BOUNDS,
+      yaw.current,
+      panProgress,
+    );
+    target.current.x = clampedTarget.x;
+    target.current.z = clampedTarget.z;
     shakeEnergy.current = Math.max(0, shakeEnergy.current - delta * 1.9);
     const shakeX = Math.sin(shakePhase.current + shakeEnergy.current * 43) * shakeEnergy.current * 0.24;
     const shakeY = Math.cos(shakePhase.current * 1.7 + shakeEnergy.current * 37) * shakeEnergy.current * 0.13;
     camera.position.set(
       target.current.x + Math.sin(yaw.current) * 25 + shakeX,
-      18 + shakeY,
-      target.current.z + Math.cos(yaw.current) * 25 - shakeX * 0.45,
+      CAMERA_HEIGHT + shakeY,
+      target.current.z + Math.cos(yaw.current) * CAMERA_GROUND_DISTANCE - shakeX * 0.45,
     );
     camera.lookAt(target.current);
     camera.updateMatrixWorld();
@@ -131,4 +161,14 @@ export function BattleCamera({
     }
   });
   return null;
+}
+
+export function normalizedPanProgress(
+  zoom: number,
+  minimumZoom: number,
+  maximumZoom: number,
+): number {
+  if (zoom <= minimumZoom || maximumZoom <= minimumZoom) return 0;
+  const maximumTravel = 1 - minimumZoom / maximumZoom;
+  return MathUtils.clamp((1 - minimumZoom / zoom) / maximumTravel, 0, 1);
 }

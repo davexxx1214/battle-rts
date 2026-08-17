@@ -50,9 +50,9 @@ describe("headless balance arena", () => {
     expect(summaries.find((summary) => summary.kind === "swordsman"))
       .toMatchObject({ matches: 1, spentGold: match.spentGold.verdant });
     expect(profiles.map((profile) => profile.kind))
-      .toEqual(["archer", "swordsman", "mage", "catapult"]);
+      .toEqual(["spearman", "archer", "swordsman", "mage", "catapult"]);
     expect(profiles.map((profile) => profile.additionalRecoveryWaitSeconds))
-      .toEqual([0, 2.8, 8.4, 14]);
+      .toEqual([0, 2.8, 5.6, 11.2, 16.8]);
     expect(profiles.every((profile) => (
       profile.squadSize > 0
       && profile.totalHealthPer100Gold > 0

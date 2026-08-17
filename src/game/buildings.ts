@@ -229,7 +229,7 @@ export function createBattleBuilding(
     castleCombat: input.kind === "castle"
       ? { activatedAt: null, cooldownRemaining: 0 }
       : null,
-    arrowTowerCombat: input.kind === "arrow-tower"
+    arrowTowerCombat: input.kind === "arrow-tower" || input.kind === "guard-tower"
       ? { cooldownRemaining: 0 }
       : null,
     status: "active",
@@ -459,7 +459,11 @@ function collectProductionActions(
   building: BattleBuilding,
   cutoff: number,
 ): readonly BuildingProductionAction[] {
-  if (building.kind === "castle" || building.kind === "arrow-tower") return [];
+  if (
+    building.kind === "castle"
+    || building.kind === "arrow-tower"
+    || building.kind === "guard-tower"
+  ) return [];
   const config = building.kind === "gold-mine"
     ? {
         first: GAME_RULES.buildings.goldMine.firstProductionSeconds,
@@ -598,6 +602,7 @@ function buildingHealthSpec(kind: BattleBuildingKind): {
   if (kind === "arrow-tower") {
     return { maxHealth: GAME_RULES.buildings.arrowTower.maxHealth, lifetimeSeconds: null };
   }
+  if (kind === "guard-tower") return GAME_RULES.buildings.guardTower;
   return { maxHealth: GAME_RULES.castle.maxHealth, lifetimeSeconds: null };
 }
 

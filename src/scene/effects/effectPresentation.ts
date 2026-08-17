@@ -12,6 +12,7 @@ export const BATTLE_FX_URLS = Object.values(BATTLE_FX_SEQUENCES).flat();
 
 const PROJECTILE_ARC_HEIGHTS = {
   knight: 0,
+  spearman: 0,
   ranger: 0.74,
   mage: 0.34,
   catapult: 3.8,
@@ -19,6 +20,7 @@ const PROJECTILE_ARC_HEIGHTS = {
 
 const PROJECTILE_IMPACT_LIFETIMES = {
   knight: 0,
+  spearman: 0,
   ranger: 0.3,
   mage: 0,
   catapult: 0.24,

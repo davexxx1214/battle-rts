@@ -29,16 +29,11 @@ import {
   operatorAnimationForStatus,
   wheelRotationForTravel,
 } from "./catapultAnimation";
+import { CATAPULT_OPERATOR_ANIMATION_URLS } from "./characterPresentation";
 import {
   faceHealthBarToCamera,
   shouldShowUnitHealthBar,
 } from "./unitHealthPresentation";
-
-const OPERATOR_ANIMATION_URLS = [
-  "/assets/kaykit/character-animations/rig-medium/Rig_Medium_General.glb",
-  "/assets/kaykit/character-animations/rig-medium/Rig_Medium_MovementBasic.glb",
-  "/assets/kaykit/character-animations/rig-medium/Rig_Medium_Tools.glb",
-] as const;
 
 interface PreparedCatapult {
   readonly model: Object3D;
@@ -65,7 +60,10 @@ export function CatapultUnitModel({
 }) {
   const catapultGltf = useLoader(GLTFLoader, SCENE_MODEL_URLS.mobileCatapult);
   const operatorGltf = useLoader(GLTFLoader, SCENE_MODEL_URLS.catapultOperator);
-  const operatorAnimationGltfs = useLoader(GLTFLoader, [...OPERATOR_ANIMATION_URLS]);
+  const operatorAnimationGltfs = useLoader(
+    GLTFLoader,
+    [...CATAPULT_OPERATOR_ANIMATION_URLS],
+  );
   const root = useRef<Object3D>(null);
   const animatedRig = useRef<Object3D>(null);
   const healthRoot = useRef<Object3D>(null);

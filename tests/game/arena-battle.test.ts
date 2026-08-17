@@ -18,7 +18,7 @@ describe("arena game mode", () => {
       .toHaveLength(ARENA_STARTING_UNITS_PER_FACTION);
     expect(arena.units.every(({ id }) => id.startsWith("arena-"))).toBe(true);
     expect(countRoles(arena.units.filter(({ faction }) => faction === "verdant")))
-      .toEqual({ knight: 15, ranger: 10, mage: 10, catapult: 5 });
+      .toEqual({ spearman: 8, knight: 12, ranger: 8, mage: 8, catapult: 4 });
     expect([...new Set(arena.squads.map(({ initialSize }) => initialSize))].sort())
       .toEqual([1, 2, 3]);
     expect(arena.buildings).toEqual(normal.buildings);
@@ -28,6 +28,7 @@ describe("arena game mode", () => {
 
 function countRoles(units: ReturnType<typeof createArenaBattle>["units"]) {
   return {
+    spearman: units.filter(({ role }) => role === "spearman").length,
     knight: units.filter(({ role }) => role === "knight").length,
     ranger: units.filter(({ role }) => role === "ranger").length,
     mage: units.filter(({ role }) => role === "mage").length,

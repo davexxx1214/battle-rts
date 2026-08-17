@@ -50,6 +50,10 @@ import {
   DEFAULT_CAMERA_VIEW,
 } from "./scene/camera/cameraViewStore";
 import {
+  sceneAssetLoadPercentage,
+  type SceneAssetLoadProgress,
+} from "./scene/loadingProgress";
+import {
   DeploymentRail,
   deploymentReasonLabel,
 } from "./ui/DeploymentRail";
@@ -59,6 +63,7 @@ import {
   fieldPointerCoordinates,
   fieldPointerDistance,
   pinchZoomFactor,
+  pointerDragExceedsThreshold,
   shouldStartFieldPointerInteraction,
   type FieldPoint,
 } from "./ui/fieldInput";
@@ -74,7 +79,15 @@ interface DeploymentFeedback {
   readonly message: string;
 }
 
+interface TouchDragState {
+  readonly pointerId: number;
+  readonly startClient: FieldPoint;
+  previousField: FieldPoint;
+  dragging: boolean;
+}
+
 const SIMULATION_STEP_SECONDS = 0.05;
+const TOUCH_DRAG_THRESHOLD_PX = 8;
 const FEEDBACK_LIFETIME_MS = {
   success: 1800,
   error: 2600,
@@ -96,8 +109,15 @@ export function App() {
   const [battleInstanceRevision, setBattleInstanceRevision] = useState(0);
   const [audioEnabled, setAudioEnabled] = useState(DEFAULT_AUDIO_ENABLED);
   const [benchmark, setBenchmark] = useState<BenchmarkSnapshot | null>(null);
+  const [assetsReady, setAssetsReady] = useState(false);
+  const [assetLoadProgress, setAssetLoadProgress] = useState<SceneAssetLoadProgress>({
+    loaded: 0,
+    total: 0,
+  });
+  const [assetLoadError, setAssetLoadError] = useState<string | null>(null);
   const bridgeRef = useRef(createSceneInteractionBridge());
   const activeTouchPointersRef = useRef(new Map<number, FieldPoint>());
+  const singleTouchDragRef = useRef<TouchDragState | null>(null);
   const previousPinchDistanceRef = useRef<number | null>(null);
   const suppressTouchDeploymentRef = useRef(false);
   const cameraViewStore = useMemo(createCameraViewStore, []);
@@ -123,7 +143,7 @@ export function App() {
     enabled: audioEnabled,
   });
 
-  useBattleLoop(setApp, battlePhase, difficulty);
+  useBattleLoop(setApp, assetsReady ? battlePhase : "briefing", difficulty);
 
   useEffect(() => {
     const feedback = app.feedback;
@@ -178,11 +198,21 @@ export function App() {
   }, [battlePhase, difficulty]);
 
   const engageBattle = useCallback(() => {
+    if (!assetsReady) return;
     setApp((current) => ({
       ...current,
       session: beginBattleSession(current.session),
       feedback: { tone: "info", message: "选择左侧卡牌，然后点击己方势力范围部署" },
     }));
+  }, [assetsReady]);
+
+  const handleAssetsReady = useCallback(() => {
+    setAssetLoadError(null);
+    setAssetsReady(true);
+  }, []);
+
+  const handleAssetError = useCallback((message: string) => {
+    setAssetLoadError(message);
   }, []);
 
   const selectDeployable = useCallback((kind: DeployableKind) => {
@@ -205,9 +235,18 @@ export function App() {
       x: event.clientX,
       y: event.clientY,
     });
+    if (activeTouchPointersRef.current.size === 1) {
+      singleTouchDragRef.current = {
+        pointerId: event.pointerId,
+        startClient: { x: event.clientX, y: event.clientY },
+        previousField: localPointer(event),
+        dragging: false,
+      };
+    }
     const pinchDistance = activeTouchDistance(activeTouchPointersRef.current);
     if (pinchDistance === null) return;
 
+    singleTouchDragRef.current = null;
     previousPinchDistanceRef.current = pinchDistance;
     suppressTouchDeploymentRef.current = true;
     setCursorWorld(null);
@@ -223,6 +262,7 @@ export function App() {
       });
       const pinchDistance = activeTouchDistance(activeTouchPointersRef.current);
       if (pinchDistance !== null) {
+        singleTouchDragRef.current = null;
         const previousDistance = previousPinchDistanceRef.current;
         if (previousDistance !== null) {
           bridgeRef.current.zoomByFactor(pinchZoomFactor(previousDistance, pinchDistance));
@@ -232,6 +272,29 @@ export function App() {
         setCursorWorld(null);
         event.preventDefault();
         return;
+      }
+
+      const drag = singleTouchDragRef.current;
+      if (drag?.pointerId === event.pointerId) {
+        const currentField = localPointer(event);
+        const dragging = drag.dragging || pointerDragExceedsThreshold(
+          drag.startClient,
+          { x: event.clientX, y: event.clientY },
+          TOUCH_DRAG_THRESHOLD_PX,
+        );
+        if (dragging) {
+          bridgeRef.current.panByScreenDelta(
+            currentField.x - drag.previousField.x,
+            currentField.y - drag.previousField.y,
+          );
+          drag.dragging = true;
+          suppressTouchDeploymentRef.current = true;
+          setCursorWorld(null);
+          drag.previousField = currentField;
+          event.preventDefault();
+          return;
+        }
+        drag.previousField = currentField;
       }
       if (suppressTouchDeploymentRef.current) {
         event.preventDefault();
@@ -251,7 +314,11 @@ export function App() {
   const handlePointerUp = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType === "touch") {
       const trackedPointer = activeTouchPointersRef.current.has(event.pointerId);
-      const suppressDeployment = suppressTouchDeploymentRef.current;
+      const drag = singleTouchDragRef.current;
+      const suppressDeployment = suppressTouchDeploymentRef.current || (
+        drag?.pointerId === event.pointerId && drag.dragging
+      );
+      if (drag?.pointerId === event.pointerId) singleTouchDragRef.current = null;
       activeTouchPointersRef.current.delete(event.pointerId);
       previousPinchDistanceRef.current = activeTouchDistance(activeTouchPointersRef.current);
       if (activeTouchPointersRef.current.size === 0) {
@@ -295,6 +362,9 @@ export function App() {
 
   const handlePointerCancel = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType !== "touch") return;
+    if (singleTouchDragRef.current?.pointerId === event.pointerId) {
+      singleTouchDragRef.current = null;
+    }
     activeTouchPointersRef.current.delete(event.pointerId);
     previousPinchDistanceRef.current = activeTouchDistance(activeTouchPointersRef.current);
     if (activeTouchPointersRef.current.size === 0) {
@@ -324,8 +394,12 @@ export function App() {
     : app.feedback;
 
   return (
-    <main className={styles.appShell}>
-      <header className={styles.commandBar}>
+    <main className={styles.appShell} aria-busy={!assetsReady}>
+      <header
+        className={styles.commandBar}
+        inert={!assetsReady}
+        aria-hidden={!assetsReady}
+      >
         <div className={styles.brandLockup}>
           <div className={styles.brandSigil} aria-hidden="true">⚔</div>
           <div>
@@ -358,7 +432,7 @@ export function App() {
             type="button"
             aria-hidden={battlePhase !== "briefing"}
             inert={battlePhase !== "briefing"}
-            autoFocus
+            autoFocus={assetsReady}
             onClick={engageBattle}
           >
             <span>BEGIN DEPLOYMENT</span>
@@ -381,7 +455,12 @@ export function App() {
         </div>
       </header>
 
-      <section className={styles.warTable} data-phase={battlePhase}>
+      <section
+        className={styles.warTable}
+        data-phase={battlePhase}
+        inert={!assetsReady}
+        aria-hidden={!assetsReady}
+      >
         <DeploymentRail
           session={app.session}
           selectedKind={app.selectedDeployable}
@@ -411,6 +490,9 @@ export function App() {
               : null}
             cameraResetToken={cameraResetToken}
             cameraViewStore={cameraViewStore}
+            onAssetProgress={setAssetLoadProgress}
+            onAssetsReady={handleAssetsReady}
+            onAssetError={handleAssetError}
             onBenchmarkUpdate={benchmarkMode ? setBenchmark : undefined}
           />
           {benchmarkMode && (
@@ -481,7 +563,65 @@ export function App() {
           </div>
         </aside>
       </section>
+      {!assetsReady && (
+        <AssetLoadingScreen
+          percentage={sceneAssetLoadPercentage(assetLoadProgress)}
+          error={assetLoadError}
+        />
+      )}
     </main>
+  );
+}
+
+function AssetLoadingScreen({
+  percentage,
+  error,
+}: {
+  readonly percentage: number;
+  readonly error: string | null;
+}) {
+  return (
+    <section
+      className={styles.loadingScreen}
+      role={error ? "alert" : "status"}
+      aria-live="polite"
+      aria-label={error ? "资源加载失败" : "正在加载游戏资源"}
+    >
+      <div className={styles.loadingPanel}>
+        <div className={styles.loadingSigil} aria-hidden="true">⚔</div>
+        <p className={styles.loadingKicker}>FORTIFIED FRONT · FIELD ASSEMBLY</p>
+        <h2>{error ? "战场装配中断" : "正在装配战场"}</h2>
+        {error ? (
+          <>
+            <p className={styles.loadingMessage}>部分资源未能载入，请检查网络后重新加载。</p>
+            <button
+              className={styles.loadingRetry}
+              type="button"
+              onClick={() => window.location.reload()}
+            >
+              重新加载
+            </button>
+          </>
+        ) : (
+          <>
+            <div
+              className={styles.loadingTrack}
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={percentage}
+              aria-label={`资源加载进度 ${percentage}%`}
+            >
+              <i style={{ width: `${percentage}%` }} />
+            </div>
+            <div className={styles.loadingMeta}>
+              <span>地形 · 单位 · 建筑 · 战斗特效</span>
+              <strong>{percentage}%</strong>
+            </div>
+          </>
+        )}
+      </div>
+    </section>
   );
 }
 

@@ -72,7 +72,8 @@ describe("deterministic opponent deployment AI", () => {
     );
 
     expect(easy.battle.deploymentCounts.crimson).toMatchObject({
-      swordsman: 1,
+      spearman: 1,
+      swordsman: 0,
       "gold-mine": 0,
       barracks: 0,
     });
@@ -95,7 +96,7 @@ describe("deterministic opponent deployment AI", () => {
       fundCrimson(hard, GAME_RULES.economy.maximumGold),
       "hard",
     );
-    expect(normalAfterMine.battle.deploymentCounts.crimson.swordsman).toBe(1);
+    expect(normalAfterMine.battle.deploymentCounts.crimson.spearman).toBe(1);
     expect(normalAfterMine.battle.deploymentCounts.crimson.barracks).toBe(0);
     expect(hardAfterMine.battle.deploymentCounts.crimson.barracks).toBe(1);
   });
@@ -140,25 +141,28 @@ describe("deterministic opponent deployment AI", () => {
     expect(next.battle.nextDeploymentSequence).toBe(2);
   });
 
-  it("deploys direct troops in a stable cycle after its mine and barracks", () => {
+  it("deploys direct troops in a stable cycle after its mine, barracks, and guard tower", () => {
     const withMine = advanceHard(
       engagedSession(GAME_RULES.deployment.costs["gold-mine"]),
     );
     const withBarracks = advanceHard(
       fundCrimson(withMine, GAME_RULES.deployment.costs.barracks),
     );
+    const withGuardTower = advanceHard(
+      fundCrimson(withBarracks, GAME_RULES.deployment.costs["guard-tower"]),
+    );
 
     const next = advanceHard(
-      fundCrimson(withBarracks, GAME_RULES.deployment.costs.swordsman),
+      fundCrimson(withGuardTower, GAME_RULES.deployment.costs.spearman),
     );
 
     expect(next.battle.units).toContainEqual(expect.objectContaining({
-      id: expect.stringMatching(/^crimson-swordsman-/),
+      id: expect.stringMatching(/^crimson-spearman-/),
       faction: "crimson",
-      role: "knight",
+      role: "spearman",
     }));
     expect(next.battle.economy.accounts.crimson.gold).toBe(0);
-    expect(next.battle.nextDeploymentSequence).toBe(3);
+    expect(next.battle.nextDeploymentSequence).toBe(4);
   });
 
   it("falls back to a troop when living units occupy every crimson building hex", () => {
@@ -180,10 +184,10 @@ describe("deterministic opponent deployment AI", () => {
 
     expect(next.battle.units).toContainEqual(expect.objectContaining({
       faction: "crimson",
-      role: "knight",
+      role: "spearman",
     }));
     expect(next.battle.economy.accounts.crimson.gold).toBe(
-      GAME_RULES.economy.maximumGold - GAME_RULES.deployment.costs.swordsman,
+      GAME_RULES.economy.maximumGold - GAME_RULES.deployment.costs.spearman,
     );
   });
 
@@ -210,6 +214,13 @@ describe("deterministic opponent deployment AI", () => {
     session = advanceHard(
       fundCrimson(session, GAME_RULES.deployment.costs.barracks),
     );
+    session = advanceHard(
+      fundCrimson(session, GAME_RULES.deployment.costs["guard-tower"]),
+    );
+    expect(session.battle.buildings).toContainEqual(expect.objectContaining({
+      faction: "crimson",
+      kind: "guard-tower",
+    }));
 
     for (const kind of GAME_RULES.opponentAi.strategies.hard.troopCycle) {
       session = advanceHard(

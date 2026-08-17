@@ -1,10 +1,18 @@
 import type { UnitRole, UnitStatus } from "../../game/battle";
+import type { Faction } from "../../game/types";
 
 export type CharacterRole = Exclude<UnitRole, "catapult">;
 
 export interface CharacterSceneAsset {
   readonly modelUrl: string;
   readonly tintStrengthByMesh: Readonly<Record<string, number>>;
+  readonly equipment?: {
+    readonly modelUrls: Readonly<Record<Faction, string>>;
+    readonly boneName: string;
+    readonly scale: number;
+    readonly position: readonly [x: number, y: number, z: number];
+    readonly rotation: readonly [x: number, y: number, z: number];
+  };
 }
 
 export const CHARACTER_SCENE_ASSETS = {
@@ -22,6 +30,30 @@ export const CHARACTER_SCENE_ASSETS = {
       Knight_LegRight: 0.12,
       sword_1handed: 0.34,
       shield_round_color: 0.78,
+    },
+  },
+  spearman: {
+    modelUrl: "/assets/kaykit/adventurers/characters/Knight.glb",
+    tintStrengthByMesh: {
+      Knight_ArmLeft: 0.12,
+      Knight_ArmRight: 0.12,
+      Knight_Body: 0.46,
+      Knight_Cape: 0.68,
+      Knight_Head: 0,
+      Knight_Helmet: 0.46,
+      Knight_HelmetVisor: 0.46,
+      Knight_LegLeft: 0.12,
+      Knight_LegRight: 0.12,
+    },
+    equipment: {
+      modelUrls: {
+        verdant: "/assets/kaykit/medieval-hex/units/blue/spear_blue_accent.gltf",
+        crimson: "/assets/kaykit/medieval-hex/units/red/spear_red_accent.gltf",
+      },
+      boneName: "handslot.r",
+      scale: 3,
+      position: [0, 0.2908, 0],
+      rotation: [Math.PI / 2, 0, 0],
     },
   },
   ranger: {
@@ -62,6 +94,12 @@ export const CHARACTER_ANIMATION_URLS = [
   "/assets/kaykit/character-animations/rig-medium/Rig_Medium_CombatRanged.glb",
 ] as const;
 
+export const CATAPULT_OPERATOR_ANIMATION_URLS = [
+  "/assets/kaykit/character-animations/rig-medium/Rig_Medium_General.glb",
+  "/assets/kaykit/character-animations/rig-medium/Rig_Medium_MovementBasic.glb",
+  "/assets/kaykit/character-animations/rig-medium/Rig_Medium_Tools.glb",
+] as const;
+
 const KNIGHT_ATTACKS = [
   "Melee_1H_Attack_Chop",
   "Melee_1H_Attack_Slice_Diagonal",
@@ -90,6 +128,7 @@ export function characterAnimationForState({
     return "Walking_B";
   }
   if (status === "attacking") {
+    if (role === "spearman") return "Melee_1H_Attack_Stab";
     if (role === "knight") {
       return KNIGHT_ATTACKS[Math.abs(attackSequence) % KNIGHT_ATTACKS.length]!;
     }

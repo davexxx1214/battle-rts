@@ -9,6 +9,8 @@ export interface ArrowTowerAttack {
   readonly targetId: string;
   readonly origin: WorldPoint;
   readonly targetPosition: WorldPoint;
+  readonly damage: number;
+  readonly projectileSpeed: number;
 }
 
 export interface ArrowTowerAttackStep {
@@ -26,7 +28,13 @@ export function advanceArrowTowerAttacks(
   }
   const attacks: ArrowTowerAttack[] = [];
   const next = buildings.map((building) => {
-    if (building.kind !== "arrow-tower" || !building.arrowTowerCombat) return building;
+    if (
+      (building.kind !== "arrow-tower" && building.kind !== "guard-tower")
+      || !building.arrowTowerCombat
+    ) return building;
+    const spec = building.kind === "guard-tower"
+      ? GAME_RULES.buildings.guardTower
+      : GAME_RULES.buildings.arrowTower;
     const cooldownRemaining = Math.max(
       0,
       building.arrowTowerCombat.cooldownRemaining - deltaSeconds,
@@ -43,7 +51,7 @@ export function advanceArrowTowerAttacks(
         && candidate.health > 0
         && candidate.faction !== building.faction
         && distance(building.position, candidate.position)
-          <= GAME_RULES.buildings.arrowTower.attackRange
+          <= spec.attackRange
       ))
       .sort((first, second) => (
         distance(building.position, first.position)
@@ -57,11 +65,13 @@ export function advanceArrowTowerAttacks(
       targetId: target.id,
       origin: { ...building.position },
       targetPosition: { ...target.position },
+      damage: spec.damage,
+      projectileSpeed: spec.projectileSpeed,
     });
     return {
       ...building,
       arrowTowerCombat: {
-        cooldownRemaining: GAME_RULES.buildings.arrowTower.attackCooldown,
+        cooldownRemaining: spec.attackCooldown,
       },
     };
   });

@@ -4,6 +4,7 @@ import {
   fieldPointerCoordinates,
   fieldPointerDistance,
   pinchZoomFactor,
+  pointerDragExceedsThreshold,
   shouldStartFieldPointerInteraction,
 } from "../../src/ui/fieldInput";
 
@@ -44,5 +45,18 @@ describe("battlefield pointer input", () => {
     expect(pinchZoomFactor(100, 20)).toBe(0.8);
     expect(pinchZoomFactor(100, 200)).toBe(1.25);
     expect(pinchZoomFactor(0, 100)).toBe(1);
+  });
+
+  it("distinguishes a deployment tap from a deliberate camera drag", () => {
+    expect(pointerDragExceedsThreshold(
+      { x: 20, y: 30 },
+      { x: 25, y: 35 },
+      8,
+    )).toBe(false);
+    expect(pointerDragExceedsThreshold(
+      { x: 20, y: 30 },
+      { x: 28, y: 30 },
+      8,
+    )).toBe(true);
   });
 });

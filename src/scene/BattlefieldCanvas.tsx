@@ -14,11 +14,10 @@ import type { MutableRefObject } from "react";
 
 import type {
   BattleState,
-  WorldPoint,
 } from "../game/battle";
 import type { DeploymentPreview } from "../game/deployTransaction";
 import { validDeploymentCoordinates } from "../game/deployTransaction";
-import type { DeployableKind } from "../game/rules";
+import { isBuildingDeployable, type DeployableKind } from "../game/rules";
 import { terrainHeightAt } from "../map/battlefield";
 import {
   BattleCamera,
@@ -32,12 +31,15 @@ import { BattlefieldTerrain } from "./terrain/BattlefieldTerrain";
 import { UnitModel } from "./units/UnitModel";
 import { deploymentPreviewRingGeometry } from "./units/unitRingPresentation";
 import { FrameBenchmark, type BenchmarkSnapshot } from "../game/benchmark";
+import {
+  SceneAssetErrorBoundary,
+  SceneAssetPreloader,
+} from "./SceneAssetPreloader";
+import type { SceneAssetLoadProgress } from "./loadingProgress";
+import type { SceneInteractionBridge } from "./sceneInteractionBridge";
 
-export interface SceneInteractionBridge {
-  screenToWorld: (x: number, y: number) => WorldPoint | null;
-  zoomBy: (deltaY: number) => void;
-  zoomByFactor: (factor: number) => void;
-}
+export { createSceneInteractionBridge } from "./sceneInteractionBridge";
+export type { SceneInteractionBridge } from "./sceneInteractionBridge";
 
 interface BattlefieldCanvasProps {
   readonly battle: BattleState;
@@ -46,6 +48,9 @@ interface BattlefieldCanvasProps {
   readonly deploymentPreview: (DeploymentPreview & { readonly kind: DeployableKind }) | null;
   readonly cameraResetToken: number;
   readonly cameraViewStore: CameraViewStore;
+  readonly onAssetProgress?: (progress: SceneAssetLoadProgress) => void;
+  readonly onAssetsReady?: () => void;
+  readonly onAssetError?: (message: string) => void;
   readonly onBenchmarkUpdate?: (snapshot: BenchmarkSnapshot) => void;
 }
 
@@ -56,14 +61,6 @@ interface AttackPresentation {
 
 const ATTACK_PRESENTATION_SECONDS = 3.6;
 
-export function createSceneInteractionBridge(): SceneInteractionBridge {
-  return {
-    screenToWorld: () => null,
-    zoomBy: () => undefined,
-    zoomByFactor: () => undefined,
-  };
-}
-
 export function BattlefieldCanvas({
   battle,
   bridgeRef,
@@ -71,6 +68,9 @@ export function BattlefieldCanvas({
   deploymentPreview,
   cameraResetToken,
   cameraViewStore,
+  onAssetProgress,
+  onAssetsReady,
+  onAssetError,
   onBenchmarkUpdate,
 }: BattlefieldCanvasProps) {
   const attackPresentations = useAttackPresentationCache(battle);
@@ -93,6 +93,14 @@ export function BattlefieldCanvas({
       resize={{ offsetSize: true }}
       style={{ width: "100%", height: "100%", background: "#aeb9ad" }}
     >
+      {onAssetProgress && onAssetsReady && onAssetError && (
+        <SceneAssetErrorBoundary onError={onAssetError}>
+          <SceneAssetPreloader
+            onProgress={onAssetProgress}
+            onReady={onAssetsReady}
+          />
+        </SceneAssetErrorBoundary>
+      )}
       <color attach="background" args={["#aeb9ad"]} />
       <fog attach="fog" args={["#aeb9ad", 34, 72]} />
       <ambientLight intensity={1.15} />
@@ -113,6 +121,7 @@ export function BattlefieldCanvas({
         resetToken={cameraResetToken}
         shake={latestShakeImpulse(battle)}
         onViewChange={cameraViewStore.publish}
+        bridgeRef={bridgeRef}
       />
       <SceneBridge bridgeRef={bridgeRef} />
       {onBenchmarkUpdate && <BenchmarkProbe onUpdate={onBenchmarkUpdate} />}
@@ -155,7 +164,7 @@ function DeploymentPreviewVisual({
   readonly preview: DeploymentPreview & { readonly kind: DeployableKind };
 }) {
   if (!preview.position) return null;
-  const building = preview.kind === "gold-mine" || preview.kind === "barracks";
+  const building = isBuildingDeployable(preview.kind);
   const placementRing = deploymentPreviewRingGeometry(preview.kind);
   const color = preview.valid ? "#70e6a0" : "#ef625e";
   const y = terrainHeightAt(preview.position) + 0.075;

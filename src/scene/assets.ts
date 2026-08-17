@@ -269,6 +269,7 @@ export const STRUCTURE_SCENE_ASSETS = {
 export const BATTLE_BUILDING_ASSET_KEYS = {
   castle: "castle",
   "arrow-tower": "arrow-tower",
+  "guard-tower": "arrow-tower",
   "gold-mine": "mine",
   barracks: "barracks",
 } as const satisfies Readonly<Record<
@@ -317,6 +318,7 @@ function createBattleBuildingDetails(color: "blue" | "red") {
       ], 0.16),
     ],
     "arrow-tower": [],
+    "guard-tower": [],
     "gold-mine": [
       buildingDetail("ore-pile", `${BUILDING_PROP_ROOT}/resource_stone.gltf`, 1.45, [
         0.68, 0.08, 0.46,

@@ -18,10 +18,12 @@ export interface OpponentAiStrategy {
 export const DEFAULT_AI_DIFFICULTY: AiDifficulty = "easy";
 
 export const DEPLOYABLE_CATEGORIES = {
+  spearman: "troop",
   swordsman: "troop",
   archer: "troop",
   mage: "troop",
   catapult: "troop",
+  "guard-tower": "building",
   "gold-mine": "building",
   barracks: "building",
 } as const satisfies Readonly<Record<string, "troop" | "building">>;
@@ -83,6 +85,16 @@ export interface GameRules {
       readonly attackCooldown: number;
       readonly projectileSpeed: number;
     };
+    readonly guardTower: {
+      readonly cost: number;
+      readonly maxHealth: number;
+      readonly lifetimeSeconds: number;
+      readonly damage: number;
+      readonly attackRange: number;
+      readonly attackCooldown: number;
+      readonly projectileSpeed: number;
+      readonly maximumActivePerFaction: number;
+    };
     readonly goldMine: {
       readonly cost: number;
       readonly maxHealth: number;
@@ -120,7 +132,19 @@ export const UNIT_SPECS = {
     damageReduction: 0.08,
     attackRange: 1.22,
     attackCooldown: 1.1,
-    moveSpeed: 3.25,
+    moveSpeed: 2.6,
+    aggroRange: 7.5,
+    splashRadius: 0,
+    projectileSpeed: 0,
+  },
+  spearman: {
+    attackMode: "melee",
+    maxHealth: 140,
+    damage: 5,
+    damageReduction: 0,
+    attackRange: 1.65,
+    attackCooldown: 1.1,
+    moveSpeed: 2.75,
     aggroRange: 7.5,
     splashRadius: 0,
     projectileSpeed: 0,
@@ -132,7 +156,7 @@ export const UNIT_SPECS = {
     damageReduction: 0,
     attackRange: 7,
     attackCooldown: 1.35,
-    moveSpeed: 3.55,
+    moveSpeed: 2.85,
     aggroRange: 9,
     splashRadius: 0,
     projectileSpeed: 14,
@@ -144,7 +168,7 @@ export const UNIT_SPECS = {
     damageReduction: 0.08,
     attackRange: 6.2,
     attackCooldown: 1.8,
-    moveSpeed: 3.05,
+    moveSpeed: 2.45,
     aggroRange: 8.5,
     splashRadius: 2.4,
     projectileSpeed: 9,
@@ -156,7 +180,7 @@ export const UNIT_SPECS = {
     damageReduction: 0.12,
     attackRange: 13.5,
     attackCooldown: 4,
-    moveSpeed: 1.65,
+    moveSpeed: 1.35,
     aggroRange: 13,
     splashRadius: 3,
     projectileSpeed: 7,
@@ -164,6 +188,7 @@ export const UNIT_SPECS = {
 } as const satisfies Readonly<Record<UnitRole, UnitSpec>>;
 
 export const TROOP_ROLE_BY_DEPLOYABLE = {
+  spearman: "spearman",
   swordsman: "knight",
   archer: "ranger",
   mage: "mage",
@@ -172,6 +197,7 @@ export const TROOP_ROLE_BY_DEPLOYABLE = {
 
 const GOLD_MINE_COST = 700;
 const BARRACKS_COST = 500;
+const GUARD_TOWER_COST = 300;
 const CASTLE_MAX_HEALTH = 2000;
 
 export const GAME_RULES = {
@@ -188,14 +214,17 @@ export const GAME_RULES = {
   },
   deployment: {
     costs: {
+      spearman: 200,
       swordsman: 400,
       archer: 300,
       mage: 600,
       catapult: 800,
+      "guard-tower": GUARD_TOWER_COST,
       "gold-mine": GOLD_MINE_COST,
       barracks: BARRACKS_COST,
     },
     troopCounts: {
+      spearman: 2,
       swordsman: 3,
       archer: 2,
       mage: 2,
@@ -208,7 +237,7 @@ export const GAME_RULES = {
         firstDecisionSeconds: 4,
         decisionIntervalSeconds: 24,
         buildingGoals: [],
-        troopCycle: ["swordsman", "archer"],
+        troopCycle: ["spearman", "archer", "swordsman"],
         deploymentPosture: "defensive",
       },
       normal: {
@@ -217,7 +246,7 @@ export const GAME_RULES = {
         buildingGoals: [
           { kind: "gold-mine", desiredActive: 1 },
         ],
-        troopCycle: ["swordsman", "archer", "mage"],
+        troopCycle: ["spearman", "swordsman", "archer", "mage"],
         deploymentPosture: "balanced",
       },
       hard: {
@@ -226,8 +255,9 @@ export const GAME_RULES = {
         buildingGoals: [
           { kind: "gold-mine", desiredActive: 1 },
           { kind: "barracks", desiredActive: 1 },
+          { kind: "guard-tower", desiredActive: 1 },
         ],
-        troopCycle: ["swordsman", "archer", "mage", "catapult"],
+        troopCycle: ["spearman", "swordsman", "archer", "mage", "catapult"],
         deploymentPosture: "aggressive",
       },
     },
@@ -243,6 +273,16 @@ export const GAME_RULES = {
       attackRange: UNIT_SPECS.ranger.attackRange,
       attackCooldown: UNIT_SPECS.ranger.attackCooldown,
       projectileSpeed: UNIT_SPECS.ranger.projectileSpeed,
+    },
+    guardTower: {
+      cost: GUARD_TOWER_COST,
+      maxHealth: 450,
+      lifetimeSeconds: 20,
+      damage: 7,
+      attackRange: 7,
+      attackCooldown: 1.35,
+      projectileSpeed: 14,
+      maximumActivePerFaction: 1,
     },
     goldMine: {
       cost: GOLD_MINE_COST,
@@ -274,6 +314,7 @@ export const GAME_RULES = {
 } as const satisfies GameRules;
 
 export const BUILDING_ACTIVE_LIMITS = {
+  "guard-tower": GAME_RULES.buildings.guardTower.maximumActivePerFaction,
   "gold-mine": GAME_RULES.buildings.goldMine.maximumActivePerFaction,
   barracks: GAME_RULES.buildings.barracks.maximumActivePerFaction,
 } as const satisfies Readonly<Record<BuildingKind, number>>;
@@ -342,7 +383,11 @@ export function validateGameRules(rules: GameRules): string[] {
   if (deployment.costs.barracks !== buildings.barracks.cost) {
     errors.push("barracks deployment and building costs must match");
   }
+  if (deployment.costs["guard-tower"] !== buildings.guardTower.cost) {
+    errors.push("guard tower deployment and building costs must match");
+  }
   const activeLimitByBuilding = {
+    "guard-tower": buildings.guardTower.maximumActivePerFaction,
     "gold-mine": buildings.goldMine.maximumActivePerFaction,
     barracks: buildings.barracks.maximumActivePerFaction,
   } satisfies Readonly<Record<BuildingKind, number>>;
@@ -371,7 +416,7 @@ export function validateGameRules(rules: GameRules): string[] {
       seenBuildingGoals.add(goal.kind);
     }
   }
-  for (const kind of ["swordsman", "archer", "mage"] as const) {
+  for (const kind of ["spearman", "swordsman", "archer", "mage"] as const) {
     const cost = deployment.costs[kind];
     if (cost < 200 || cost > 700) errors.push(`${kind} cost must be from 200 to 700`);
   }
@@ -408,6 +453,16 @@ export function validateGameRules(rules: GameRules): string[] {
     "attackCooldown",
     "projectileSpeed",
   ]);
+  validatePositiveGroup(errors, "buildings.guardTower", buildings.guardTower, [
+    "cost",
+    "maxHealth",
+    "lifetimeSeconds",
+    "damage",
+    "attackRange",
+    "attackCooldown",
+    "projectileSpeed",
+    "maximumActivePerFaction",
+  ]);
   if (buildings.goldMine.firstProductionSeconds > buildings.goldMine.lifetimeSeconds) {
     errors.push("gold mine must produce before its lifetime ends");
   }
@@ -423,6 +478,9 @@ export function validateGameRules(rules: GameRules): string[] {
     !Number.isInteger(buildings.barracks.maximumActivePerFaction)
     || !Number.isInteger(buildings.barracks.spawnCount)
   ) errors.push("barracks counts must be integers");
+  if (!Number.isInteger(buildings.guardTower.maximumActivePerFaction)) {
+    errors.push("guard tower maximumActivePerFaction must be an integer");
+  }
   if (
     !Number.isInteger(buildings.goldMine.goldPerProduction)
     || buildings.goldMine.goldPerProduction % 100 !== 0
