@@ -15,6 +15,9 @@ import {
   type HexCoordinate,
 } from "../map/battlefield";
 
+export const VALID_DEPLOYMENT_COLOR = "#168a55";
+export const VALID_DEPLOYMENT_EDGE_COLOR = "#0b6f43";
+
 export function DeploymentAreaMask({
   coordinates,
 }: {
@@ -29,9 +32,9 @@ export function DeploymentAreaMask({
     return tile;
   }, []);
   const material = useMemo(() => new MeshBasicMaterial({
-    color: new Color("#39d997"),
+    color: new Color(VALID_DEPLOYMENT_COLOR),
     transparent: true,
-    opacity: 0.24,
+    opacity: 0.34,
     depthTest: true,
     depthWrite: false,
     side: DoubleSide,
@@ -46,9 +49,9 @@ export function DeploymentAreaMask({
     return edge;
   }, []);
   const edgeMaterial = useMemo(() => new MeshBasicMaterial({
-    color: new Color("#8ff5c2"),
+    color: new Color(VALID_DEPLOYMENT_EDGE_COLOR),
     transparent: true,
-    opacity: 0.3,
+    opacity: 0.62,
     depthTest: true,
     depthWrite: false,
     side: DoubleSide,

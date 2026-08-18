@@ -26,7 +26,10 @@ import {
 import type { CameraViewStore } from "./camera/cameraViewStore";
 import { BattleEffects } from "./effects/BattleEffects";
 import { BattleBuildingLayer } from "./buildings/BattleBuildingLayer";
-import { DeploymentAreaMask } from "./DeploymentAreaMask";
+import {
+  DeploymentAreaMask,
+  VALID_DEPLOYMENT_COLOR,
+} from "./DeploymentAreaMask";
 import { BattlefieldTerrain } from "./terrain/BattlefieldTerrain";
 import { UnitModel } from "./units/UnitModel";
 import { deploymentPreviewRingGeometry } from "./units/unitRingPresentation";
@@ -166,7 +169,7 @@ function DeploymentPreviewVisual({
   if (!preview.position) return null;
   const building = isBuildingDeployable(preview.kind);
   const placementRing = deploymentPreviewRingGeometry(preview.kind);
-  const color = preview.valid ? "#70e6a0" : "#ef625e";
+  const color = preview.valid ? VALID_DEPLOYMENT_COLOR : "#ef625e";
   const y = terrainHeightAt(preview.position) + 0.075;
   return (
     <group position={[preview.position.x, y, preview.position.z]}>
