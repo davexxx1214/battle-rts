@@ -43,6 +43,21 @@ function activateCastle(
   };
 }
 
+function setCastleHealth(
+  state: BattleState,
+  faction: Faction,
+  health: number,
+): BattleState {
+  return {
+    ...state,
+    buildings: state.buildings.map((building) => (
+      building.kind === "castle" && building.faction === faction
+        ? { ...building, health }
+        : building
+    )),
+  };
+}
+
 describe("authoritative castle combat", () => {
   it("creates one permanent dormant castle for each faction outside deployment occupancy", () => {
     const state = createBattleState([]);
@@ -222,6 +237,32 @@ describe("authoritative castle combat", () => {
     expect(resolved.winner).toBe("draw");
     expect(frozen.matchElapsed).toBe(resolved.matchElapsed);
     expect(frozen.units).toEqual(resolved.units);
+    expect(frozen.economy).toEqual(resolved.economy);
+  });
+
+  it.each([
+    { faction: "verdant" as const, verdantHealth: 1_400, crimsonHealth: 900 },
+    { faction: "crimson" as const, verdantHealth: 750, crimsonHealth: 1_250 },
+  ])("awards a timeout victory to the healthier $faction castle", ({
+    faction,
+    verdantHealth,
+    crimsonHealth,
+  }) => {
+    let state = createBattleState([]);
+    state = setCastleHealth(state, "verdant", verdantHealth);
+    state = setCastleHealth(state, "crimson", crimsonHealth);
+    state = {
+      ...state,
+      matchElapsed: GAME_RULES.match.durationSeconds - 0.05,
+    };
+
+    const resolved = stepBattle(state, 0.1);
+    const frozen = stepBattle(resolved, 0.1);
+
+    expect(resolved.matchElapsed).toBe(GAME_RULES.match.durationSeconds);
+    expect(resolved.winner).toBe(faction);
+    expect(resolved.resolvedAt).toBe(resolved.elapsed);
+    expect(frozen.matchElapsed).toBe(resolved.matchElapsed);
     expect(frozen.economy).toEqual(resolved.economy);
   });
 });

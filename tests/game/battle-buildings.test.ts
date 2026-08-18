@@ -8,6 +8,7 @@ import {
 } from "../../src/game/battle";
 import { createBattleBuilding, type BattleBuilding } from "../../src/game/buildings";
 import type { BuildingOccupancy } from "../../src/game/deployment";
+import { GAME_RULES } from "../../src/game/rules";
 import {
   BATTLEFIELD_MAP,
   coordinateKey,
@@ -99,22 +100,22 @@ describe("battle building integration", () => {
     expect(state.revision).toBe(seeded.revision + 1);
   });
 
-  it("does not run building production past the three-minute match boundary", () => {
+  it("does not run building production past the five-minute match boundary", () => {
     const barracks = createBattleBuilding({
       id: "boundary-barracks",
       kind: "barracks",
       faction: "verdant",
       coordinate: BUILDING_COORDINATE,
-      createdAt: 175.02,
+      createdAt: GAME_RULES.match.durationSeconds - 4.98,
     });
     const seeded = withBuilding(createUnresolvedBattle(), barracks);
     const state = stepBattle({
       ...seeded,
-      elapsed: 179.95,
-      matchElapsed: 179.95,
+      elapsed: GAME_RULES.match.durationSeconds - 0.05,
+      matchElapsed: GAME_RULES.match.durationSeconds - 0.05,
     }, 0.1);
 
-    expect(state.matchElapsed).toBe(180);
+    expect(state.matchElapsed).toBe(GAME_RULES.match.durationSeconds);
     expect(state.buildings[0]?.productionSequence).toBe(0);
     expect(state.units.some((unit) => unit.id.startsWith(`${barracks.id}-swordsman-`))).toBe(false);
   });
@@ -141,7 +142,7 @@ describe("battle building integration", () => {
         position: { x: 0, z: 0 },
       }),
     ]), mine);
-    state = { ...state, matchElapsed: 179.95 };
+    state = { ...state, matchElapsed: GAME_RULES.match.durationSeconds - 0.05 };
 
     state = stepBattle(stepBattle(state, 0.1), 0.1);
 

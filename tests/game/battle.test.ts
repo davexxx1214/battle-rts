@@ -8,6 +8,7 @@ import {
   stepBattle,
   type BattleState,
 } from "../../src/game/battle";
+import { GAME_RULES } from "../../src/game/rules";
 import {
   axialToWorld,
 } from "../../src/map/battlefield";
@@ -199,7 +200,7 @@ describe("automatic battle simulation", () => {
     expect(UNIT_SPECS.mage.splashRadius).toBeGreaterThan(0);
   });
 
-  it("does not resolve on army elimination and draws at three minutes", () => {
+  it("does not resolve on army elimination and draws at five minutes when castle health is tied", () => {
     const survivor = createBattleUnit({
       id: "v-1", faction: "verdant", role: "knight", position: { x: 0, z: 5 },
     });
@@ -213,7 +214,10 @@ describe("automatic battle simulation", () => {
     const active = stepBattle(createBattleState([survivor, deadEnemy]), 0.1);
     expect(active.winner).toBeNull();
 
-    const drawn = stepBattle({ ...active, matchElapsed: 179.95 }, 0.1);
+    const drawn = stepBattle({
+      ...active,
+      matchElapsed: GAME_RULES.match.durationSeconds - 0.05,
+    }, 0.1);
     expect(drawn.winner).toBe("draw");
     expect(drawn.resolvedAt).toBe(drawn.elapsed);
   });

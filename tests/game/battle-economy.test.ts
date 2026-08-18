@@ -6,6 +6,7 @@ import {
   getBattleMatchClock,
   stepBattle,
 } from "../../src/game/battle";
+import { GAME_RULES } from "../../src/game/rules";
 
 function createUnresolvedBattle() {
   return createBattleState([
@@ -30,7 +31,7 @@ describe("battle economy integration", () => {
 
     expect(getBattleMatchClock(initial)).toMatchObject({
       elapsedSeconds: 0,
-      remainingSeconds: 180,
+      remainingSeconds: GAME_RULES.match.durationSeconds,
       phase: "normal",
     });
     expect(initial.economy.accounts.verdant.gold).toBe(500);
@@ -42,7 +43,9 @@ describe("battle economy integration", () => {
     let state = createUnresolvedBattle();
     for (let index = 0; index < 28; index += 1) state = stepBattle(state, 0.1);
 
-    expect(getBattleMatchClock(state).remainingSeconds).toBeCloseTo(177.2);
+    expect(getBattleMatchClock(state).remainingSeconds).toBeCloseTo(
+      GAME_RULES.match.durationSeconds - 2.8,
+    );
     expect(state.economy.accounts.verdant.gold).toBe(600);
     expect(state.economy.accounts.crimson.gold).toBe(600);
   });
@@ -67,7 +70,10 @@ describe("battle economy integration", () => {
         position: { x: 0, z: 0 },
       }),
     ]);
-    const resolved = stepBattle({ ...active, matchElapsed: 179.95 }, 0.1);
+    const resolved = stepBattle({
+      ...active,
+      matchElapsed: GAME_RULES.match.durationSeconds - 0.05,
+    }, 0.1);
     let advanced = resolved;
     for (let index = 0; index < 28; index += 1) advanced = stepBattle(advanced, 0.1);
 

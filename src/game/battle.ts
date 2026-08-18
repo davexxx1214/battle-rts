@@ -443,8 +443,9 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     elapsed,
   );
   const units = [...unitsAfterCastleAttacks, ...producedUnits];
+  const matchTimedOut = getMatchClock(matchElapsed).remainingSeconds <= 0;
   const winner = castleWinnerAfterBuildingHealth
-    ?? (getMatchClock(matchElapsed).remainingSeconds <= 0 ? "draw" as const : null);
+    ?? (matchTimedOut ? resolveTimeoutWinner(buildingCleanup.buildings) : null);
   return {
     units,
     squads: appendUnitsToSquads(state.squads, producedUnits),
@@ -781,6 +782,21 @@ function resolveCastleWinner(
   if (verdantDestroyed) return "crimson";
   if (crimsonDestroyed) return "verdant";
   return null;
+}
+
+function resolveTimeoutWinner(
+  buildings: readonly BattleBuilding[],
+): Faction | "draw" {
+  const verdantHealth = buildings.find((building) => (
+    building.kind === "castle" && building.faction === "verdant"
+  ))?.health;
+  const crimsonHealth = buildings.find((building) => (
+    building.kind === "castle" && building.faction === "crimson"
+  ))?.health;
+  if (verdantHealth === undefined || crimsonHealth === undefined) return "draw";
+  if (verdantHealth > crimsonHealth) return "verdant";
+  if (crimsonHealth > verdantHealth) return "crimson";
+  return "draw";
 }
 
 function applyDamage(unit: BattleUnit, amount: number, elapsed: number): BattleUnit {

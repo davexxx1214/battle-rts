@@ -202,8 +202,8 @@ const CASTLE_MAX_HEALTH = 2000;
 
 export const GAME_RULES = {
   match: {
-    durationSeconds: 180,
-    doubleGoldStartsAtSeconds: 120,
+    durationSeconds: 300,
+    doubleGoldStartsAtSeconds: 240,
   },
   economy: {
     initialGold: 500,

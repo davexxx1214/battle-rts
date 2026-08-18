@@ -6,7 +6,7 @@ import {
   stepBattle,
   type BattleState,
 } from "../../src/game/battle";
-import { UNIT_SPECS } from "../../src/game/rules";
+import { GAME_RULES, UNIT_SPECS } from "../../src/game/rules";
 import {
   BATTLEFIELD_MAP,
   axialToWorld,
@@ -150,13 +150,13 @@ describe("automatic combat role behavior", () => {
     expect(next.winner).toBeNull();
   });
 
-  it("freezes eight seconds after the three-minute draw", () => {
+  it("freezes eight seconds after the five-minute draw", () => {
     const unit = createBattleUnit({
       id: "v-1", faction: "verdant", role: "knight", position: { x: 0, z: 5 },
     });
     const drawn = stepBattle({
       ...createBattleState([unit]),
-      matchElapsed: 179.95,
+      matchElapsed: GAME_RULES.match.durationSeconds - 0.05,
     }, 0.1);
     const resolvedAt = drawn.resolvedAt!;
     const frozen = runSteps(drawn, 100);

@@ -8,6 +8,7 @@ import {
   trySpendGold,
   type EconomyState,
 } from "../../src/game/economy";
+import { GAME_RULES } from "../../src/game/rules";
 
 describe("gold economy", () => {
   it("reports passive recovery wait in complete gold ticks and honors saved progress", () => {
@@ -38,9 +39,13 @@ describe("gold economy", () => {
       },
     };
 
-    const result = advanceEconomy(nearBoundary, 118.6, 2.1);
+    const result = advanceEconomy(
+      nearBoundary,
+      GAME_RULES.match.doubleGoldStartsAtSeconds - 1.4,
+      2.1,
+    );
 
-    expect(getMatchClock(120.7).phase).toBe("double");
+    expect(getMatchClock(GAME_RULES.match.doubleGoldStartsAtSeconds + 0.7).phase).toBe("double");
     expect(result.state.accounts.verdant.gold).toBe(600);
     expect(result.state.accounts.verdant.recoveryProgress).toBeCloseTo(0.5);
   });
@@ -87,13 +92,21 @@ describe("gold economy", () => {
     });
   });
 
-  it("clamps the three-minute match clock and stops passive recovery", () => {
-    expect(getMatchClock(119.5)).toMatchObject({ phase: "normal", remainingSeconds: 60.5 });
-    expect(getMatchClock(120)).toMatchObject({ phase: "double", remainingSeconds: 60 });
-    expect(getMatchClock(181)).toMatchObject({ phase: "double", remainingSeconds: 0 });
+  it("clamps the five-minute match clock and stops passive recovery", () => {
+    const doubleGoldStartsAt = GAME_RULES.match.doubleGoldStartsAtSeconds;
+    const duration = GAME_RULES.match.durationSeconds;
+    expect(getMatchClock(doubleGoldStartsAt - 0.5)).toMatchObject({
+      phase: "normal",
+      remainingSeconds: duration - doubleGoldStartsAt + 0.5,
+    });
+    expect(getMatchClock(doubleGoldStartsAt)).toMatchObject({
+      phase: "double",
+      remainingSeconds: duration - doubleGoldStartsAt,
+    });
+    expect(getMatchClock(duration + 1)).toMatchObject({ phase: "double", remainingSeconds: 0 });
 
     const initial = createEconomyState();
-    const result = advanceEconomy(initial, 179.5, 20).state;
+    const result = advanceEconomy(initial, duration - 0.5, 20).state;
     expect(result.accounts.verdant.gold).toBe(500);
     expect(result.accounts.verdant.recoveryProgress).toBeCloseTo(0.5 / 1.4);
   });

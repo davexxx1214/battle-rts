@@ -603,7 +603,7 @@ export function App() {
               ? "DEPLOYMENT MODE"
               : activeCampaignMission ? activeCampaignMission.title : "FORTIFIED FRONT"}</span>
             <strong aria-live="polite">{battlePhase === "briefing"
-              ? activeCampaignMission?.primaryObjective ?? "点击交战，开始三分钟攻防"
+              ? activeCampaignMission?.primaryObjective ?? "点击交战，开始五分钟攻防"
               : fieldFeedback?.message ?? (app.selectedDeployable
                 ? "移动到己方区域，绿色预览表示可以部署"
                 : "选择建筑或兵种进入部署模式")}</strong>
