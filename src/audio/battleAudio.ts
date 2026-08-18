@@ -233,11 +233,15 @@ function combatEventCues(event: BattleEvent): CombatAudioCue[] {
     if (event.role === "ranger" || event.role === "castle" || event.role === "arrow-tower") {
       return ["ranger.attack"];
     }
-    if (event.role === "catapult") return ["catapult.attack"];
+    if (event.role === "catapult" || event.role === "bone-dragon") {
+      return ["catapult.attack"];
+    }
     return [];
   }
   if (event.type === "projectile-hit") {
-    if (event.role === "catapult") return ["catapult.impact"];
+    if (event.role === "catapult" || event.role === "bone-dragon") {
+      return ["catapult.impact"];
+    }
     return [];
   }
   return [];

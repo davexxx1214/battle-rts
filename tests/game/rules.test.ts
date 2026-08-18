@@ -4,7 +4,14 @@ import {
   GAME_RULES,
   TROOP_KINDS,
   TROOP_ROLE_BY_DEPLOYABLE,
+  UNDEAD_TROOP_COUNTS,
+  UNDEAD_TROOP_DESIGNS,
+  UNDEAD_TROOP_ROLE_BY_DEPLOYABLE,
+  UNDEAD_UNIT_SPECS,
   UNIT_SPECS,
+  troopCountForDeployment,
+  unitRoleForDeployment,
+  unitSpecFor,
   validateGameRules,
   type GameRules,
 } from "../../src/game/rules";
@@ -97,7 +104,7 @@ describe("central game rules", () => {
 
   it("keeps every current combat role in the same tunable rules module", () => {
     expect(new Set(Object.keys(UNIT_SPECS))).toEqual(
-      new Set(["knight", "spearman", "ranger", "mage", "catapult"]),
+      new Set(["knight", "spearman", "ranger", "mage", "catapult", "bone-dragon"]),
     );
     for (const spec of Object.values(UNIT_SPECS)) {
       expect(spec.maxHealth).toBeGreaterThan(0);
@@ -106,7 +113,58 @@ describe("central game rules", () => {
       expect(spec.damageReduction).toBeLessThan(1);
       expect(spec.attackCooldown).toBeGreaterThan(0);
       expect(spec.moveSpeed).toBeGreaterThan(0);
+      expect(["ground", "flying"]).toContain(spec.movementMode);
     }
+  });
+
+  it("gives the undead roster distinct roles, squad sizes, and combat identities", () => {
+    expect(UNDEAD_TROOP_ROLE_BY_DEPLOYABLE).toEqual({
+      spearman: "spearman",
+      swordsman: "knight",
+      archer: "ranger",
+      mage: "mage",
+      catapult: "bone-dragon",
+    });
+    expect(UNDEAD_TROOP_COUNTS).toEqual({
+      spearman: 3,
+      swordsman: 2,
+      archer: 2,
+      mage: 2,
+      catapult: 1,
+    });
+    expect(Object.values(UNDEAD_TROOP_DESIGNS).map(({ name }) => name)).toEqual([
+      "骸骨先锋",
+      "墓穴卫士",
+      "骸骨弩手",
+      "亡魂术士",
+      "冰霜骨龙",
+    ]);
+    expect(unitRoleForDeployment("catapult", "crimson", true)).toBe("bone-dragon");
+    expect(unitRoleForDeployment("catapult", "verdant", true)).toBe("catapult");
+    expect(troopCountForDeployment("spearman", "crimson", true)).toBe(3);
+    expect(troopCountForDeployment("spearman", "verdant", true)).toBe(2);
+  });
+
+  it("uses undead-specific health, cadence, range, armor, and ground-dragon rules", () => {
+    expect(UNDEAD_UNIT_SPECS.spearman.maxHealth).toBeLessThan(UNIT_SPECS.spearman.maxHealth);
+    expect(UNDEAD_UNIT_SPECS.spearman.attackCooldown)
+      .toBeLessThan(UNIT_SPECS.spearman.attackCooldown);
+    expect(UNDEAD_UNIT_SPECS.knight.maxHealth).toBeGreaterThan(UNIT_SPECS.knight.maxHealth);
+    expect(UNDEAD_UNIT_SPECS.knight.damageReduction)
+      .toBeGreaterThan(UNIT_SPECS.knight.damageReduction);
+    expect(UNDEAD_UNIT_SPECS.ranger.attackRange).toBeGreaterThan(UNIT_SPECS.ranger.attackRange);
+    expect(UNDEAD_UNIT_SPECS.ranger.damage).toBeGreaterThan(UNIT_SPECS.ranger.damage);
+    expect(UNDEAD_UNIT_SPECS.mage.splashRadius).toBeGreaterThan(UNIT_SPECS.mage.splashRadius);
+    expect(UNDEAD_UNIT_SPECS.mage.attackRange).toBeLessThan(UNIT_SPECS.mage.attackRange);
+    expect(unitSpecFor("bone-dragon", "undead")).toMatchObject({
+      movementMode: "ground",
+      attackMode: "cone",
+      coneAngleDegrees: 52,
+      maxHealth: 620,
+      splashRadius: 0,
+    });
+    expect(unitSpecFor("bone-dragon", "undead").attackRange)
+      .toBeLessThan(UNIT_SPECS.catapult.attackRange);
   });
 
   it("gives arrow towers one-quarter castle health and archer combat reach", () => {

@@ -21,8 +21,9 @@ import { stampBattleEvent } from "./events";
 import {
   BUILDING_ACTIVE_LIMITS,
   GAME_RULES,
-  TROOP_ROLE_BY_DEPLOYABLE,
   isBuildingDeployable,
+  troopCountForDeployment,
+  unitRoleForDeployment,
   type BuildingKind,
   type DeployableKind,
   type TroopKind,
@@ -179,6 +180,7 @@ export function previewDeployment(
     request.kind,
     coordinate,
     occupiedBuildings,
+    state.undeadOpponent,
   );
   if (!unitPositions.ok) {
     return invalidPreview(unitPositions.reason, request.worldPosition);
@@ -207,7 +209,13 @@ export function validDeploymentCoordinates(
     .filter((cell) => (
       cell.territory === faction
       && cell.walkable
-      && planTroopPositions(faction, kind, cell, occupiedBuildings).ok
+      && planTroopPositions(
+        faction,
+        kind,
+        cell,
+        occupiedBuildings,
+        state.undeadOpponent,
+      ).ok
     ))
     .map(({ q, r }) => ({ q, r }));
 }
@@ -270,6 +278,7 @@ export function deployBattleSessionEntity(
       request.faction,
       request.kind,
       preview.unitPositions,
+      state.undeadOpponent,
     );
     units = [...units, ...deployedUnits];
     squads = appendUnitsToSquads(squads, deployedUnits);
@@ -324,13 +333,15 @@ function createDeployedUnits(
   faction: Faction,
   kind: TroopKind,
   positions: readonly WorldPoint[],
+  undeadOpponent: boolean,
 ) {
   const squadId = `${deploymentId}-squad`;
   return positions.map((memberPosition, index) => createBattleUnit({
     id: `${deploymentId}-member-${index + 1}`,
     squadId,
     faction,
-    role: TROOP_ROLE_BY_DEPLOYABLE[kind],
+    role: unitRoleForDeployment(kind, faction, undeadOpponent),
+    combatProfile: undeadOpponent && faction === "crimson" ? "undead" : "human",
     position: memberPosition,
   }));
 }
@@ -353,6 +364,7 @@ function planTroopPositions(
   kind: TroopKind,
   coordinate: HexCoordinate,
   occupiedBuildings: ReadonlySet<string>,
+  undeadOpponent: boolean,
 ): { readonly ok: true; readonly positions: readonly WorldPoint[] }
   | { readonly ok: false; readonly reason: DeploymentFailureReason } {
   const center = axialToWorld(coordinate);
@@ -361,7 +373,7 @@ function planTroopPositions(
   );
   const facing = faction === "verdant" ? Math.PI : 0;
   const positions = createFormationSlots(
-    GAME_RULES.deployment.troopCounts[kind],
+    troopCountForDeployment(kind, faction, undeadOpponent),
     center,
     facing,
   );

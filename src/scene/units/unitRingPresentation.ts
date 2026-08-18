@@ -21,6 +21,7 @@ const MAGE_PLACEMENT_RING = {
 } as const satisfies UnitRingGeometry;
 
 export function unitBaseRingGeometry(role: UnitRole): UnitRingGeometry {
+  if (role === "bone-dragon") return UNIT_BASE_RING_GEOMETRY.boneDragon;
   return role === "knight" || role === "spearman" || role === "ranger" || role === "catapult"
     ? UNIT_BASE_RING_GEOMETRY.catapult
     : UNIT_BASE_RING_GEOMETRY.character;

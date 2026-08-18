@@ -47,9 +47,14 @@ import {
   type DeploymentPreview,
 } from "./game/deployTransaction";
 import { createArenaBattle } from "./game/arenaBattle";
+import {
+  createFrostBreathPreviewBattle,
+  isFrostBreathPreviewRequest,
+} from "./game/frostBreathPreview";
 import { getMatchClock } from "./game/economy";
 import {
   DEFAULT_AI_DIFFICULTY,
+  UNDEAD_TROOP_DESIGNS,
   type AiDifficulty,
   type DeployableKind,
 } from "./game/rules";
@@ -111,12 +116,17 @@ export function App() {
   const benchmarkMode = useMemo(() => (
     new URLSearchParams(window.location.search).get("benchmark") === "80"
   ), []);
-  const [mode, setMode] = useState<GameMode>(DEFAULT_GAME_MODE);
+  const frostPreview = useMemo(() => (
+    isFrostBreathPreviewRequest(window.location.search)
+  ), []);
+  const [mode, setMode] = useState<GameMode>(
+    frostPreview ? "undead" : DEFAULT_GAME_MODE,
+  );
   const [difficulty, setDifficulty] = useState<AiDifficulty>(DEFAULT_AI_DIFFICULTY);
   const [campaignProgress, setCampaignProgress] = useState(loadCampaignProgress);
   const [activeCampaignMissionId, setActiveCampaignMissionId] = useState<string | null>(null);
   const [app, setApp] = useState<AppState>(() => (
-    createAppState(benchmarkMode, DEFAULT_GAME_MODE)
+    createAppState(benchmarkMode, frostPreview ? "undead" : DEFAULT_GAME_MODE, null, frostPreview)
   ));
   const { battle, phase: battlePhase } = app.session;
   const undeadOpponent = hasUndeadOpponent(mode);
@@ -218,12 +228,12 @@ export function App() {
   }, []);
 
   const resetBattle = useCallback(() => {
-    setApp(createAppState(benchmarkMode, mode, activeCampaignMission));
+    setApp(createAppState(benchmarkMode, mode, activeCampaignMission, frostPreview));
     setCursorWorld(null);
     setCameraResetToken((current) => current + 1);
     cameraViewStore.publish(DEFAULT_CAMERA_VIEW);
     setBattleInstanceRevision((current) => current + 1);
-  }, [activeCampaignMission, benchmarkMode, cameraViewStore, mode]);
+  }, [activeCampaignMission, benchmarkMode, cameraViewStore, frostPreview, mode]);
 
   const changeMode = useCallback((nextMode: GameMode) => {
     if (nextMode === mode) return;
@@ -623,6 +633,17 @@ export function App() {
                 ? "移动到己方区域，绿色预览表示可以部署"
                 : "选择建筑或兵种进入部署模式")}</strong>
           </div>
+          {undeadOpponent && battlePhase === "briefing" && (
+            <aside className={styles.undeadRosterPanel} aria-label="亡灵兵种概览">
+              <span>UNDEAD ROSTER</span>
+              {Object.values(UNDEAD_TROOP_DESIGNS).map((troop) => (
+                <div key={troop.name}>
+                  <strong>{troop.name}</strong>
+                  <small>{troop.identity}</small>
+                </div>
+              ))}
+            </aside>
+          )}
           <div
             className={styles.zoomControls}
             data-field-ui
@@ -763,15 +784,20 @@ function createAppState(
   benchmarkMode: boolean,
   mode: GameMode,
   campaignMission: CampaignMission | null = null,
+  frostPreview = false,
 ): AppState {
   return {
     session: {
       battle: benchmarkMode
         ? createBenchmarkBattle(80)
-        : campaignMission
-          ? createCampaignBattle(campaignMission)
-          : mode === "arena" ? createArenaBattle() : createInitialBattle(),
-      phase: benchmarkMode ? "engaged" : "briefing",
+        : frostPreview
+          ? createFrostBreathPreviewBattle()
+          : campaignMission
+            ? createCampaignBattle(campaignMission)
+            : mode === "arena"
+              ? createArenaBattle()
+              : createInitialBattle({ undeadOpponent: hasUndeadOpponent(mode) }),
+      phase: benchmarkMode || frostPreview ? "engaged" : "briefing",
     },
     selectedDeployable: null,
     feedback: null,

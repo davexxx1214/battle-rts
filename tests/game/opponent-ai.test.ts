@@ -165,6 +165,29 @@ describe("deterministic opponent deployment AI", () => {
     expect(next.battle.nextDeploymentSequence).toBe(4);
   });
 
+  it("opens the hard undead troop cycle with a grounded frost bone dragon", () => {
+    const initial = engagedSession(GAME_RULES.deployment.costs["gold-mine"]);
+    let session: BattleSessionState = {
+      ...initial,
+      battle: { ...initial.battle, undeadOpponent: true },
+    };
+    session = advanceHard(session);
+    session = advanceHard(fundCrimson(session, GAME_RULES.deployment.costs.barracks));
+    session = advanceHard(fundCrimson(
+      session,
+      GAME_RULES.deployment.costs["guard-tower"],
+    ));
+    session = advanceHard(fundCrimson(session, GAME_RULES.deployment.costs.catapult));
+
+    expect(session.battle.units).toContainEqual(expect.objectContaining({
+      id: expect.stringMatching(/^crimson-catapult-/),
+      faction: "crimson",
+      role: "bone-dragon",
+      combatProfile: "undead",
+      maxHealth: 620,
+    }));
+  });
+
   it("falls back to a troop when living units occupy every crimson building hex", () => {
     const initial = engagedSession(GAME_RULES.economy.maximumGold);
     const blockers = BATTLEFIELD_MAP.cells

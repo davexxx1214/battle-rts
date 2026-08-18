@@ -8,12 +8,13 @@ import {
 import type { BattleBuilding } from "./buildings";
 import type { CombatTarget, CombatTargetRef } from "./combat";
 import { castleChargeNavigationKey, findHexPath } from "./navigation";
-import { GAME_RULES, UNIT_SPECS } from "./rules";
-import type { Faction, UnitRole, WorldPoint } from "./types";
+import { GAME_RULES, unitSpecFor } from "./rules";
+import type { Faction, UnitCombatProfile, UnitRole, WorldPoint } from "./types";
 
 export interface AutomaticCombatUnit extends CombatTarget {
   readonly targetType: "unit";
   readonly role: UnitRole;
+  readonly combatProfile: UnitCombatProfile;
   readonly behavior: "charging" | "engaging" | "castle-locked";
   readonly currentTarget: CombatTargetRef | null;
   readonly waypoints: readonly WorldPoint[];
@@ -55,7 +56,7 @@ export function selectAutomaticTarget(
   const destination = axialToWorld(
     BATTLEFIELD_MAP.castleApproaches[oppositeFaction(input.unit.faction)],
   );
-  const aggroRange = UNIT_SPECS[input.unit.role].aggroRange;
+  const aggroRange = unitSpecFor(input.unit.role, input.unit.combatProfile).aggroRange;
   const eligible = targets.filter((target) => (
     distance(input.unit.position, target.position) <= aggroRange + POSITION_EPSILON
     && forwardProgress(input.unit.faction, input.unit.position, target.position) >= -POSITION_EPSILON

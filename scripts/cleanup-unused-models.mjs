@@ -96,11 +96,6 @@ targets.push(...await unusedSiblingModels(
   new Set([".gltf", ".bin"]),
 ));
 targets.push(...await unusedSiblingModels(
-  path.join(assetRoot, "kaykit", "dungeon"),
-  new Set(["banner_patternC_green"]),
-  new Set([".gltf", ".bin"]),
-));
-targets.push(...await unusedSiblingModels(
   path.join(assetRoot, "threejsassets", "dungeon"),
   threeJsDungeonKeep,
   new Set([".glb"]),

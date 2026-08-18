@@ -1,4 +1,4 @@
-import type { UnitRole } from "./types";
+import type { Faction, UnitCombatProfile, UnitRole } from "./types";
 
 export const AI_DIFFICULTIES = ["easy", "normal", "hard"] as const;
 export type AiDifficulty = typeof AI_DIFFICULTIES[number];
@@ -42,7 +42,9 @@ export const TROOP_KINDS: readonly TroopKind[] = (
   .filter((kind): kind is TroopKind => DEPLOYABLE_CATEGORIES[kind] === "troop");
 
 export interface UnitSpec {
-  readonly attackMode: "melee" | "projectile";
+  readonly attackMode: "melee" | "projectile" | "cone";
+  readonly movementMode: "ground" | "flying";
+  readonly coneAngleDegrees?: number;
   readonly maxHealth: number;
   readonly damage: number;
   readonly damageReduction: number;
@@ -127,6 +129,7 @@ export interface GameRules {
 export const UNIT_SPECS = {
   knight: {
     attackMode: "melee",
+    movementMode: "ground",
     maxHealth: 230,
     damage: 6,
     damageReduction: 0.08,
@@ -139,6 +142,7 @@ export const UNIT_SPECS = {
   },
   spearman: {
     attackMode: "melee",
+    movementMode: "ground",
     maxHealth: 140,
     damage: 5,
     damageReduction: 0,
@@ -151,6 +155,7 @@ export const UNIT_SPECS = {
   },
   ranger: {
     attackMode: "projectile",
+    movementMode: "ground",
     maxHealth: 140,
     damage: 9,
     damageReduction: 0,
@@ -163,6 +168,7 @@ export const UNIT_SPECS = {
   },
   mage: {
     attackMode: "projectile",
+    movementMode: "ground",
     maxHealth: 180,
     damage: 11.75,
     damageReduction: 0.08,
@@ -175,6 +181,7 @@ export const UNIT_SPECS = {
   },
   catapult: {
     attackMode: "projectile",
+    movementMode: "ground",
     maxHealth: 380,
     damage: 47,
     damageReduction: 0.12,
@@ -185,7 +192,77 @@ export const UNIT_SPECS = {
     splashRadius: 3,
     projectileSpeed: 7,
   },
+  "bone-dragon": {
+    attackMode: "cone",
+    movementMode: "ground",
+    coneAngleDegrees: 52,
+    maxHealth: 620,
+    damage: 34,
+    damageReduction: 0.2,
+    attackRange: 6.8,
+    attackCooldown: 2.8,
+    moveSpeed: 2.9,
+    aggroRange: 10,
+    splashRadius: 0,
+    projectileSpeed: 0,
+  },
 } as const satisfies Readonly<Record<UnitRole, UnitSpec>>;
+
+export const UNDEAD_UNIT_SPECS = {
+  spearman: {
+    attackMode: "melee",
+    movementMode: "ground",
+    maxHealth: 95,
+    damage: 4,
+    damageReduction: 0,
+    attackRange: 1.35,
+    attackCooldown: 0.68,
+    moveSpeed: 3.15,
+    aggroRange: 8,
+    splashRadius: 0,
+    projectileSpeed: 0,
+  },
+  knight: {
+    attackMode: "melee",
+    movementMode: "ground",
+    maxHealth: 300,
+    damage: 8,
+    damageReduction: 0.18,
+    attackRange: 1.18,
+    attackCooldown: 1.55,
+    moveSpeed: 2.15,
+    aggroRange: 7,
+    splashRadius: 0,
+    projectileSpeed: 0,
+  },
+  ranger: {
+    attackMode: "projectile",
+    movementMode: "ground",
+    maxHealth: 105,
+    damage: 14,
+    damageReduction: 0,
+    attackRange: 8.5,
+    attackCooldown: 2.1,
+    moveSpeed: 2.45,
+    aggroRange: 10.5,
+    splashRadius: 0,
+    projectileSpeed: 18,
+  },
+  mage: {
+    attackMode: "projectile",
+    movementMode: "ground",
+    maxHealth: 135,
+    damage: 8.5,
+    damageReduction: 0,
+    attackRange: 5.4,
+    attackCooldown: 1.25,
+    moveSpeed: 2.55,
+    aggroRange: 8,
+    splashRadius: 3.1,
+    projectileSpeed: 7.5,
+  },
+  "bone-dragon": UNIT_SPECS["bone-dragon"],
+} as const satisfies Readonly<Partial<Record<UnitRole, UnitSpec>>>;
 
 export const TROOP_ROLE_BY_DEPLOYABLE = {
   spearman: "spearman",
@@ -194,6 +271,84 @@ export const TROOP_ROLE_BY_DEPLOYABLE = {
   mage: "mage",
   catapult: "catapult",
 } as const satisfies Readonly<Record<TroopKind, UnitRole>>;
+
+export const UNDEAD_TROOP_ROLE_BY_DEPLOYABLE = {
+  spearman: "spearman",
+  swordsman: "knight",
+  archer: "ranger",
+  mage: "mage",
+  catapult: "bone-dragon",
+} as const satisfies Readonly<Record<TroopKind, UnitRole>>;
+
+export const UNDEAD_TROOP_COUNTS = {
+  spearman: 3,
+  swordsman: 2,
+  archer: 2,
+  mage: 2,
+  catapult: 1,
+} as const satisfies Readonly<Record<TroopKind, number>>;
+
+export const UNDEAD_TROOP_DESIGNS = {
+  spearman: {
+    name: "骸骨先锋",
+    identity: "低血量、快速成群突进",
+  },
+  swordsman: {
+    name: "墓穴卫士",
+    identity: "高血量、重甲、慢速重击",
+  },
+  archer: {
+    name: "骸骨弩手",
+    identity: "超远射程、慢速高伤弩箭",
+  },
+  mage: {
+    name: "亡魂术士",
+    identity: "中短射程、快速大范围灵魂弹",
+  },
+  catapult: {
+    name: "冰霜骨龙",
+    identity: "地面重甲、高血量、范围冰霜喷吐",
+  },
+} as const satisfies Readonly<Record<
+  TroopKind,
+  { readonly name: string; readonly identity: string }
+>>;
+
+export const UNDEAD_AI_TROOP_CYCLES = {
+  easy: ["spearman", "archer", "swordsman", "catapult"],
+  normal: ["spearman", "swordsman", "catapult", "archer", "mage"],
+  hard: ["catapult", "spearman", "swordsman", "archer", "mage"],
+} as const satisfies Readonly<Record<AiDifficulty, readonly TroopKind[]>>;
+
+export function unitSpecFor(
+  role: UnitRole,
+  combatProfile: UnitCombatProfile = "human",
+): UnitSpec {
+  if (combatProfile === "undead" && role in UNDEAD_UNIT_SPECS) {
+    return UNDEAD_UNIT_SPECS[role as keyof typeof UNDEAD_UNIT_SPECS];
+  }
+  return UNIT_SPECS[role];
+}
+
+export function unitRoleForDeployment(
+  kind: TroopKind,
+  faction: Faction,
+  undeadOpponent: boolean,
+): UnitRole {
+  return undeadOpponent && faction === "crimson"
+    ? UNDEAD_TROOP_ROLE_BY_DEPLOYABLE[kind]
+    : TROOP_ROLE_BY_DEPLOYABLE[kind];
+}
+
+export function troopCountForDeployment(
+  kind: TroopKind,
+  faction: Faction,
+  undeadOpponent: boolean,
+): number {
+  return undeadOpponent && faction === "crimson"
+    ? UNDEAD_TROOP_COUNTS[kind]
+    : GAME_RULES.deployment.troopCounts[kind];
+}
 
 const GOLD_MINE_COST = 700;
 const BARRACKS_COST = 500;
@@ -519,6 +674,13 @@ export function validateGameRules(rules: GameRules): string[] {
     if (spec.attackMode === "projectile" && !isPositive(spec.projectileSpeed)) {
       errors.push(`units.${role}.projectileSpeed must be positive for projectile attacks`);
     }
+    if (
+      spec.attackMode === "cone"
+      && (
+        !isPositive(spec.coneAngleDegrees)
+        || spec.coneAngleDegrees > 180
+      )
+    ) errors.push(`units.${role}.coneAngleDegrees must be from zero to 180 for cone attacks`);
   }
 
   return errors;

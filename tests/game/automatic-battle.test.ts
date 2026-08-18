@@ -24,6 +24,139 @@ function withBuildings(
 }
 
 describe("automatic battle behavior", () => {
+  it("recovers bone dragons that enter the water gap between the bridges", () => {
+    const bridgeKeys = new Set(BATTLEFIELD_MAP.bridges.flatMap((bridge) => (
+      bridge.cells.map(({ q, r }) => `${q},${r}`)
+    )));
+
+    for (const gap of [{ q: 0, r: -1 }, { q: 0, r: 0 }, { q: 0, r: 1 }] as const) {
+      expect(getBattlefieldCell(gap)).toMatchObject({ surface: "water", walkable: false });
+      const defender = createBattleUnit({
+        id: `verdant-defender-${gap.r}`,
+        faction: "verdant",
+        role: "catapult",
+        position: axialToWorld(BATTLEFIELD_MAP.bridges[0]!.landings.verdant[0]),
+      });
+      const dragon = {
+        ...createBattleUnit({
+          id: `crimson-dragon-${gap.r}`,
+          faction: "crimson",
+          role: "bone-dragon",
+          combatProfile: "undead" as const,
+          position: axialToWorld(gap),
+        }),
+        currentTarget: { targetType: "unit" as const, targetId: defender.id },
+      };
+
+      const next = stepBattle(
+        createBattleState([dragon, defender], { undeadOpponent: true }),
+        0.1,
+      );
+      const recovered = next.units.find(({ id }) => id === dragon.id)!;
+      const coordinate = worldToAxial(recovered.position);
+
+      expect(
+        getBattlefieldCell(coordinate)?.walkable,
+        `gap=${gap.q},${gap.r} recovered=${coordinate.q},${coordinate.r}`,
+      ).toBe(true);
+      expect(bridgeKeys.has(`${coordinate.q},${coordinate.r}`)).toBe(true);
+      expect(recovered.position).not.toEqual(dragon.position);
+    }
+  });
+
+  it("recovers a water-bound bone dragon while it is charging without a nearby target", () => {
+    const dragon = createBattleUnit({
+      id: "crimson-charging-water-dragon",
+      faction: "crimson",
+      role: "bone-dragon",
+      combatProfile: "undead",
+      position: axialToWorld({ q: 0, r: 0 }),
+    });
+    const initial = withBuildings(
+      createBattleState([dragon], { undeadOpponent: true }),
+      [],
+    );
+
+    const next = stepBattle(initial, 0.1);
+    const recovered = next.units.find(({ id }) => id === dragon.id)!;
+    const coordinate = worldToAxial(recovered.position);
+
+    expect(getBattlefieldCell(coordinate)?.walkable).toBe(true);
+    expect(recovered.position).not.toEqual(dragon.position);
+    expect(recovered.status).toBe("moving");
+  });
+
+  it("routes a bone dragon onto a bridge before breathing at a target across water", () => {
+    const defender = createBattleUnit({
+      id: "verdant-bridge-defender",
+      faction: "verdant",
+      role: "catapult",
+      position: axialToWorld({ q: -1, r: 1 }),
+    });
+    const dragon = {
+      ...createBattleUnit({
+        id: "crimson-waterline-dragon",
+        faction: "crimson",
+        role: "bone-dragon",
+        combatProfile: "undead" as const,
+        position: axialToWorld({ q: 0, r: -2 }),
+      }),
+      currentTarget: { targetType: "unit" as const, targetId: defender.id },
+    };
+    let state = stepBattle(
+      createBattleState([dragon, defender], { undeadOpponent: true }),
+      0.1,
+    );
+    const firstMove = state.units.find(({ id }) => id === dragon.id)!;
+
+    expect(firstMove.status).toBe("moving");
+    expect(firstMove.waypoints.length).toBeGreaterThan(0);
+    expect(state.events.some((event) => (
+      event.type === "attack-started" && event.attackerId === dragon.id
+    ))).toBe(false);
+
+    let attacked = false;
+    for (let step = 0; step < 80; step += 1) {
+      state = stepBattle(state, 0.1);
+      const current = state.units.find(({ id }) => id === dragon.id)!;
+      expect(getBattlefieldCell(worldToAxial(current.position))?.walkable).toBe(true);
+      attacked ||= state.events.some((event) => (
+        event.type === "attack-started" && event.attackerId === dragon.id
+      ));
+    }
+    expect(attacked).toBe(true);
+  });
+
+  it("keeps a bone dragon moving after it reroutes from a bridge edge", () => {
+    const defender = createBattleUnit({
+      id: "verdant-reroute-defender",
+      faction: "verdant",
+      role: "ranger",
+      position: axialToWorld({ q: -2, r: 4 }),
+    });
+    const dragon = {
+      ...createBattleUnit({
+        id: "crimson-rerouting-dragon",
+        faction: "crimson",
+        role: "bone-dragon",
+        combatProfile: "undead" as const,
+        position: axialToWorld({ q: 0, r: -2 }),
+      }),
+      currentTarget: { targetType: "unit" as const, targetId: defender.id },
+    };
+    let state = createBattleState([dragon, defender], { undeadOpponent: true });
+
+    for (let step = 0; step < 24; step += 1) {
+      state = stepBattle(state, 0.1);
+      const current = state.units.find(({ id }) => id === dragon.id)!;
+      expect(getBattlefieldCell(worldToAxial(current.position))?.walkable).toBe(true);
+    }
+
+    const current = state.units.find(({ id }) => id === dragon.id)!;
+    expect(current.position.z).toBeGreaterThan(-2);
+    expect(current.status).not.toBe("idle");
+  });
+
   it("keeps a three-swordsman charge on walkable terrain from every walkable formation start", () => {
     const starts = BATTLEFIELD_MAP.cells.filter((cell) => {
       if (cell.territory !== "verdant" || !cell.walkable) return false;

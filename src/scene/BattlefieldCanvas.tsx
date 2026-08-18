@@ -241,7 +241,10 @@ function UnitShadowInstances({ battle }: { readonly battle: BattleState }) {
         unit.position.z + 0.14,
       );
       dummy.rotation.set(-Math.PI / 2, 0, 0);
-      dummy.scale.setScalar(visible ? (unit.role === "catapult" ? 0.78 : 0.42) : 0);
+      const shadowScale = unit.role === "bone-dragon"
+        ? 1.05
+        : unit.role === "catapult" ? 0.78 : 0.42;
+      dummy.scale.setScalar(visible ? shadowScale : 0);
       dummy.updateMatrix();
       mesh.current!.setMatrixAt(index, dummy.matrix);
     });
@@ -369,8 +372,14 @@ function latestDamagePresentation(battle: BattleState, unitId: string) {
 function latestShakeImpulse(battle: BattleState): CameraShakeImpulse | null {
   for (let index = battle.events.length - 1; index >= 0; index -= 1) {
     const event = battle.events[index]!;
-    if (event.type === "projectile-hit" && event.role === "catapult") {
-      return { sequence: event.sequence, intensity: 0.74 };
+    if (
+      event.type === "projectile-hit"
+      && (event.role === "catapult" || event.role === "bone-dragon")
+    ) {
+      return {
+        sequence: event.sequence,
+        intensity: event.role === "bone-dragon" ? 0.48 : 0.74,
+      };
     }
   }
   return null;

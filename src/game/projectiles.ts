@@ -40,9 +40,11 @@ export function advanceProjectiles(
 
   for (const projectile of projectiles) {
     const target = targetsByKey.get(`${projectile.targetType}:${projectile.targetId}`);
-    const destination = target && target.health > 0
-      ? target.position
-      : projectile.destination;
+    const destination = projectile.role === "catapult"
+      ? projectile.destination
+      : target && target.health > 0
+        ? target.position
+        : projectile.destination;
     const maximumDistance = projectile.speed * deltaSeconds;
     const distanceRemaining = distance(projectile.position, destination);
 

@@ -1,7 +1,7 @@
 import type { UnitRole, UnitStatus } from "../../game/battle";
 import type { Faction } from "../../game/types";
 
-export type CharacterRole = Exclude<UnitRole, "catapult">;
+export type CharacterRole = Exclude<UnitRole, "catapult" | "bone-dragon">;
 
 export interface CharacterSceneAsset {
   readonly modelUrl: string;

@@ -114,7 +114,9 @@ function BattleBuildingVisual({
           ? undeadOpponent && building.faction === "crimson" ? 2.55 : 4.3
           : building.kind === "arrow-tower" || building.kind === "guard-tower"
             ? 3.25
-            : building.kind === "barracks" ? 2.35 : 1.9}
+            : building.kind === "barracks"
+              ? undeadOpponent && building.faction === "crimson" ? 1.72 : 2.35
+              : 1.9}
       />
       {presentation.productionProgress !== null && (
         <ProductionProgress

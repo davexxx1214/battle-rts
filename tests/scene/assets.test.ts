@@ -7,10 +7,12 @@ import {
   SCENERY_SCENE_ASSETS,
   SCENE_MODEL_URLS,
   STRUCTURE_SCENE_ASSETS,
+  UNDEAD_BONE_DRAGON_ASSET,
   UNDEAD_DUNGEON_PACK_ASSETS,
   UNDEAD_ENVIRONMENT_SCENE_ASSETS,
   UNDEAD_FORTIFICATION_SCENE_ASSETS,
   UNDEAD_HALLOWEEN_ASSETS,
+  UNDEAD_CASTLE_BATTLE_FLAG_ASSET,
   UNDEAD_SCENE_COLORS,
   UNDEAD_STRUCTURE_SCENE_ASSETS,
   UNDEAD_TRIPO_SCENE_ASSETS,
@@ -25,6 +27,8 @@ describe("scene asset presentation", () => {
     const functionalKinds = ["castle", "blacksmith", "barracks", "arrow-tower", "mine"] as const;
 
     expect(SCENE_MODEL_URLS).not.toHaveProperty("siegeWorkshop");
+    expect(SCENE_MODEL_URLS.undeadBoneDragon).toBe("/assets/mesh2motion/dragon.glb");
+    expect(UNDEAD_BONE_DRAGON_ASSET.scale).toBe(0.45);
     for (const faction of ["verdant", "crimson"] as const) {
       for (const kind of functionalKinds) {
         const asset = STRUCTURE_SCENE_ASSETS[faction][kind];
@@ -138,13 +142,18 @@ describe("scene asset presentation", () => {
     expect(Object.values(UNDEAD_ENVIRONMENT_SCENE_ASSETS)
       .filter(({ url }) => url.startsWith("/assets/threejsassets/dungeon/")))
       .toHaveLength(3);
+    expect(UNDEAD_CASTLE_BATTLE_FLAG_ASSET).toEqual({
+      url: "/assets/kaykit/halloween/post_skull.gltf",
+      scale: 1.12,
+    });
     expect(UNDEAD_STRUCTURE_SCENE_ASSETS.castle.url)
       .toBe(UNDEAD_HALLOWEEN_ASSETS.crypt.url);
     expect(UNDEAD_STRUCTURE_SCENE_ASSETS.castle.scale).toBe(0.3);
     expect(UNDEAD_STRUCTURE_SCENE_ASSETS.barracks.url)
-      .toBe(UNDEAD_HALLOWEEN_ASSETS.crypt.url);
+      .toBe(UNDEAD_DUNGEON_PACK_ASSETS.stoneAltar.url);
+    expect(UNDEAD_STRUCTURE_SCENE_ASSETS.barracks.scale).toBe(1);
     expect(UNDEAD_STRUCTURE_SCENE_ASSETS.blacksmith)
-      .toEqual(UNDEAD_DUNGEON_PACK_ASSETS.stoneAltar);
+      .toEqual(UNDEAD_HALLOWEEN_ASSETS.shrine);
     expect(UNDEAD_STRUCTURE_SCENE_ASSETS["arrow-tower"])
       .toEqual(UNDEAD_DUNGEON_PACK_ASSETS.skullCandelabra);
     expect(UNDEAD_STRUCTURE_SCENE_ASSETS.mine)
@@ -207,6 +216,7 @@ describe("scene asset presentation", () => {
     expect(UNIT_BASE_RING_GEOMETRY).toEqual({
       character: { innerRadius: 0.3, outerRadius: 0.42, segments: 32 },
       catapult: { innerRadius: 0.6, outerRadius: 0.82, segments: 36 },
+      boneDragon: { innerRadius: 1.12, outerRadius: 1.36, segments: 40 },
     });
     expect(FACTION_SCENE_COLORS.verdant.accent).toBe("#4fa7ff");
     expect(FACTION_SCENE_COLORS.crimson.accent).toBe("#df4c4f");

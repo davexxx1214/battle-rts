@@ -11,6 +11,9 @@ describe("unit ring presentation", () => {
     expect(unitBaseRingGeometry("knight")).toBe(UNIT_BASE_RING_GEOMETRY.catapult);
     expect(unitBaseRingGeometry("ranger")).toBe(UNIT_BASE_RING_GEOMETRY.catapult);
     expect(unitBaseRingGeometry("catapult")).toBe(UNIT_BASE_RING_GEOMETRY.catapult);
+    expect(unitBaseRingGeometry("bone-dragon")).toBe(UNIT_BASE_RING_GEOMETRY.boneDragon);
+    expect(UNIT_BASE_RING_GEOMETRY.boneDragon.outerRadius)
+      .toBeGreaterThan(UNIT_BASE_RING_GEOMETRY.catapult.outerRadius);
     expect(unitBaseRingGeometry("mage")).toBe(UNIT_BASE_RING_GEOMETRY.character);
   });
 

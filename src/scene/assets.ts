@@ -32,6 +32,13 @@ export const BATTLEFIELD_CLOUD_SCENE_ASSETS = {
 export const SCENE_MODEL_URLS = {
   mobileCatapult: "/assets/generated/tripo/runtime/mobile-catapult.glb",
   catapultOperator: "/assets/kaykit/adventurers/characters/Knight.glb",
+  undeadBoneDragon: "/assets/mesh2motion/dragon.glb",
+} as const;
+
+export const UNDEAD_BONE_DRAGON_ASSET = {
+  url: SCENE_MODEL_URLS.undeadBoneDragon,
+  scale: 0.45,
+  groundOffset: 0.08,
 } as const;
 
 export const MOBILE_CATAPULT_PARTS = {
@@ -45,8 +52,8 @@ export const CASTLE_BATTLE_FLAG_ASSET = {
 } as const;
 
 export const UNDEAD_CASTLE_BATTLE_FLAG_ASSET = {
-  url: "/assets/kaykit/dungeon/banner_patternC_green.gltf",
-  scale: 1.8,
+  url: "/assets/kaykit/halloween/post_skull.gltf",
+  scale: 1.12,
 } as const;
 
 export const FACTION_SCENE_COLORS = {
@@ -209,6 +216,11 @@ export const UNIT_BASE_RING_GEOMETRY = {
     innerRadius: 0.6,
     outerRadius: 0.82,
     segments: 36,
+  },
+  boneDragon: {
+    innerRadius: 1.12,
+    outerRadius: 1.36,
+    segments: 40,
   },
 } as const;
 
@@ -413,8 +425,11 @@ export const UNDEAD_STRUCTURE_SCENE_ASSETS = {
     url: UNDEAD_HALLOWEEN_ASSETS.crypt.url,
     scale: 0.3,
   },
-  blacksmith: UNDEAD_DUNGEON_PACK_ASSETS.stoneAltar,
-  barracks: UNDEAD_HALLOWEEN_ASSETS.crypt,
+  blacksmith: UNDEAD_HALLOWEEN_ASSETS.shrine,
+  barracks: {
+    ...UNDEAD_DUNGEON_PACK_ASSETS.stoneAltar,
+    scale: 1,
+  },
   "arrow-tower": UNDEAD_DUNGEON_PACK_ASSETS.skullCandelabra,
   mine: UNDEAD_DUNGEON_PACK_ASSETS.cursedCrystal,
 } as const satisfies Readonly<Record<

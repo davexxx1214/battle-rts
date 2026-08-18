@@ -45,6 +45,29 @@ describe("automatic combat role behavior", () => {
     expect(impacted.units.find((unit) => unit.id === nearby.id)?.health).toBeLessThan(nearby.health);
   });
 
+  it("keeps a catapult stone on its launch destination instead of tracking the target", () => {
+    const catapult = createBattleUnit({
+      id: "v-catapult", faction: "verdant", role: "catapult",
+      position: axialToWorld({ q: 2, r: 2 }),
+    });
+    const target = createBattleUnit({
+      id: "c-target", faction: "crimson", role: "knight",
+      position: axialToWorld({ q: 2, r: 0 }),
+    });
+    const fired = stepBattle(createBattleState([catapult, target]), 0.1);
+    expect(fired.projectiles).toHaveLength(1);
+    const launchDestination = fired.projectiles[0]!.destination;
+    const afterMove = stepBattle({
+      ...fired,
+      units: fired.units.map((unit) => (
+        unit.id === target.id
+          ? { ...unit, position: axialToWorld({ q: -3, r: -3 }) }
+          : unit
+      )),
+    }, 0.1);
+    expect(afterMove.projectiles[0]?.destination).toEqual(launchDestination);
+  });
+
   it("assigns persistent unique melee engagement slots", () => {
     const attackers = [
       createBattleUnit({

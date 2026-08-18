@@ -70,6 +70,49 @@
   background: linear-gradient(#a8ef73, #493061);
 }
 
+.undeadRosterPanel {
+  position: absolute;
+  z-index: 14;
+  top: 14px;
+  right: 82px;
+  width: 224px;
+  padding: 12px 14px;
+  border: 1px solid rgb(177 138 221 / 38%);
+  border-right: 3px solid rgb(129 223 106 / 72%);
+  color: var(--parchment);
+  background: rgb(17 13 22 / 91%);
+  box-shadow: -12px 14px 38px rgb(34 11 47 / 30%);
+}
+
+.undeadRosterPanel > span {
+  display: block;
+  margin-bottom: 7px;
+  color: #b18add;
+  font-family: var(--display);
+  font-size: 8px;
+  letter-spacing: 0.16em;
+}
+
+.undeadRosterPanel > div {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 0;
+  border-top: 1px solid rgb(255 255 255 / 7%);
+}
+
+.undeadRosterPanel strong {
+  color: #a8ef73;
+  font-size: 10px;
+}
+
+.undeadRosterPanel small {
+  color: #aaa3b1;
+  font-size: 8px;
+  line-height: 1.35;
+}
+
 .loadingScreen {
   position: absolute;
   z-index: 1000;
@@ -724,7 +767,8 @@
     display: block;
   }
 
-  .enemyRail {
+  .enemyRail,
+  .undeadRosterPanel {
     display: none;
   }
 

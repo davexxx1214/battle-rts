@@ -6,6 +6,7 @@ import {
 } from "./deployTransaction";
 import {
   GAME_RULES,
+  UNDEAD_AI_TROOP_CYCLES,
   isBuildingDeployable,
   type AiDeploymentPosture,
   type AiDifficulty,
@@ -29,8 +30,8 @@ export function advanceOpponentAi(
 ): BattleSessionState {
   if (session.phase !== "engaged" || session.battle.winner !== null) return session;
   const strategy = GAME_RULES.opponentAi.strategies[difficulty];
-  const preferredKind = selectOpponentKind(session, strategy);
-  const deployment = chooseDeployment(session, preferredKind, strategy);
+  const preferredKind = selectOpponentKind(session, strategy, difficulty);
+  const deployment = chooseDeployment(session, preferredKind, strategy, difficulty);
   const kind = deployment?.kind;
   const worldPosition = deployment?.worldPosition;
   if (!kind || !worldPosition) return session;
@@ -46,6 +47,7 @@ function chooseDeployment(
   session: BattleSessionState,
   preferredKind: DeployableKind,
   strategy: OpponentAiStrategy,
+  difficulty: AiDifficulty,
 ): { readonly kind: DeployableKind; readonly worldPosition: WorldPoint } | null {
   const availability = getDeployableAvailability(
     session,
@@ -65,7 +67,7 @@ function chooseDeployment(
   ) {
     return null;
   }
-  const troopKind = selectTroopKind(session, strategy);
+  const troopKind = selectTroopKind(session, strategy, difficulty);
   const worldPosition = chooseDeploymentPosition(
     session,
     troopKind,
@@ -95,6 +97,7 @@ function chooseDeploymentPosition(
 function selectOpponentKind(
   session: BattleSessionState,
   strategy: OpponentAiStrategy,
+  difficulty: AiDifficulty,
 ): DeployableKind {
   const activeBuildings = session.battle.buildings.filter((building) => (
     building.faction === OPPONENT_FACTION
@@ -107,14 +110,17 @@ function selectOpponentKind(
     )).length;
     if (activeCount < goal.desiredActive) return goal.kind;
   }
-  return selectTroopKind(session, strategy);
+  return selectTroopKind(session, strategy, difficulty);
 }
 
 function selectTroopKind(
   session: BattleSessionState,
   strategy: OpponentAiStrategy,
+  difficulty: AiDifficulty,
 ): TroopKind {
-  const troopCycle = strategy.troopCycle;
+  const troopCycle = session.battle.undeadOpponent
+    ? UNDEAD_AI_TROOP_CYCLES[difficulty]
+    : strategy.troopCycle;
   const deployedTroops = troopCycle.reduce((total, kind) => (
     total + session.battle.deploymentCounts[OPPONENT_FACTION][kind]
   ), 0);

@@ -22,6 +22,7 @@ import type { BattleUnit, UnitRole, WorldPoint } from "../../game/battle";
 import { terrainHeightAt } from "../../map/battlefield";
 import { sceneColorsForFaction } from "../assets";
 import { CatapultUnitModel } from "./CatapultUnitModel";
+import { BoneDragonUnitModel } from "./BoneDragonUnitModel";
 import {
   CHARACTER_ANIMATION_URLS,
   characterAnimationForState,
@@ -52,9 +53,13 @@ export function UnitModel({
   readonly damageSourcePosition?: WorldPoint;
   readonly undeadOpponent?: boolean;
 }) {
-  return props.unit.role === "catapult"
-    ? <CatapultUnitModel {...props} undeadOpponent={undeadOpponent} />
-    : <CharacterUnitModel {...props} undeadOpponent={undeadOpponent} />;
+  if (props.unit.role === "bone-dragon") {
+    return <BoneDragonUnitModel {...props} undeadOpponent={undeadOpponent} />;
+  }
+  if (props.unit.role === "catapult") {
+    return <CatapultUnitModel {...props} undeadOpponent={undeadOpponent} />;
+  }
+  return <CharacterUnitModel {...props} undeadOpponent={undeadOpponent} />;
 }
 
 function CharacterUnitModel({

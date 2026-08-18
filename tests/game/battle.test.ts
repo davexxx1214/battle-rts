@@ -8,7 +8,7 @@ import {
   stepBattle,
   type BattleState,
 } from "../../src/game/battle";
-import { GAME_RULES } from "../../src/game/rules";
+import { GAME_RULES, unitSpecFor } from "../../src/game/rules";
 import {
   axialToWorld,
 } from "../../src/map/battlefield";
@@ -45,6 +45,85 @@ describe("automatic battle simulation", () => {
 
     expect(next.units.find((unit) => unit.id === defender.id)?.health)
       .toBeCloseTo(defender.health - expectedDamage);
+  });
+
+  it("keeps the grounded bone dragon reachable by human melee units", () => {
+    const knight = createBattleUnit({
+      id: "v-dragon-hunter",
+      faction: "verdant",
+      role: "knight",
+      position: { x: 0, z: 1.2 },
+    });
+    const dragon = createBattleUnit({
+      id: "c-grounded-dragon",
+      faction: "crimson",
+      role: "bone-dragon",
+      combatProfile: "undead",
+      position: { x: 0, z: 0 },
+    });
+
+    const next = stepBattle(createBattleState([knight, dragon], {
+      undeadOpponent: true,
+    }), 0.1);
+    const expectedDamage = UNIT_SPECS.knight.damage
+      * (1 - unitSpecFor("bone-dragon", "undead").damageReduction);
+    expect(next.units.find((unit) => unit.id === dragon.id)?.health)
+      .toBeCloseTo(dragon.health - expectedDamage);
+  });
+
+  it("damages enemies inside the bone dragon breath cone but not beside or behind it", () => {
+    const origin = axialToWorld({ q: 0, r: 2 });
+    const dragon = createBattleUnit({
+      id: "c-cone-dragon",
+      faction: "crimson",
+      role: "bone-dragon",
+      combatProfile: "undead",
+      position: origin,
+    });
+    const primary = createBattleUnit({
+      id: "v-cone-primary",
+      faction: "verdant",
+      role: "knight",
+      position: { x: origin.x, z: origin.z + 4 },
+    });
+    const inside = createBattleUnit({
+      id: "v-cone-inside",
+      faction: "verdant",
+      role: "knight",
+      position: { x: origin.x + 1, z: origin.z + 4 },
+    });
+    const outside = createBattleUnit({
+      id: "v-cone-outside",
+      faction: "verdant",
+      role: "knight",
+      position: { x: origin.x + 4, z: origin.z + 2 },
+    });
+    const behind = createBattleUnit({
+      id: "v-cone-behind",
+      faction: "verdant",
+      role: "knight",
+      position: { x: origin.x, z: origin.z - 2 },
+    });
+
+    const next = stepBattle(createBattleState([
+      dragon,
+      primary,
+      inside,
+      outside,
+      behind,
+    ], { undeadOpponent: true }), 0.1);
+    const health = (id: string) => next.units.find((unit) => unit.id === id)!.health;
+
+    expect(health(primary.id)).toBeLessThan(primary.health);
+    expect(health(inside.id)).toBeLessThan(inside.health);
+    expect(health(outside.id)).toBe(outside.health);
+    expect(health(behind.id)).toBe(behind.health);
+    expect(next.projectiles).toHaveLength(0);
+    expect(next.events).toContainEqual(expect.objectContaining({
+      type: "attack-started",
+      attackerId: dragon.id,
+      role: "bone-dragon",
+    }));
   });
 
   it("records only health actually removed so arena metrics exclude overkill", () => {

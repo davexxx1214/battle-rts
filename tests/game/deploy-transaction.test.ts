@@ -78,6 +78,28 @@ function unresolvedSession(gold = 1000, phase: "briefing" | "engaged" = "engaged
   } as const;
 }
 
+function undeadOpponentSession(gold = 1000) {
+  const battle = unresolvedBattle(gold);
+  return {
+    phase: "engaged" as const,
+    battle: {
+      ...battle,
+      undeadOpponent: true,
+      economy: {
+        ...battle.economy,
+        accounts: {
+          ...battle.economy.accounts,
+          crimson: {
+            ...battle.economy.accounts.crimson,
+            gold,
+            isFull: gold === 1000,
+          },
+        },
+      },
+    },
+  };
+}
+
 describe("atomic battle deployment", () => {
   it("spends gold and commits a building, occupancy, event, and sequence together", () => {
     const session = unresolvedSession();
@@ -182,6 +204,47 @@ describe("atomic battle deployment", () => {
     expect(result.state.battle.units.filter((unit) => (
       unit.squadId === "verdant-catapult-1-squad"
     ))).toHaveLength(1);
+  });
+
+  it("turns the undead siege slot into one grounded frost bone dragon", () => {
+    const result = deployBattleSessionEntity(undeadOpponentSession(), {
+      faction: "crimson",
+      kind: "catapult",
+      worldPosition: axialToWorld(CRIMSON_TROOP_CELL),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    const dragons = result.state.battle.units.filter((unit) => (
+      unit.squadId === "crimson-catapult-1-squad"
+    ));
+    expect(dragons).toHaveLength(1);
+    expect(dragons[0]).toMatchObject({
+      role: "bone-dragon",
+      combatProfile: "undead",
+      maxHealth: 620,
+      health: 620,
+    });
+  });
+
+  it("deploys undead spearmen as a three-unit fast swarm", () => {
+    const result = deployBattleSessionEntity(undeadOpponentSession(500), {
+      faction: "crimson",
+      kind: "spearman",
+      worldPosition: axialToWorld(CRIMSON_TROOP_CELL),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    const swarm = result.state.battle.units.filter((unit) => (
+      unit.squadId === "crimson-spearman-1-squad"
+    ));
+    expect(swarm).toHaveLength(3);
+    expect(swarm.every((unit) => (
+      unit.role === "spearman"
+      && unit.combatProfile === "undead"
+      && unit.maxHealth === 95
+    ))).toBe(true);
   });
 
   it("deploys two long-reach spearmen for 200 gold", () => {
