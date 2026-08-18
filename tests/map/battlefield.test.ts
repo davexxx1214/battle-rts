@@ -311,6 +311,19 @@ describe("battlefield island", () => {
       .every((cell) => cell.territory === null)).toBe(true);
   });
 
+  it("keeps the human and undead movement topology exactly mirrored", () => {
+    for (const cell of BATTLEFIELD_MAP.cells.filter(({ r }) => r < 0)) {
+      const mirrored = getBattlefieldCell({ q: -cell.q, r: -cell.r });
+      expect(mirrored, `missing mirror for ${cell.q},${cell.r}`).toBeDefined();
+      expect(mirrored).toMatchObject({
+        buildable: cell.buildable,
+        reservedForPath: cell.reservedForPath,
+        surface: cell.surface,
+        walkable: cell.walkable,
+      });
+    }
+  });
+
   it("keeps friendly reserved routes buildable while obstacles remain unbuildable", () => {
     const reserved = BATTLEFIELD_MAP.cells.filter((cell) => cell.reservedForPath);
     const structureReservedKeys = new Set(BATTLEFIELD_STRUCTURES.flatMap((structure) => [

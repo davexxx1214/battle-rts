@@ -13,6 +13,8 @@ import {
 import styles from "./App.module.css";
 import {
   DEFAULT_GAME_MODE,
+  hasUndeadOpponent,
+  requiresSceneAssetReload,
   type GameMode,
 } from "./app/gameMode";
 import { CampaignMap, DEPLOYABLE_LABELS } from "./campaign/CampaignMap";
@@ -117,6 +119,7 @@ export function App() {
     createAppState(benchmarkMode, DEFAULT_GAME_MODE)
   ));
   const { battle, phase: battlePhase } = app.session;
+  const undeadOpponent = hasUndeadOpponent(mode);
   const activeCampaignMission = activeCampaignMissionId
     ? getCampaignMission(activeCampaignMissionId) ?? null
     : null;
@@ -224,17 +227,22 @@ export function App() {
 
   const changeMode = useCallback((nextMode: GameMode) => {
     if (nextMode === mode) return;
+    const reloadSceneAssets = requiresSceneAssetReload(
+      mode,
+      nextMode,
+      activeCampaignMission !== null,
+    );
     setMode(nextMode);
     setActiveCampaignMissionId(null);
     setApp(createAppState(benchmarkMode, nextMode));
-    setAssetsReady(false);
+    if (reloadSceneAssets) setAssetsReady(false);
     setAssetLoadProgress({ loaded: 0, total: 0 });
     setAssetLoadError(null);
     setCursorWorld(null);
     setCameraResetToken((current) => current + 1);
     cameraViewStore.publish(DEFAULT_CAMERA_VIEW);
     setBattleInstanceRevision((current) => current + 1);
-  }, [benchmarkMode, cameraViewStore, mode]);
+  }, [activeCampaignMission, benchmarkMode, cameraViewStore, mode]);
 
   const startCampaignMission = useCallback((mission: CampaignMission) => {
     setActiveCampaignMissionId(mission.id);
@@ -475,7 +483,11 @@ export function App() {
   }
 
   return (
-    <main className={styles.appShell} aria-busy={!assetsReady}>
+    <main
+      className={styles.appShell}
+      data-battle-theme={undeadOpponent ? "undead" : "human"}
+      aria-busy={!assetsReady}
+    >
       <header
         className={styles.commandBar}
         inert={!assetsReady}
@@ -570,6 +582,7 @@ export function App() {
         >
           <BattlefieldCanvas
             battle={battle}
+            undeadOpponent={undeadOpponent}
             bridgeRef={bridgeRef}
             deploymentKind={app.selectedDeployable}
             deploymentPreview={app.selectedDeployable && deploymentPreview
@@ -601,7 +614,9 @@ export function App() {
           <div className={styles.objectiveFlag} data-tone={fieldFeedback?.tone ?? "info"}>
             <span>{app.selectedDeployable
               ? "DEPLOYMENT MODE"
-              : activeCampaignMission ? activeCampaignMission.title : "FORTIFIED FRONT"}</span>
+              : activeCampaignMission
+                ? activeCampaignMission.title
+                : undeadOpponent ? "HUMANS VS UNDEAD" : "FORTIFIED FRONT"}</span>
             <strong aria-live="polite">{battlePhase === "briefing"
               ? activeCampaignMission?.primaryObjective ?? "点击交战，开始五分钟攻防"
               : fieldFeedback?.message ?? (app.selectedDeployable
@@ -643,8 +658,8 @@ export function App() {
                 ? `任务完成 · ${"★".repeat(campaignResult.stars)}${"☆".repeat(3 - campaignResult.stars)}`
                 : battle.winner === "verdant" && !campaignResult.primaryConditionMet
                   ? "试炼条件未完成"
-                  : winnerLabel(battle.winner)
-              : winnerLabel(battle.winner)}</strong>
+                  : winnerLabel(battle.winner, undeadOpponent)
+              : winnerLabel(battle.winner, undeadOpponent)}</strong>
             {campaignResult && (
               <div className={styles.campaignObjectives}>
                 <small data-complete={campaignResult.primaryConditionMet}>
@@ -674,9 +689,9 @@ export function App() {
         </div>
 
         <aside className={styles.enemyRail} aria-label="敌军状态">
-          <span>ENEMY HOST</span>
+          <span>{undeadOpponent ? "UNDEAD HOST" : "ENEMY HOST"}</span>
           <strong>{armyCounts.crimson}</strong>
-          <small>猩红军团存活</small>
+          <small>{undeadOpponent ? "亡灵军团存活" : "猩红军团存活"}</small>
           <div className={styles.forceMeter}>
             <i style={{ height: `${enemyForceShare * 100}%` }} />
           </div>
@@ -835,9 +850,9 @@ function formatTime(seconds: number): string {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
-function winnerLabel(winner: BattleState["winner"]): string {
+function winnerLabel(winner: BattleState["winner"], undeadOpponent = false): string {
   if (winner === "verdant") return "苍蓝军团获胜";
-  if (winner === "crimson") return "猩红军团获胜";
+  if (winner === "crimson") return undeadOpponent ? "亡灵军团获胜" : "猩红军团获胜";
   if (winner === "draw") return "双方平局";
   return "";
 }

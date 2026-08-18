@@ -19,6 +19,9 @@ import {
   SCENE_MODEL_URLS,
   SCENERY_SCENE_ASSETS,
   STRUCTURE_SCENE_ASSETS,
+  UNDEAD_CASTLE_BATTLE_FLAG_ASSET,
+  UNDEAD_ENVIRONMENT_SCENE_ASSETS,
+  UNDEAD_STRUCTURE_SCENE_ASSETS,
   battleBuildingDetailAssets,
 } from "./assets";
 import { BATTLE_FX_URLS } from "./effects/effectPresentation";
@@ -31,6 +34,7 @@ import {
   CATAPULT_OPERATOR_ANIMATION_URLS,
   CHARACTER_ANIMATION_URLS,
   CHARACTER_SCENE_ASSETS,
+  UNDEAD_CHARACTER_SCENE_ASSETS,
   type CharacterSceneAsset,
 } from "./units/characterPresentation";
 
@@ -71,6 +75,10 @@ const GLTF_ASSET_GROUPS: readonly AssetGroup[] = [
       urls: battleBuildingDetailAssets(faction, kind).map(({ url }) => url),
     }))
   )),
+  ...BUILDING_PRELOAD_KINDS.map((kind) => ({
+    id: `building-details-undead-${kind}`,
+    urls: battleBuildingDetailAssets("crimson", kind, true).map(({ url }) => url),
+  })),
 ].filter(({ urls }) => urls.length > 0);
 
 export const SCENE_SINGLE_GLTF_URLS = collectSingleGltfUrls();
@@ -206,18 +214,28 @@ function collectSingleGltfUrls(): readonly string[] {
       }
     }
   }
-  for (const factionAssets of Object.values(STRUCTURE_SCENE_ASSETS)) {
-    for (const asset of Object.values(factionAssets)) urls.add(asset.url);
-  }
-  for (const asset of Object.values(CHARACTER_SCENE_ASSETS) as CharacterSceneAsset[]) {
-    urls.add(asset.modelUrl);
-    if (asset.equipment) {
-      for (const equipmentUrl of Object.values(asset.equipment.modelUrls)) {
-        urls.add(equipmentUrl);
-      }
+    for (const factionAssets of Object.values(STRUCTURE_SCENE_ASSETS)) {
+      for (const asset of Object.values(factionAssets)) urls.add(asset.url);
     }
+    for (const asset of Object.values(UNDEAD_STRUCTURE_SCENE_ASSETS)) urls.add(asset.url);
+  for (const asset of Object.values(CHARACTER_SCENE_ASSETS) as CharacterSceneAsset[]) {
+    addCharacterAssetUrls(urls, asset);
   }
+  for (const asset of Object.values(UNDEAD_CHARACTER_SCENE_ASSETS) as CharacterSceneAsset[]) {
+    addCharacterAssetUrls(urls, asset);
+  }
+    for (const asset of Object.values(UNDEAD_ENVIRONMENT_SCENE_ASSETS)) urls.add(asset.url);
   for (const url of Object.values(SCENE_MODEL_URLS)) urls.add(url);
   urls.add(CASTLE_BATTLE_FLAG_ASSET.url);
+  urls.add(UNDEAD_CASTLE_BATTLE_FLAG_ASSET.url);
   return [...urls];
+}
+
+function addCharacterAssetUrls(urls: Set<string>, asset: CharacterSceneAsset): void {
+  urls.add(asset.modelUrl);
+  if (asset.equipment) {
+    for (const equipmentUrl of Object.values(asset.equipment.modelUrls)) {
+      if (equipmentUrl) urls.add(equipmentUrl);
+    }
+  }
 }

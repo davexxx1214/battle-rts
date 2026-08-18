@@ -7,7 +7,7 @@ export interface CharacterSceneAsset {
   readonly modelUrl: string;
   readonly tintStrengthByMesh: Readonly<Record<string, number>>;
   readonly equipment?: {
-    readonly modelUrls: Readonly<Record<Faction, string>>;
+    readonly modelUrls: Readonly<Partial<Record<Faction, string>>>;
     readonly boneName: string;
     readonly scale: number;
     readonly position: readonly [x: number, y: number, z: number];
@@ -86,6 +86,23 @@ export const CHARACTER_SCENE_ASSETS = {
   },
 } as const satisfies Readonly<Record<CharacterRole, CharacterSceneAsset>>;
 
+export const UNDEAD_CHARACTER_SCENE_ASSETS = {
+  knight: undeadCharacter("Skeleton_Warrior", "Skeleton_Axe"),
+  spearman: undeadCharacter("Skeleton_Minion", "Skeleton_Blade"),
+  ranger: undeadCharacter("Skeleton_Rogue", "Skeleton_Crossbow"),
+  mage: undeadCharacter("Skeleton_Mage", "Skeleton_Staff"),
+} as const satisfies Readonly<Record<CharacterRole, CharacterSceneAsset>>;
+
+export function characterSceneAssetFor(
+  role: CharacterRole,
+  faction: Faction,
+  undeadOpponent = false,
+): CharacterSceneAsset {
+  return undeadOpponent && faction === "crimson"
+    ? UNDEAD_CHARACTER_SCENE_ASSETS[role]
+    : CHARACTER_SCENE_ASSETS[role];
+}
+
 export const CHARACTER_ANIMATION_URLS = [
   "/assets/kaykit/character-animations/rig-medium/Rig_Medium_General.glb",
   "/assets/kaykit/character-animations/rig-medium/Rig_Medium_MovementBasic.glb",
@@ -138,11 +155,44 @@ export function characterAnimationForState({
   return variation === 0 ? "Idle_A" : "Idle_B";
 }
 
-export function characterTintStrength(role: CharacterRole, objectName: string): number {
+export function characterTintStrength(
+  role: CharacterRole,
+  objectName: string,
+  undeadOpponent = false,
+): number {
   const strengths: Readonly<Record<string, number>> = (
-    CHARACTER_SCENE_ASSETS[role].tintStrengthByMesh
+    undeadOpponent
+      ? UNDEAD_CHARACTER_SCENE_ASSETS[role].tintStrengthByMesh
+      : CHARACTER_SCENE_ASSETS[role].tintStrengthByMesh
   );
   return strengths[objectName] ?? 0;
+}
+
+function undeadCharacter(
+  character: "Skeleton_Warrior" | "Skeleton_Minion" | "Skeleton_Rogue" | "Skeleton_Mage",
+  weapon: "Skeleton_Axe" | "Skeleton_Blade" | "Skeleton_Crossbow" | "Skeleton_Staff",
+): CharacterSceneAsset {
+  return {
+    modelUrl: `/assets/kaykit/skeletons/characters/${character}.glb`,
+    tintStrengthByMesh: {
+      [`${character}_Body`]: 0.72,
+      [`${character}_Cloak`]: 0.78,
+      [`${character}_Cape`]: 0.78,
+      [`${character}_Hood`]: 0.64,
+      [`${character}_Hat`]: 0.64,
+      [`${character}_Helmet`]: 0.64,
+      [`${character}_Eyes`]: 0.18,
+    },
+    equipment: {
+      modelUrls: {
+        crimson: `/assets/kaykit/skeletons/equipment/${weapon}.gltf`,
+      },
+      boneName: "handslot.r",
+      scale: 1,
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+    },
+  };
 }
 
 function stableVariation(id: string): 0 | 1 {

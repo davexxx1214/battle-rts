@@ -19,10 +19,10 @@ import { useEffect, useMemo, useRef } from "react";
 import type { BattleUnit, WorldPoint } from "../../game/battle";
 import { terrainHeightAt } from "../../map/battlefield";
 import {
-  FACTION_SCENE_COLORS,
   MOBILE_CATAPULT_PARTS,
   SCENE_MODEL_URLS,
   UNIT_BASE_RING_GEOMETRY,
+  sceneColorsForFaction,
 } from "../assets";
 import {
   catapultMotionPose,
@@ -49,6 +49,7 @@ export function CatapultUnitModel({
   battleTime,
   damageTime,
   damageSourcePosition,
+  undeadOpponent = false,
 }: {
   readonly unit: BattleUnit;
   readonly selected: boolean;
@@ -57,9 +58,16 @@ export function CatapultUnitModel({
   readonly battleTime: number;
   readonly damageTime?: number;
   readonly damageSourcePosition?: WorldPoint;
+  readonly undeadOpponent?: boolean;
 }) {
+  const isUndead = undeadOpponent && unit.faction === "crimson";
   const catapultGltf = useLoader(GLTFLoader, SCENE_MODEL_URLS.mobileCatapult);
-  const operatorGltf = useLoader(GLTFLoader, SCENE_MODEL_URLS.catapultOperator);
+  const operatorGltf = useLoader(
+    GLTFLoader,
+    isUndead
+      ? "/assets/kaykit/skeletons/characters/Skeleton_Warrior.glb"
+      : SCENE_MODEL_URLS.catapultOperator,
+  );
   const operatorAnimationGltfs = useLoader(
     GLTFLoader,
     [...CATAPULT_OPERATOR_ANIMATION_URLS],
@@ -70,12 +78,12 @@ export function CatapultUnitModel({
   const healthParentRotation = useMemo(() => new Quaternion(), []);
   const healthCameraRotation = useMemo(() => new Quaternion(), []);
   const catapult = useMemo(
-    () => prepareCatapult(catapultGltf.scene, unit.faction),
-    [catapultGltf.scene, unit.faction],
+    () => prepareCatapult(catapultGltf.scene, unit.faction, undeadOpponent),
+    [catapultGltf.scene, undeadOpponent, unit.faction],
   );
   const operator = useMemo(
-    () => prepareOperator(operatorGltf.scene, unit.faction),
-    [operatorGltf.scene, unit.faction],
+    () => prepareOperator(operatorGltf.scene, unit.faction, undeadOpponent),
+    [operatorGltf.scene, undeadOpponent, unit.faction],
   );
   const operatorClips = useMemo(
     () => operatorAnimationGltfs.flatMap((animation) => animation.animations),
@@ -189,6 +197,7 @@ export function CatapultUnitModel({
   const healthRatio = MathUtils.clamp(unit.health / Math.max(1, unit.maxHealth), 0, 1);
   const healthWidth = 1.22 * healthRatio;
   const baseRing = UNIT_BASE_RING_GEOMETRY.catapult;
+  const factionColors = sceneColorsForFaction(unit.faction, undeadOpponent);
   return (
     <group
       ref={root}
@@ -202,7 +211,7 @@ export function CatapultUnitModel({
       <mesh position={[0, 0.045, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[baseRing.innerRadius, baseRing.outerRadius, baseRing.segments]} />
         <meshBasicMaterial
-          color={FACTION_SCENE_COLORS[unit.faction].accent}
+          color={factionColors.accent}
           transparent
           opacity={0.9}
           depthWrite={false}
@@ -226,7 +235,7 @@ export function CatapultUnitModel({
           <mesh position={[-(1.22 - healthWidth) / 2, 0, 0.006]} renderOrder={141}>
             <planeGeometry args={[healthWidth, 0.076]} />
             <meshBasicMaterial
-              color={FACTION_SCENE_COLORS[unit.faction].accent}
+              color={factionColors.accent}
               depthTest={false}
               depthWrite={false}
             />
@@ -261,16 +270,21 @@ function SiegePulse() {
 function prepareCatapult(
   source: Object3D,
   faction: BattleUnit["faction"],
+  undeadOpponent: boolean,
 ): PreparedCatapult {
   const model = source.clone(true);
-  const tint = new Color(FACTION_SCENE_COLORS[faction].tint);
+  const tint = new Color(sceneColorsForFaction(faction, undeadOpponent).tint);
   model.scale.setScalar(2.2);
   model.traverse((object) => {
     if (!(object instanceof Mesh)) return;
     object.castShadow = false;
     object.receiveShadow = true;
     const materials = Array.isArray(object.material) ? object.material : [object.material];
-    const tinted = materials.map((material) => tintMaterial(material, tint, 0.12));
+    const tinted = materials.map((material) => tintMaterial(
+      material,
+      tint,
+      undeadOpponent && faction === "crimson" ? 0.42 : 0.12,
+    ));
     object.material = Array.isArray(object.material) ? tinted : tinted[0]!;
   });
   normalizeToGround(model);
@@ -283,16 +297,24 @@ function prepareCatapult(
   };
 }
 
-function prepareOperator(source: Object3D, faction: BattleUnit["faction"]): Object3D {
+function prepareOperator(
+  source: Object3D,
+  faction: BattleUnit["faction"],
+  undeadOpponent: boolean,
+): Object3D {
   const model = cloneSkeleton(source);
-  const tint = new Color(FACTION_SCENE_COLORS[faction].tint);
+  const tint = new Color(sceneColorsForFaction(faction, undeadOpponent).tint);
   model.scale.setScalar(0.25);
   model.traverse((object) => {
     if (!(object instanceof Mesh)) return;
     object.castShadow = false;
     object.receiveShadow = true;
     const materials = Array.isArray(object.material) ? object.material : [object.material];
-    const tinted = materials.map((material) => tintMaterial(material, tint, 0.34));
+    const tinted = materials.map((material) => tintMaterial(
+      material,
+      tint,
+      undeadOpponent && faction === "crimson" ? 0.18 : 0.34,
+    ));
     object.material = Array.isArray(object.material) ? tinted : tinted[0]!;
   });
   normalizeToGround(model);

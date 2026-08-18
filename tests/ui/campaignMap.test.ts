@@ -18,6 +18,7 @@ describe("campaign map", () => {
     }));
 
     expect(markup).toContain("北境进军路线");
+    expect(markup).toContain("双指缩放 · 拖动查看路线");
     expect(markup).toContain("初临战线");
     expect(markup).toContain("钢铁先锋");
     expect(markup).toContain("解锁：剑士");
@@ -25,6 +26,7 @@ describe("campaign map", () => {
     expect(markup).toContain("弓箭手");
     expect(markup).toContain("未解锁");
     expect(markup).toContain("开始任务");
+    expect(markup).toContain('aria-label="开始任务：初临战线"');
   });
 
   it("reports completed stars and newly unlocked equipment", () => {

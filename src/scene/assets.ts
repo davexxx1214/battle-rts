@@ -44,6 +44,11 @@ export const CASTLE_BATTLE_FLAG_ASSET = {
   scale: 1.35,
 } as const;
 
+export const UNDEAD_CASTLE_BATTLE_FLAG_ASSET = {
+  url: "/assets/kaykit/dungeon/banner_patternC_green.gltf",
+  scale: 1.8,
+} as const;
+
 export const FACTION_SCENE_COLORS = {
   verdant: {
     accent: "#4fa7ff",
@@ -54,6 +59,143 @@ export const FACTION_SCENE_COLORS = {
     accent: "#df4c4f",
     dark: "#5d2024",
     tint: "#db5555",
+  },
+} as const;
+
+export const UNDEAD_SCENE_COLORS = {
+  accent: "#8ee56e",
+  dark: "#261a34",
+  tint: "#76529a",
+} as const;
+
+export function sceneColorsForFaction(faction: Faction, undeadOpponent = false) {
+  return undeadOpponent && faction === "crimson"
+    ? UNDEAD_SCENE_COLORS
+    : FACTION_SCENE_COLORS[faction];
+}
+
+const HALLOWEEN_ASSET_ROOT = "/assets/kaykit/halloween";
+const DUNGEON_PACK_ASSET_ROOT = "/assets/threejsassets/dungeon";
+
+export const UNDEAD_HALLOWEEN_ASSETS = {
+  arch: { url: `${HALLOWEEN_ASSET_ROOT}/arch.gltf`, scale: 0.42 },
+  archGate: { url: `${HALLOWEEN_ASSET_ROOT}/arch_gate.gltf`, scale: 0.72 },
+  benchDecorated: { url: `${HALLOWEEN_ASSET_ROOT}/bench_decorated.gltf`, scale: 0.9 },
+  boneA: { url: `${HALLOWEEN_ASSET_ROOT}/bone_A.gltf`, scale: 1.15 },
+  boneB: { url: `${HALLOWEEN_ASSET_ROOT}/bone_B.gltf`, scale: 1.15 },
+  coffinDecorated: { url: `${HALLOWEEN_ASSET_ROOT}/coffin_decorated.gltf`, scale: 0.9 },
+  crypt: { url: `${HALLOWEEN_ASSET_ROOT}/crypt.gltf`, scale: 0.72 },
+  fenceGate: { url: `${HALLOWEEN_ASSET_ROOT}/fence_gate.gltf`, scale: 0.82 },
+  fencePillar: { url: `${HALLOWEEN_ASSET_ROOT}/fence_pillar.gltf`, scale: 0.86 },
+  fenceSeparate: { url: `${HALLOWEEN_ASSET_ROOT}/fence_seperate.gltf`, scale: 0.48 },
+  fenceSeparateBroken: {
+    url: `${HALLOWEEN_ASSET_ROOT}/fence_seperate_broken.gltf`,
+    scale: 1,
+  },
+  floorDirtSmall: { url: `${HALLOWEEN_ASSET_ROOT}/floor_dirt_small.gltf`, scale: 0.88 },
+  graveA: { url: `${HALLOWEEN_ASSET_ROOT}/grave_A.gltf`, scale: 0.95 },
+  graveADestroyed: {
+    url: `${HALLOWEEN_ASSET_ROOT}/grave_A_destroyed.gltf`,
+    scale: 0.95,
+  },
+  graveB: { url: `${HALLOWEEN_ASSET_ROOT}/grave_B.gltf`, scale: 0.95 },
+  graveMarkerA: { url: `${HALLOWEEN_ASSET_ROOT}/gravemarker_A.gltf`, scale: 1.1 },
+  graveMarkerB: { url: `${HALLOWEEN_ASSET_ROOT}/gravemarker_B.gltf`, scale: 1.1 },
+  gravePit: { url: `${HALLOWEEN_ASSET_ROOT}/floor_dirt_grave.gltf`, scale: 0.82 },
+  graveStone: { url: `${HALLOWEEN_ASSET_ROOT}/gravestone.gltf`, scale: 1.05 },
+  lanternStanding: {
+    url: `${HALLOWEEN_ASSET_ROOT}/lantern_standing.gltf`,
+    scale: 1.25,
+  },
+  postLantern: { url: `${HALLOWEEN_ASSET_ROOT}/post_lantern.gltf`, scale: 0.95 },
+  postSkull: { url: `${HALLOWEEN_ASSET_ROOT}/post_skull.gltf`, scale: 0.95 },
+  pumpkinOrangeSmall: {
+    url: `${HALLOWEEN_ASSET_ROOT}/pumpkin_orange_small.gltf`,
+    scale: 0.95,
+  },
+  pumpkinYellowJack: {
+    url: `${HALLOWEEN_ASSET_ROOT}/pumpkin_yellow_jackolantern.gltf`,
+    scale: 0.85,
+  },
+  pumpkinYellowSmall: {
+    url: `${HALLOWEEN_ASSET_ROOT}/pumpkin_yellow_small.gltf`,
+    scale: 0.95,
+  },
+  ribcage: { url: `${HALLOWEEN_ASSET_ROOT}/ribcage.gltf`, scale: 1.1 },
+  shrine: { url: `${HALLOWEEN_ASSET_ROOT}/shrine.gltf`, scale: 1 },
+  shrineCandles: { url: `${HALLOWEEN_ASSET_ROOT}/shrine_candles.gltf`, scale: 1 },
+  skullCandle: { url: `${HALLOWEEN_ASSET_ROOT}/skull_candle.gltf`, scale: 1.05 },
+  treeDeadLargeDecorated: {
+    url: `${HALLOWEEN_ASSET_ROOT}/tree_dead_large_decorated.gltf`,
+    scale: 0.86,
+  },
+  treeDeadMedium: {
+    url: `${HALLOWEEN_ASSET_ROOT}/tree_dead_medium.gltf`,
+    scale: 0.92,
+  },
+  treeDeadSmall: {
+    url: `${HALLOWEEN_ASSET_ROOT}/tree_dead_small.gltf`,
+    scale: 0.9,
+  },
+  treePineOrangeLarge: {
+    url: `${HALLOWEEN_ASSET_ROOT}/tree_pine_orange_large.gltf`,
+    scale: 0.4,
+  },
+  treePineOrangeMedium: {
+    url: `${HALLOWEEN_ASSET_ROOT}/tree_pine_orange_medium.gltf`,
+    scale: 0.46,
+  },
+  treePineYellowMedium: {
+    url: `${HALLOWEEN_ASSET_ROOT}/tree_pine_yellow_medium.gltf`,
+    scale: 0.46,
+  },
+  treePineYellowSmall: {
+    url: `${HALLOWEEN_ASSET_ROOT}/tree_pine_yellow_small.gltf`,
+    scale: 0.52,
+  },
+} as const;
+
+export const UNDEAD_DUNGEON_PACK_ASSETS = {
+  cursedCrystal: {
+    url: `${DUNGEON_PACK_ASSET_ROOT}/dun_cursed_crystal.glb`,
+    scale: 3,
+  },
+  skullCandelabra: {
+    url: `${DUNGEON_PACK_ASSET_ROOT}/dun_skull_candelabra.glb`,
+    scale: 3,
+  },
+  stoneAltar: {
+    url: `${DUNGEON_PACK_ASSET_ROOT}/dun_stone_altar.glb`,
+    scale: 1.25,
+  },
+} as const;
+
+export const UNDEAD_TRIPO_SCENE_ASSETS = {
+  shipwreck: {
+    url: "/assets/generated/tripo/runtime/undead-shipwreck.glb",
+    scale: 1,
+  },
+} as const;
+
+export const UNDEAD_ENVIRONMENT_SCENE_ASSETS = {
+  ...UNDEAD_HALLOWEEN_ASSETS,
+  ...UNDEAD_DUNGEON_PACK_ASSETS,
+  shipwreck: UNDEAD_TRIPO_SCENE_ASSETS.shipwreck,
+} as const;
+
+export const UNDEAD_FORTIFICATION_SCENE_ASSETS = {
+  "wall-straight": {
+    ...UNDEAD_HALLOWEEN_ASSETS.fenceSeparate,
+    scale: 0.58,
+  },
+  "wall-corner": {
+    ...UNDEAD_HALLOWEEN_ASSETS.fenceSeparate,
+    scale: 0.55,
+  },
+  "wall-gate": {
+    ...UNDEAD_HALLOWEEN_ASSETS.archGate,
+    scale: 0.78,
+    hiddenNodes: ["arch_gate_left", "arch_gate_right"],
   },
 } as const;
 
@@ -266,6 +408,30 @@ export const STRUCTURE_SCENE_ASSETS = {
   },
 } as const;
 
+export const UNDEAD_STRUCTURE_SCENE_ASSETS = {
+  castle: {
+    url: UNDEAD_HALLOWEEN_ASSETS.crypt.url,
+    scale: 0.3,
+  },
+  blacksmith: UNDEAD_DUNGEON_PACK_ASSETS.stoneAltar,
+  barracks: UNDEAD_HALLOWEEN_ASSETS.crypt,
+  "arrow-tower": UNDEAD_DUNGEON_PACK_ASSETS.skullCandelabra,
+  mine: UNDEAD_DUNGEON_PACK_ASSETS.cursedCrystal,
+} as const satisfies Readonly<Record<
+  keyof typeof STRUCTURE_SCENE_ASSETS.crimson,
+  { readonly url: string; readonly scale: number }
+>>;
+
+export function structureSceneAssetFor(
+  faction: Faction,
+  kind: keyof typeof STRUCTURE_SCENE_ASSETS.crimson,
+  undeadOpponent = false,
+) {
+  return undeadOpponent && faction === "crimson"
+    ? UNDEAD_STRUCTURE_SCENE_ASSETS[kind]
+    : STRUCTURE_SCENE_ASSETS[faction][kind];
+}
+
 export const BATTLE_BUILDING_ASSET_KEYS = {
   castle: "castle",
   "arrow-tower": "arrow-tower",
@@ -287,16 +453,27 @@ const BATTLE_BUILDING_DETAILS = {
   Readonly<Record<BattleBuildingKind, readonly BattleBuildingDetailAsset[]>>
 >>;
 
+const UNDEAD_BATTLE_BUILDING_DETAILS = createUndeadBuildingDetails();
+
 export const BATTLE_BUILDING_DETAIL_URLS = [
-  ...new Set(Object.values(BATTLE_BUILDING_DETAILS).flatMap((factionDetails) => (
-    Object.values(factionDetails).flatMap((details) => details.map(({ url }) => url))
-  ))),
+  ...new Set([
+    ...Object.values(BATTLE_BUILDING_DETAILS).flatMap((factionDetails) => (
+      Object.values(factionDetails).flatMap((details) => details.map(({ url }) => url))
+    )),
+    ...Object.values(UNDEAD_BATTLE_BUILDING_DETAILS).flatMap((details) => (
+      details.map(({ url }) => url)
+    )),
+  ]),
 ] as readonly string[];
 
 export function battleBuildingDetailAssets(
   faction: Faction,
   kind: BattleBuildingKind,
+  undeadOpponent = false,
 ): readonly BattleBuildingDetailAsset[] {
+  if (undeadOpponent && faction === "crimson") {
+    return UNDEAD_BATTLE_BUILDING_DETAILS[kind];
+  }
   return BATTLE_BUILDING_DETAILS[faction][kind];
 }
 
@@ -346,6 +523,18 @@ function createBattleBuildingDetails(color: "blue" | "red") {
       ], -0.16),
     ],
   } as const;
+}
+
+function createUndeadBuildingDetails(): Readonly<
+  Record<BattleBuildingKind, readonly BattleBuildingDetailAsset[]>
+> {
+  return {
+    castle: [],
+    "arrow-tower": [],
+    "guard-tower": [],
+    "gold-mine": [],
+    barracks: [],
+  };
 }
 
 function buildingDetail(

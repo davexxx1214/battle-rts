@@ -20,12 +20,12 @@ import { useEffect, useMemo, useRef } from "react";
 
 import type { BattleUnit, UnitRole, WorldPoint } from "../../game/battle";
 import { terrainHeightAt } from "../../map/battlefield";
-import { FACTION_SCENE_COLORS } from "../assets";
+import { sceneColorsForFaction } from "../assets";
 import { CatapultUnitModel } from "./CatapultUnitModel";
 import {
   CHARACTER_ANIMATION_URLS,
-  CHARACTER_SCENE_ASSETS,
   characterAnimationForState,
+  characterSceneAssetFor,
   characterTintStrength,
   type CharacterRole,
   type CharacterSceneAsset,
@@ -40,6 +40,7 @@ const CHARACTER_SCALE = 0.27;
 const FAR_ANIMATION_STEP_SECONDS = 1 / 15;
 
 export function UnitModel({
+  undeadOpponent = false,
   ...props
 }: {
   readonly unit: BattleUnit;
@@ -49,10 +50,11 @@ export function UnitModel({
   readonly battleTime: number;
   readonly damageTime?: number;
   readonly damageSourcePosition?: WorldPoint;
+  readonly undeadOpponent?: boolean;
 }) {
   return props.unit.role === "catapult"
-    ? <CatapultUnitModel {...props} />
-    : <CharacterUnitModel {...props} />;
+    ? <CatapultUnitModel {...props} undeadOpponent={undeadOpponent} />
+    : <CharacterUnitModel {...props} undeadOpponent={undeadOpponent} />;
 }
 
 function CharacterUnitModel({
@@ -62,6 +64,7 @@ function CharacterUnitModel({
   battleTime,
   damageTime,
   damageSourcePosition,
+  undeadOpponent,
 }: {
   readonly unit: BattleUnit;
   readonly selected: boolean;
@@ -70,9 +73,14 @@ function CharacterUnitModel({
   readonly battleTime: number;
   readonly damageTime?: number;
   readonly damageSourcePosition?: WorldPoint;
+  readonly undeadOpponent: boolean;
 }) {
   const role = unit.role as CharacterRole;
-  const asset: CharacterSceneAsset = CHARACTER_SCENE_ASSETS[role];
+  const asset: CharacterSceneAsset = characterSceneAssetFor(
+    role,
+    unit.faction,
+    undeadOpponent,
+  );
   const equipment = asset.equipment;
   const equipmentUrl = equipment?.modelUrls[unit.faction];
   const characterGltfs = useLoader(
@@ -91,11 +99,12 @@ function CharacterUnitModel({
       gltf.scene,
       unit.faction,
       role,
+      undeadOpponent,
       equipment && characterGltfs[1]
         ? { ...equipment, source: characterGltfs[1].scene }
         : null,
     ),
-    [characterGltfs, equipment, gltf.scene, role, unit.faction],
+    [characterGltfs, equipment, gltf.scene, role, undeadOpponent, unit.faction],
   );
   const clips = useMemo(
     () => animationGltfs.flatMap((animation) => animation.animations),
@@ -197,7 +206,7 @@ function CharacterUnitModel({
   });
 
   const healthRatio = MathUtils.clamp(unit.health / Math.max(1, unit.maxHealth), 0, 1);
-  const factionColors = FACTION_SCENE_COLORS[unit.faction];
+  const factionColors = sceneColorsForFaction(unit.faction, undeadOpponent);
   const baseRing = unitBaseRingGeometry(unit.role);
   const healthWidth = 0.76 * healthRatio;
   return (
@@ -279,6 +288,7 @@ function prepareCharacterModel(
   source: Object3D,
   faction: BattleUnit["faction"],
   role: CharacterRole,
+  undeadOpponent: boolean,
   equipment: (NonNullable<CharacterSceneAsset["equipment"]> & {
     readonly source: Object3D;
   }) | null,
@@ -295,7 +305,8 @@ function prepareCharacterModel(
       handSlot.add(attached);
     }
   }
-  const tint = new Color(FACTION_SCENE_COLORS[faction].tint);
+  const isUndead = undeadOpponent && faction === "crimson";
+  const tint = new Color(sceneColorsForFaction(faction, undeadOpponent).tint);
   model.scale.setScalar(CHARACTER_SCALE);
   model.updateMatrixWorld(true);
   const bounds = new Box3().setFromObject(model);
@@ -304,13 +315,21 @@ function prepareCharacterModel(
     if (!(object instanceof Mesh)) return;
     object.castShadow = false;
     object.receiveShadow = true;
-    const tintStrength = characterTintStrength(role, object.name);
+    const tintStrength = characterTintStrength(role, object.name, isUndead);
     if (Array.isArray(object.material)) {
       object.material = object.material.map(
         (material) => tintMaterial(material, tint, tintStrength),
       );
     } else {
       object.material = tintMaterial(object.material, tint, tintStrength);
+    }
+    if (isUndead && object.name.endsWith("_Eyes")) {
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of materials) {
+        if (!(material instanceof MeshStandardMaterial)) continue;
+        material.emissive.set("#80ff5c");
+        material.emissiveIntensity = 1.15;
+      }
     }
   });
   return model;

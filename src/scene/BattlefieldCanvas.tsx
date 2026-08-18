@@ -46,6 +46,7 @@ export type { SceneInteractionBridge } from "./sceneInteractionBridge";
 
 interface BattlefieldCanvasProps {
   readonly battle: BattleState;
+  readonly undeadOpponent?: boolean;
   readonly bridgeRef: MutableRefObject<SceneInteractionBridge>;
   readonly deploymentKind?: DeployableKind | null;
   readonly deploymentPreview: (DeploymentPreview & { readonly kind: DeployableKind }) | null;
@@ -66,6 +67,7 @@ const ATTACK_PRESENTATION_SECONDS = 3.6;
 
 export function BattlefieldCanvas({
   battle,
+  undeadOpponent = false,
   bridgeRef,
   deploymentKind = null,
   deploymentPreview,
@@ -94,7 +96,11 @@ export function BattlefieldCanvas({
       camera={{ position: [16, 18, 20], zoom: 32, near: 0.1, far: 140 }}
       gl={{ antialias: true, alpha: false }}
       resize={{ offsetSize: true }}
-      style={{ width: "100%", height: "100%", background: "#aeb9ad" }}
+      style={{
+        width: "100%",
+        height: "100%",
+        background: undeadOpponent ? "#777381" : "#aeb9ad",
+      }}
     >
       {onAssetProgress && onAssetsReady && onAssetError && (
         <SceneAssetErrorBoundary onError={onAssetError}>
@@ -104,15 +110,19 @@ export function BattlefieldCanvas({
           />
         </SceneAssetErrorBoundary>
       )}
-      <color attach="background" args={["#aeb9ad"]} />
-      <fog attach="fog" args={["#aeb9ad", 34, 72]} />
+      <color attach="background" args={[undeadOpponent ? "#777381" : "#aeb9ad"]} />
+      <fog attach="fog" args={[undeadOpponent ? "#777381" : "#aeb9ad", 34, 72]} />
       <ambientLight intensity={1.15} />
-      <hemisphereLight args={["#dbe8e2", "#51442f", 1.8]} />
+      <hemisphereLight args={[
+        undeadOpponent ? "#d8d2e8" : "#dbe8e2",
+        undeadOpponent ? "#35243e" : "#51442f",
+        1.8,
+      ]} />
       <directionalLight
         castShadow
         position={[9, 18, 7]}
         intensity={2.35}
-        color="#fff0c7"
+        color={undeadOpponent ? "#e6dcff" : "#fff0c7"}
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
         shadow-camera-left={-20}
@@ -123,16 +133,18 @@ export function BattlefieldCanvas({
       <BattleCamera
         resetToken={cameraResetToken}
         shake={latestShakeImpulse(battle)}
+        initialTargetZ={undeadOpponent ? -2.4 : 0}
+        initialZoom={undeadOpponent ? 31 : 32}
         onViewChange={cameraViewStore.publish}
         bridgeRef={bridgeRef}
       />
       <SceneBridge bridgeRef={bridgeRef} />
       {onBenchmarkUpdate && <BenchmarkProbe onUpdate={onBenchmarkUpdate} />}
       <Suspense fallback={<ArenaFallback />}>
-        <BattlefieldTerrain />
+        <BattlefieldTerrain undeadOpponent={undeadOpponent} />
       </Suspense>
       <Suspense fallback={null}>
-        <BattleBuildingLayer battle={battle} />
+        <BattleBuildingLayer battle={battle} undeadOpponent={undeadOpponent} />
       </Suspense>
       <DeploymentAreaMask coordinates={deploymentMaskCoordinates} />
       <UnitShadowInstances battle={battle} />
@@ -149,6 +161,7 @@ export function BattlefieldCanvas({
               battleTime={battle.elapsed}
               damageTime={damage?.time}
               damageSourcePosition={damage?.sourcePosition}
+              undeadOpponent={undeadOpponent}
             />
           </Suspense>
         );

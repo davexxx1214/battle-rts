@@ -18,11 +18,15 @@ export interface CameraShakeImpulse {
 export function BattleCamera({
   resetToken,
   shake,
+  initialTargetZ = 0,
+  initialZoom = 32,
   onViewChange,
   bridgeRef,
 }: {
   readonly resetToken: number;
   readonly shake: CameraShakeImpulse | null;
+  readonly initialTargetZ?: number;
+  readonly initialZoom?: number;
   readonly onViewChange?: (view: CameraViewSnapshot) => void;
   readonly bridgeRef: MutableRefObject<SceneInteractionBridge>;
 }) {
@@ -39,16 +43,16 @@ export function BattleCamera({
   const lastViewSignature = useRef("");
 
   useEffect(() => {
-    target.current.set(0, 0, 0);
+    target.current.set(0, 0, initialTargetZ);
     yaw.current = 0.68;
     shakeEnergy.current = 0;
     if (camera instanceof OrthographicCamera) {
-      camera.zoom = compactViewport ? 13 : 32;
+      camera.zoom = compactViewport ? 13 : initialZoom;
       camera.updateProjectionMatrix();
     }
     viewReportDelay.current = 0.1;
     lastViewSignature.current = "";
-  }, [camera, compactViewport, resetToken]);
+  }, [camera, compactViewport, initialTargetZ, initialZoom, resetToken]);
 
   useEffect(() => {
     if (!shake) return;

@@ -52,20 +52,29 @@ describe("Tripo asset generation catalog", () => {
     });
   });
 
-  it("uses the current P1 snapshot for a textured low-poly siege workshop", () => {
-    const workshop = TRIPO_ASSETS.find(({ id }: { id: string }) => id === "siege-workshop");
+  it("keeps only runtime models in use plus the reserved frost bone dragon", () => {
+    expect(TRIPO_ASSETS.map(({ id }: { id: string }) => id)).toEqual([
+      "mobile-catapult",
+      "undead-shipwreck",
+      "undead-frost-bone-dragon",
+    ]);
+    const undeadAssets = TRIPO_ASSETS.filter(({ id }: { id: string }) => id.startsWith("undead-"));
 
-    expect(workshop?.request).toMatchObject({
-      model: "P1-20260311",
-      face_limit: 5000,
-      texture: true,
-      pbr: false,
-      texture_quality: "standard",
-    });
-    expect(workshop?.runtime).toEqual({
-      sourceStage: "generation",
-      path: "runtime/siege-workshop.glb",
-    });
+    expect(undeadAssets.map(({ id }: { id: string }) => id)).toEqual([
+      "undead-shipwreck",
+      "undead-frost-bone-dragon",
+    ]);
+    expect(undeadAssets.every(({ request, runtime }: {
+      request: { model: string; texture: boolean; pbr: boolean; prompt: string };
+      runtime: { sourceStage: string; path: string };
+    }) => (
+      request.model === "P1-20260311"
+      && request.texture
+      && !request.pbr
+      && request.prompt.includes("KayKit-inspired")
+      && runtime.sourceStage === "generation"
+      && runtime.path.startsWith("runtime/undead-")
+    ))).toBe(true);
   });
 
   it("reads a quoted key without exposing any unrelated config values", () => {

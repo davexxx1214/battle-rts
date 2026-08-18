@@ -7,8 +7,17 @@ import {
   SCENERY_SCENE_ASSETS,
   SCENE_MODEL_URLS,
   STRUCTURE_SCENE_ASSETS,
+  UNDEAD_DUNGEON_PACK_ASSETS,
+  UNDEAD_ENVIRONMENT_SCENE_ASSETS,
+  UNDEAD_FORTIFICATION_SCENE_ASSETS,
+  UNDEAD_HALLOWEEN_ASSETS,
+  UNDEAD_SCENE_COLORS,
+  UNDEAD_STRUCTURE_SCENE_ASSETS,
+  UNDEAD_TRIPO_SCENE_ASSETS,
   UNIT_BASE_RING_GEOMETRY,
   battleBuildingDetailAssets,
+  sceneColorsForFaction,
+  structureSceneAssetFor,
 } from "../../src/scene/assets";
 
 describe("scene asset presentation", () => {
@@ -83,6 +92,76 @@ describe("scene asset presentation", () => {
     expect(BATTLE_BUILDING_ASSET_KEYS["arrow-tower"]).toBe("arrow-tower");
     expect(battleBuildingDetailAssets("verdant", "arrow-tower")).toEqual([]);
     expect(battleBuildingDetailAssets("crimson", "arrow-tower")).toEqual([]);
+  });
+
+  it("keeps only the used shipwreck from Tripo and mixes curated undead packs", () => {
+    expect(sceneColorsForFaction("crimson", true)).toEqual(UNDEAD_SCENE_COLORS);
+    expect(sceneColorsForFaction("verdant", true)).toEqual(FACTION_SCENE_COLORS.verdant);
+    for (const kind of ["castle", "arrow-tower", "guard-tower", "gold-mine", "barracks"] as const) {
+      expect(battleBuildingDetailAssets("crimson", kind, true)).toEqual([]);
+    }
+    expect(structureSceneAssetFor("crimson", "castle", true))
+      .toEqual(UNDEAD_STRUCTURE_SCENE_ASSETS.castle);
+    expect(structureSceneAssetFor("crimson", "arrow-tower", true))
+      .toEqual(UNDEAD_STRUCTURE_SCENE_ASSETS["arrow-tower"]);
+    expect(structureSceneAssetFor("crimson", "mine", true))
+      .toEqual(UNDEAD_STRUCTURE_SCENE_ASSETS.mine);
+    expect(structureSceneAssetFor("crimson", "blacksmith", true))
+      .toEqual(UNDEAD_STRUCTURE_SCENE_ASSETS.blacksmith);
+    expect(Object.keys(UNDEAD_TRIPO_SCENE_ASSETS).sort())
+      .toEqual(["shipwreck"]);
+    expect(Object.values(UNDEAD_TRIPO_SCENE_ASSETS)
+      .every(({ url }) => url.startsWith("/assets/generated/tripo/runtime/undead-"))).toBe(true);
+    expect(UNDEAD_ENVIRONMENT_SCENE_ASSETS.shipwreck)
+      .toEqual(UNDEAD_TRIPO_SCENE_ASSETS.shipwreck);
+    expect(Object.values(UNDEAD_ENVIRONMENT_SCENE_ASSETS)
+      .filter(({ url }) => url.startsWith("/assets/generated/tripo/runtime/undead-")))
+      .toHaveLength(1);
+    expect(Object.values(UNDEAD_HALLOWEEN_ASSETS)
+      .every(({ url }) => url.startsWith("/assets/kaykit/halloween/"))).toBe(true);
+    expect(UNDEAD_HALLOWEEN_ASSETS.crypt.url)
+      .toBe("/assets/kaykit/halloween/crypt.gltf");
+    expect(UNDEAD_HALLOWEEN_ASSETS.arch.url)
+      .toBe("/assets/kaykit/halloween/arch.gltf");
+    expect(UNDEAD_HALLOWEEN_ASSETS.fenceSeparate.url)
+      .toBe("/assets/kaykit/halloween/fence_seperate.gltf");
+    expect(UNDEAD_HALLOWEEN_ASSETS.shrine.url)
+      .toBe("/assets/kaykit/halloween/shrine.gltf");
+    expect(UNDEAD_HALLOWEEN_ASSETS.treePineOrangeLarge.url)
+      .toBe("/assets/kaykit/halloween/tree_pine_orange_large.gltf");
+    expect(UNDEAD_HALLOWEEN_ASSETS.fenceGate.url)
+      .toBe("/assets/kaykit/halloween/fence_gate.gltf");
+    expect(UNDEAD_HALLOWEEN_ASSETS.treeDeadLargeDecorated.url)
+      .toBe("/assets/kaykit/halloween/tree_dead_large_decorated.gltf");
+    expect(Object.values(UNDEAD_DUNGEON_PACK_ASSETS)
+      .every(({ url }) => url.startsWith("/assets/threejsassets/dungeon/"))).toBe(true);
+    expect(Object.values(UNDEAD_ENVIRONMENT_SCENE_ASSETS)
+      .filter(({ url }) => url.startsWith("/assets/threejsassets/dungeon/")))
+      .toHaveLength(3);
+    expect(UNDEAD_STRUCTURE_SCENE_ASSETS.castle.url)
+      .toBe(UNDEAD_HALLOWEEN_ASSETS.crypt.url);
+    expect(UNDEAD_STRUCTURE_SCENE_ASSETS.castle.scale).toBe(0.3);
+    expect(UNDEAD_STRUCTURE_SCENE_ASSETS.barracks.url)
+      .toBe(UNDEAD_HALLOWEEN_ASSETS.crypt.url);
+    expect(UNDEAD_STRUCTURE_SCENE_ASSETS.blacksmith)
+      .toEqual(UNDEAD_DUNGEON_PACK_ASSETS.stoneAltar);
+    expect(UNDEAD_STRUCTURE_SCENE_ASSETS["arrow-tower"])
+      .toEqual(UNDEAD_DUNGEON_PACK_ASSETS.skullCandelabra);
+    expect(UNDEAD_STRUCTURE_SCENE_ASSETS.mine)
+      .toEqual(UNDEAD_DUNGEON_PACK_ASSETS.cursedCrystal);
+    expect(Object.values(UNDEAD_FORTIFICATION_SCENE_ASSETS)
+      .every(({ url }) => url.startsWith("/assets/kaykit/halloween/"))).toBe(true);
+    expect(UNDEAD_FORTIFICATION_SCENE_ASSETS["wall-straight"].url)
+      .toBe("/assets/kaykit/halloween/fence_seperate.gltf");
+    expect(UNDEAD_FORTIFICATION_SCENE_ASSETS["wall-corner"].url)
+      .toBe("/assets/kaykit/halloween/fence_seperate.gltf");
+    expect(UNDEAD_FORTIFICATION_SCENE_ASSETS["wall-gate"].url)
+      .toBe("/assets/kaykit/halloween/arch_gate.gltf");
+    expect(UNDEAD_FORTIFICATION_SCENE_ASSETS["wall-gate"].scale).toBe(0.78);
+    expect(UNDEAD_FORTIFICATION_SCENE_ASSETS["wall-gate"].hiddenNodes).toEqual([
+      "arch_gate_left",
+      "arch_gate_right",
+    ]);
   });
 
   it("maps every battlefield scenery kind to a local KayKit model", () => {

@@ -1,6 +1,6 @@
 .selector {
   display: grid;
-  grid-template-columns: repeat(3, minmax(68px, 1fr));
+  grid-template-columns: repeat(4, minmax(68px, 1fr));
   padding: 3px;
   border: 1px solid var(--line-strong);
   background: rgb(9 10 8 / 78%);
@@ -38,7 +38,7 @@
 
 @media (max-width: 620px) {
   .selector {
-    grid-template-columns: repeat(3, minmax(56px, 1fr));
+    grid-template-columns: repeat(4, minmax(56px, 1fr));
   }
 
   .option {
@@ -50,7 +50,7 @@
 @media (orientation: landscape) and (max-height: 520px),
   (orientation: portrait) and (max-width: 1024px) {
   .selector {
-    grid-template-columns: repeat(3, minmax(50px, 1fr));
+    grid-template-columns: repeat(4, minmax(50px, 1fr));
     padding: 2px;
   }
 

@@ -2,8 +2,10 @@ import { useFrame, useLoader } from "@react-three/fiber";
 import {
   Box3,
   CanvasTexture,
+  Color,
   MathUtils,
   Mesh,
+  MeshStandardMaterial,
   Object3D,
   Sprite,
   SpriteMaterial,
@@ -20,10 +22,11 @@ import {
 } from "../../map/battlefield";
 import {
   CASTLE_BATTLE_FLAG_ASSET,
+  UNDEAD_CASTLE_BATTLE_FLAG_ASSET,
   BATTLE_BUILDING_ASSET_KEYS,
-  FACTION_SCENE_COLORS,
-  STRUCTURE_SCENE_ASSETS,
   battleBuildingDetailAssets,
+  sceneColorsForFaction,
+  structureSceneAssetFor,
 } from "../assets";
 import {
   BUILDING_HEALTH_BAR_LAYERS,
@@ -33,12 +36,22 @@ import {
   type BuildingSignal,
 } from "./buildingPresentation";
 
-export function BattleBuildingLayer({ battle }: { readonly battle: BattleState }) {
+export function BattleBuildingLayer({
+  battle,
+  undeadOpponent = false,
+}: {
+  readonly battle: BattleState;
+  readonly undeadOpponent?: boolean;
+}) {
   return (
     <group>
       {battle.buildings.map((building) => (
         <Suspense fallback={null} key={building.id}>
-          <BattleBuildingVisual battle={battle} building={building} />
+          <BattleBuildingVisual
+            battle={battle}
+            building={building}
+            undeadOpponent={undeadOpponent}
+          />
         </Suspense>
       ))}
     </group>
@@ -48,13 +61,20 @@ export function BattleBuildingLayer({ battle }: { readonly battle: BattleState }
 function BattleBuildingVisual({
   battle,
   building,
+  undeadOpponent,
 }: {
   readonly battle: BattleState;
   readonly building: BattleBuilding;
+  readonly undeadOpponent: boolean;
 }) {
   const root = useRef<Object3D>(null);
   const presentation = buildingPresentation(building, battle.elapsed);
   const signal = latestBuildingSignal(building, battle.elapsed, battle.events);
+  const hasBuildingDetails = battleBuildingDetailAssets(
+    building.faction,
+    building.kind,
+    undeadOpponent,
+  ).length > 0;
   const y = terrainHeightAt(building.position) + 0.03;
   useFrame(() => {
     if (!root.current) return;
@@ -68,18 +88,30 @@ function BattleBuildingVisual({
   });
   return (
     <group ref={root} position={[building.position.x, y, building.position.z]}>
-      <BuildingFoundation faction={building.faction} kind={building.kind} />
+      <BuildingFoundation
+        faction={building.faction}
+        kind={building.kind}
+        undeadOpponent={undeadOpponent}
+      />
       {building.kind === "castle"
-        ? <CastleBuildingModel faction={building.faction} />
-        : <DeployedBuildingModel faction={building.faction} kind={building.kind} />}
-      {building.kind !== "arrow-tower" && building.kind !== "guard-tower" && (
-        <BuildingDetailModels faction={building.faction} kind={building.kind} />
+        ? <CastleBuildingModel faction={building.faction} undeadOpponent={undeadOpponent} />
+        : <DeployedBuildingModel
+            faction={building.faction}
+            kind={building.kind}
+            undeadOpponent={undeadOpponent}
+          />}
+      {hasBuildingDetails && (
+        <BuildingDetailModels
+          faction={building.faction}
+          kind={building.kind}
+          undeadOpponent={undeadOpponent}
+        />
       )}
       <BuildingHealthBar
         ratio={presentation.healthRatio}
         tone={presentation.healthTone}
         height={building.kind === "castle"
-          ? 4.3
+          ? undeadOpponent && building.faction === "crimson" ? 2.55 : 4.3
           : building.kind === "arrow-tower" || building.kind === "guard-tower"
             ? 3.25
             : building.kind === "barracks" ? 2.35 : 1.9}
@@ -88,12 +120,22 @@ function BattleBuildingVisual({
         <ProductionProgress
           progress={presentation.productionProgress}
           faction={building.faction}
+          undeadOpponent={undeadOpponent}
         />
       )}
-      {signal && <BuildingSignalEffect signal={signal} building={building} />}
+      {signal && (
+        <BuildingSignalEffect
+          signal={signal}
+          building={building}
+          undeadOpponent={undeadOpponent}
+        />
+      )}
       {presentation.kingVisible && building.kind === "castle" && (
         <Suspense fallback={null}>
-          <CastleBattleStandard faction={building.faction} />
+          <CastleBattleStandard
+            faction={building.faction}
+            undeadOpponent={undeadOpponent}
+          />
         </Suspense>
       )}
       {presentation.lifecycle === "destroying" && (
@@ -106,11 +148,13 @@ function BattleBuildingVisual({
 function BuildingFoundation({
   faction,
   kind,
+  undeadOpponent,
 }: {
   readonly faction: BattleBuilding["faction"];
   readonly kind: BattleBuilding["kind"];
+  readonly undeadOpponent: boolean;
 }) {
-  const colors = FACTION_SCENE_COLORS[faction];
+  const colors = sceneColorsForFaction(faction, undeadOpponent);
   const radius = kind === "castle" ? 1.04 : 0.98;
   return (
     <group>
@@ -126,34 +170,86 @@ function BuildingFoundation({
   );
 }
 
-function CastleBuildingModel({ faction }: { readonly faction: BattleBuilding["faction"] }) {
-  const asset = STRUCTURE_SCENE_ASSETS[faction][BATTLE_BUILDING_ASSET_KEYS.castle];
+function CastleBuildingModel({
+  faction,
+  undeadOpponent,
+}: {
+  readonly faction: BattleBuilding["faction"];
+  readonly undeadOpponent: boolean;
+}) {
+  const asset = structureSceneAssetFor(
+    faction,
+    BATTLE_BUILDING_ASSET_KEYS.castle,
+    undeadOpponent,
+  );
+  const dedicatedUndeadAsset = asset.url.startsWith(
+    "/assets/generated/tripo/runtime/undead-",
+  )
+    || asset.url.startsWith("/assets/kaykit/halloween/")
+    || asset.url.startsWith("/assets/threejsassets/dungeon/");
   const gltf = useLoader(GLTFLoader, asset.url);
-  const model = useMemo(() => prepareModel(gltf.scene, asset.scale), [asset.scale, gltf.scene]);
-  return <primitive object={model} rotation-y={faction === "verdant" ? 0 : Math.PI} />;
+  const model = useMemo(
+    () => prepareModel(
+      gltf.scene,
+      asset.scale,
+      undeadOpponent && faction === "crimson" && !dedicatedUndeadAsset,
+    ),
+    [asset.scale, dedicatedUndeadAsset, faction, gltf.scene, undeadOpponent],
+  );
+  return (
+    <primitive
+      object={model}
+      rotation-y={undeadOpponent && faction === "crimson"
+        ? 0
+        : faction === "verdant" ? 0 : Math.PI}
+    />
+  );
 }
 
 function DeployedBuildingModel({
   faction,
   kind,
+  undeadOpponent,
 }: {
   readonly faction: BattleBuilding["faction"];
   readonly kind: BattleBuilding["kind"];
+  readonly undeadOpponent: boolean;
 }) {
-  const asset = STRUCTURE_SCENE_ASSETS[faction][BATTLE_BUILDING_ASSET_KEYS[kind]];
+  const asset = structureSceneAssetFor(
+    faction,
+    BATTLE_BUILDING_ASSET_KEYS[kind],
+    undeadOpponent,
+  );
+  const dedicatedUndeadAsset = asset.url.startsWith(
+    "/assets/generated/tripo/runtime/undead-",
+  )
+    || asset.url.startsWith("/assets/kaykit/halloween/")
+    || asset.url.startsWith("/assets/threejsassets/dungeon/");
   const gltf = useLoader(GLTFLoader, asset.url);
-  const model = useMemo(() => prepareModel(gltf.scene, asset.scale), [asset.scale, gltf.scene]);
+  const model = useMemo(
+    () => prepareModel(
+      gltf.scene,
+      asset.scale,
+      undeadOpponent && faction === "crimson" && !dedicatedUndeadAsset,
+    ),
+    [asset.scale, dedicatedUndeadAsset, faction, gltf.scene, undeadOpponent],
+  );
   return <primitive object={model} rotation-y={faction === "verdant" ? 0 : Math.PI} />;
 }
 
 function BuildingDetailModels({
   faction,
   kind,
+  undeadOpponent,
 }: {
   readonly faction: BattleBuilding["faction"];
   readonly kind: BattleBuilding["kind"];
+  readonly undeadOpponent: boolean;
 }) {
-  const details = useMemo(() => battleBuildingDetailAssets(faction, kind), [faction, kind]);
+  const details = useMemo(
+    () => battleBuildingDetailAssets(faction, kind, undeadOpponent),
+    [faction, kind, undeadOpponent],
+  );
   const gltfs = useLoader(GLTFLoader, details.map((detail) => detail.url));
   const models = useMemo(
     () => details.map((detail, index) => prepareModel(gltfs[index]!.scene, detail.scale)),
@@ -213,15 +309,17 @@ function BuildingHealthBar({
 function ProductionProgress({
   progress,
   faction,
+  undeadOpponent,
 }: {
   readonly progress: number;
   readonly faction: BattleBuilding["faction"];
+  readonly undeadOpponent: boolean;
 }) {
   return (
     <mesh position={[0, 0.13, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={80}>
       <ringGeometry args={[0.93, 1.04, 42, 1, -Math.PI / 2, progress * Math.PI * 2]} />
       <meshBasicMaterial
-        color={FACTION_SCENE_COLORS[faction].accent}
+        color={sceneColorsForFaction(faction, undeadOpponent).accent}
         transparent
         opacity={0.9}
         depthWrite={false}
@@ -233,9 +331,11 @@ function ProductionProgress({
 function BuildingSignalEffect({
   signal,
   building,
+  undeadOpponent,
 }: {
   readonly signal: BuildingSignal;
   readonly building: BattleBuilding;
+  readonly undeadOpponent: boolean;
 }) {
   if (signal.kind === "destroy") return null;
   const label = signal.kind === "gold"
@@ -249,7 +349,7 @@ function BuildingSignalEffect({
     ? "#ffd45e"
     : signal.kind === "gold-wasted"
       ? "#d3a16f"
-      : FACTION_SCENE_COLORS[building.faction].accent;
+      : sceneColorsForFaction(building.faction, undeadOpponent).accent;
   return <RisingLabel age={signal.age} color={color} label={label} />;
 }
 
@@ -277,8 +377,15 @@ function RisingLabel({ age, color, label }: {
   );
 }
 
-function CastleBattleStandard({ faction }: { readonly faction: BattleBuilding["faction"] }) {
-  const asset = CASTLE_BATTLE_FLAG_ASSET;
+function CastleBattleStandard({
+  faction,
+  undeadOpponent,
+}: {
+  readonly faction: BattleBuilding["faction"];
+  readonly undeadOpponent: boolean;
+}) {
+  const isUndead = undeadOpponent && faction === "crimson";
+  const asset = isUndead ? UNDEAD_CASTLE_BATTLE_FLAG_ASSET : CASTLE_BATTLE_FLAG_ASSET;
   const gltf = useLoader(GLTFLoader, asset.url);
   const model = useMemo(() => prepareModel(gltf.scene, asset.scale), [asset.scale, gltf.scene]);
   const approach = axialToWorld(BATTLEFIELD_MAP.castleApproaches[faction]);
@@ -289,15 +396,22 @@ function CastleBattleStandard({ faction }: { readonly faction: BattleBuilding["f
       <group position={[0.46, 0.62, 0]}>
         <mesh position={[0, 0.5, 0]} castShadow>
           <cylinderGeometry args={[0.18, 0.27, 0.86, 8]} />
-          <meshStandardMaterial color={FACTION_SCENE_COLORS[faction].dark} roughness={0.82} />
+          <meshStandardMaterial
+            color={sceneColorsForFaction(faction, undeadOpponent).dark}
+            roughness={0.82}
+          />
         </mesh>
         <mesh position={[0, 1.05, 0]} castShadow>
           <sphereGeometry args={[0.22, 10, 8]} />
-          <meshStandardMaterial color="#d6aa7b" roughness={0.78} />
+          <meshStandardMaterial color={isUndead ? "#d8dfbf" : "#d6aa7b"} roughness={0.78} />
         </mesh>
         <mesh position={[0, 1.3, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
           <cylinderGeometry args={[0.12, 0.24, 0.28, 4]} />
-          <meshStandardMaterial color="#f3c64f" emissive="#8b5f16" emissiveIntensity={0.25} />
+          <meshStandardMaterial
+            color={isUndead ? "#8ee56e" : "#f3c64f"}
+            emissive={isUndead ? "#3c8b2d" : "#8b5f16"}
+            emissiveIntensity={isUndead ? 0.75 : 0.25}
+          />
         </mesh>
       </group>
     </group>
@@ -335,7 +449,7 @@ function DestructionBurst({ progress }: { readonly progress: number }) {
   );
 }
 
-function prepareModel(source: Object3D, scale: number): Object3D {
+function prepareModel(source: Object3D, scale: number, undeadTreatment = false): Object3D {
   const clone = source.clone(true);
   clone.scale.setScalar(scale);
   clone.updateMatrixWorld(true);
@@ -345,6 +459,18 @@ function prepareModel(source: Object3D, scale: number): Object3D {
     if (object instanceof Mesh) {
       object.castShadow = true;
       object.receiveShadow = true;
+      if (undeadTreatment) {
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        const treated = materials.map((material) => {
+          const next = material.clone();
+          if (next instanceof MeshStandardMaterial) {
+            next.color.lerp(new Color("#3b294c"), 0.56);
+            next.roughness = Math.max(next.roughness, 0.82);
+          }
+          return next;
+        });
+        object.material = Array.isArray(object.material) ? treated : treated[0]!;
+      }
     }
   });
   return clone;

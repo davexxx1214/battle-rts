@@ -1,0 +1,17 @@
+Dungeon / Crypt Interior Kit — Commercial License
+
+You may:
+  • Use these assets in unlimited personal and commercial projects.
+  • Use them in paid client work, including web games and products you build and
+    deliver to your own clients.
+  • Modify, recolor, and adapt the assets for your projects.
+
+You may not:
+  • Resell, redistribute, sublicense, or give away the raw asset files (GLB, source,
+    or components), on their own or repackaged, whether free or paid.
+  • Include the raw assets in a competing asset pack, template, or marketplace listing.
+
+No attribution required (though it is always appreciated).
+This license is granted to the purchaser; it is not transferable.
+
+© 2026 threejsassets.com. All rights reserved.

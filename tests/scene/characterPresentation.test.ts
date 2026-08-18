@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   CHARACTER_ANIMATION_URLS,
   CHARACTER_SCENE_ASSETS,
+  UNDEAD_CHARACTER_SCENE_ASSETS,
   characterAnimationForState,
+  characterSceneAssetFor,
   characterTintStrength,
 } from "../../src/scene/units/characterPresentation";
 
@@ -34,6 +36,18 @@ describe("character presentation", () => {
     expect(CHARACTER_ANIMATION_URLS).toContain(
       "/assets/kaykit/character-animations/rig-medium/Rig_Medium_MovementAdvanced.glb",
     );
+  });
+
+  it("maps all enemy combat roles to KayKit skeleton models in undead mode", () => {
+    for (const role of ["knight", "spearman", "ranger", "mage"] as const) {
+      const asset = characterSceneAssetFor(role, "crimson", true);
+      expect(asset).toBe(UNDEAD_CHARACTER_SCENE_ASSETS[role]);
+      expect(asset.modelUrl).toMatch(/\/assets\/kaykit\/skeletons\/characters\/Skeleton_.+\.glb$/);
+      expect(asset.equipment?.modelUrls.crimson)
+        .toMatch(/\/assets\/kaykit\/skeletons\/equipment\/Skeleton_.+\.gltf$/);
+    }
+    expect(characterSceneAssetFor("knight", "verdant", true))
+      .toBe(CHARACTER_SCENE_ASSETS.knight);
   });
 
   it("selects role-specific movement and attack clips", () => {

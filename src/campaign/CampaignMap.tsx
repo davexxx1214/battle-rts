@@ -93,6 +93,7 @@ export function CampaignMap({
               <h2>北境进军路线</h2>
             </div>
             <p>主线关卡推进战役；金色军备试炼可永久解锁新的兵种和建筑。</p>
+            <small className={styles.mapGestureHint}>双指缩放 · 拖动查看路线</small>
           </div>
 
           <div className={styles.chapterList}>
@@ -204,6 +205,21 @@ export function CampaignMap({
             <strong>{isCampaignMissionCompleted(progress, selectedMission.id) ? "再次出战" : "开始任务"}</strong>
           </button>
         </aside>
+      </div>
+
+      <div className={styles.mobileMissionBar}>
+        <div>
+          <small>{selectedMission.kind === "challenge" ? "军备试炼" : "当前任务"}</small>
+          <strong>{selectedMission.title}</strong>
+        </div>
+        <button
+          type="button"
+          disabled={!selectedAvailable}
+          aria-label={`开始任务：${selectedMission.title}`}
+          onClick={() => onStartMission(selectedMission)}
+        >
+          {selectedAvailable ? "开始任务" : "尚未解锁"}
+        </button>
       </div>
 
       <footer className={styles.armory}>

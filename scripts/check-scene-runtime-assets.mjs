@@ -5,6 +5,16 @@ import { fileURLToPath } from "node:url";
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const kenneyRoot = path.join(projectRoot, "public", "assets", "kenney");
 const kaykitRoot = path.join(projectRoot, "public", "assets", "kaykit", "medieval-hex");
+const kaykitDungeonRoot = path.join(projectRoot, "public", "assets", "kaykit", "dungeon");
+const kaykitHalloweenRoot = path.join(projectRoot, "public", "assets", "kaykit", "halloween");
+const kaykitSkeletonRoot = path.join(projectRoot, "public", "assets", "kaykit", "skeletons");
+const threeJsDungeonRoot = path.join(
+  projectRoot,
+  "public",
+  "assets",
+  "threejsassets",
+  "dungeon",
+);
 const battleCharacterRoot = path.join(
   projectRoot,
   "public",
@@ -49,6 +59,22 @@ for (const modelPath of await findFiles(kaykitRoot, ".gltf")) {
   await verifyExternalResources(document, modelPath, kaykitRoot);
 }
 
+for (const assetRoot of [
+  kaykitDungeonRoot,
+  kaykitHalloweenRoot,
+  kaykitSkeletonRoot,
+]) {
+  for (const modelPath of await findFiles(assetRoot, ".gltf")) {
+    const document = JSON.parse(await readFile(modelPath, "utf8"));
+    await verifyExternalResources(document, modelPath, assetRoot);
+  }
+}
+
+for (const modelPath of await findFiles(threeJsDungeonRoot, ".glb")) {
+  const document = readGlbDocument(await readFile(modelPath), modelPath);
+  await verifyExternalResources(document, modelPath, threeJsDungeonRoot);
+}
+
 const animatedNodes = new Set();
 for (const animationPath of await findFiles(mediumRigAnimationRoot, ".glb")) {
   const document = readGlbDocument(await readFile(animationPath), animationPath);
@@ -64,6 +90,11 @@ for (const [fileName, attachments] of Object.entries(battleCharacterAttachments)
   const modelPath = path.join(battleCharacterRoot, fileName);
   const document = readGlbDocument(await readFile(modelPath), modelPath);
   verifyAttachments(document, attachments, modelPath);
+  verifyAnimationRig(document, animatedNodes, modelPath);
+}
+
+for (const modelPath of await findFiles(path.join(kaykitSkeletonRoot, "characters"), ".glb")) {
+  const document = readGlbDocument(await readFile(modelPath), modelPath);
   verifyAnimationRig(document, animatedNodes, modelPath);
 }
 

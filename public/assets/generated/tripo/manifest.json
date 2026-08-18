@@ -1,7 +1,7 @@
 {
   "version": 1,
   "provider": "Tripo3D",
-  "updatedAt": "2026-08-14T16:17:17.665Z",
+  "updatedAt": "2026-08-18T10:27:11.183Z",
   "operator": {
     "id": "catapult-operator",
     "label": "投石车操作兵",
@@ -221,6 +221,972 @@
         "path": "runtime/siege-workshop.glb",
         "bytes": 547192,
         "sha256": "2156fb4a6f1d334b47642bdc6313b66901ad36379da7572c0f8078671a43a450"
+      }
+    },
+    {
+      "id": "undead-necropolis",
+      "label": "亡灵大墓城堡",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly undead necropolis fortress for an isometric RTS game, a single complete symmetrical hero building with a broad sturdy stone base, large central gothic keep, three chunky stepped spires, oversized arched entrance, thick bone buttresses, a large purple soul crystal above the gate, small toxic green glowing windows and restrained skull decorations. KayKit-inspired proportions, readable silhouette from a high three-quarter camera, dark charcoal stone, black slate roofs, muted bone white trim, purple primary glow, clean flat stylized materials, centered at world origin, bottom resting on ground, isolated building, no terrain tile, no people, no surrounding cemetery, no text.",
+        "negative_prompt": "photorealistic, thin fragile spikes, excessive filigree, floating debris, landscape, ground plane, characters, text, logo, blurry texture, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 8000,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "a8d6e43ffdb1963a55233d2ba6eba7bf2b99bf11b25cfd17afb75e5681c44a8a",
+      "taskId": "e6c15fc4-3b7b-4962-9e49-3a94eeba114f",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-necropolis/model-e6c15fc4.glb",
+          "bytes": 737004,
+          "sha256": "49ff8c498cb35bc5f78d05e5fe24479698cf79237aded0182f456580b1fa4118"
+        },
+        "preview": {
+          "path": "undead-necropolis/preview-e6c15fc4.webp",
+          "bytes": 25412,
+          "sha256": "792805d02257163956012278eca3487ab891d6a4ba91dbc25416a22f6a1d03b0"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "e6c15fc4-3b7b-4962-9e49-3a94eeba114f",
+        "path": "runtime/undead-necropolis.glb",
+        "bytes": 737004,
+        "sha256": "49ff8c498cb35bc5f78d05e5fe24479698cf79237aded0182f456580b1fa4118"
+      }
+    },
+    {
+      "id": "undead-skull-spire",
+      "label": "骷髅尖塔",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly undead skull watchtower for an isometric RTS game, one tall but chunky defensive spire on a wide octagonal stone base, a large readable skull-shaped crown holding a glowing purple orb, thick gothic supports, short black roof fins and a few green soul windows. KayKit-inspired proportions, compact footprint, strong silhouette from above, dark charcoal stone, bone white skull, purple primary glow, subtle toxic green accents, clean flat stylized materials, centered at world origin, bottom resting on ground, isolated tower, no terrain tile, no walls, no people, no text.",
+        "negative_prompt": "photorealistic, skinny needle tower, excessive spikes, complex background, ground plane, castle, characters, text, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 5000,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "537558438545d48b94379b93bf804f7a559ea3d2a5c08af58df34e432040d23e",
+      "taskId": "4b1b8c7f-4c58-4ed7-8e53-29209cdee0e0",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-skull-spire/model-4b1b8c7f.glb",
+          "bytes": 568668,
+          "sha256": "3ff58043d7c9f931c2c5c814a249489815d7c999ce6d8e9b94d7221542995892"
+        },
+        "preview": {
+          "path": "undead-skull-spire/preview-4b1b8c7f.webp",
+          "bytes": 14204,
+          "sha256": "29458b21eaeff0f06c5134db94d7298bf7d2ae569ecfec52f361315425bb84c0"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "4b1b8c7f-4c58-4ed7-8e53-29209cdee0e0",
+        "path": "runtime/undead-skull-spire.glb",
+        "bytes": 568668,
+        "sha256": "3ff58043d7c9f931c2c5c814a249489815d7c999ce6d8e9b94d7221542995892"
+      }
+    },
+    {
+      "id": "undead-crypt-barracks",
+      "label": "地穴兵营",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly undead crypt barracks for an isometric RTS game, a compact low and wide mausoleum building with a heavy arched doorway, two squat gothic roof spires, thick bone buttresses, small skull reliefs, and a bright purple summoning portal visible inside the entrance. KayKit-inspired chunky proportions and clean readable silhouette from above, dark gray stone, black roof, muted bone white trim, purple primary glow, small toxic green lantern accents, clean flat stylized materials, centered at world origin, bottom resting on ground, isolated complete building, no terrain tile, no graves, no people, no text.",
+        "negative_prompt": "photorealistic, cathedral, tall castle, excessive thin spikes, landscape, ground plane, characters, text, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 5500,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "a5ee9469a466cb48a2516c14019daf8b66736dbf8fa5f793b6943b8a664fb100",
+      "taskId": "1b842e1b-0512-479a-b401-371b94211340",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-crypt-barracks/model-1b842e1b.glb",
+          "bytes": 620248,
+          "sha256": "a7749b37604aa2371377b1de2b3fef72515a2ab4bde8c747793aeddeda651c78"
+        },
+        "preview": {
+          "path": "undead-crypt-barracks/preview-1b842e1b.webp",
+          "bytes": 28000,
+          "sha256": "2ca3b64a96b59e4bd979975606b8d0cb1d5543b25b040d82a6eef000afc8f0f7"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "1b842e1b-0512-479a-b401-371b94211340",
+        "path": "runtime/undead-crypt-barracks.glb",
+        "bytes": 620248,
+        "sha256": "a7749b37604aa2371377b1de2b3fef72515a2ab4bde8c747793aeddeda651c78"
+      }
+    },
+    {
+      "id": "undead-soul-mine",
+      "label": "灵魂水晶矿",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly undead soul crystal mine for an isometric RTS game, a compact arcane resource extractor with a broad circular stone base, one oversized faceted purple crystal locked inside three thick bone claws, short gothic pylons, heavy chains, skull vents and small green soul-fire lamps. KayKit-inspired chunky proportions, strong readable silhouette from above, dark charcoal stone, muted bone white mechanisms, purple primary crystal glow, subtle toxic green accents, clean flat stylized materials, centered at world origin, bottom resting on ground, isolated complete structure, no terrain tile, no people, no text.",
+        "negative_prompt": "photorealistic, ordinary gold mine, cave, floating disconnected parts, thin spikes, landscape, ground plane, characters, text, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 5000,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "c907e0a04bd1e17275a07794e4d68f46e1d5494088463d6a0489895407715b45",
+      "taskId": "ea9052be-c4bc-4381-99da-3a8144f922cd",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-soul-mine/model-ea9052be.glb",
+          "bytes": 589640,
+          "sha256": "f5adf3374c9a38453a4e713593316f949fe7c3923527e8af1d27fc77f41ac459"
+        },
+        "preview": {
+          "path": "undead-soul-mine/preview-ea9052be.webp",
+          "bytes": 20536,
+          "sha256": "5ae9036a2fb3ee066e0ab48ac73968f886996d8cdc7ea59f46db33623adabf83"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "ea9052be-c4bc-4381-99da-3a8144f922cd",
+        "path": "runtime/undead-soul-mine.glb",
+        "bytes": 589640,
+        "sha256": "f5adf3374c9a38453a4e713593316f949fe7c3923527e8af1d27fc77f41ac459"
+      }
+    },
+    {
+      "id": "undead-cemetery-cluster-a",
+      "label": "墓园组合 A",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly compact undead cemetery plot for an isometric RTS game, one cohesive reusable environment prop containing six chunky varied gothic gravestones, a short broken wrought-iron and bone fence, one cracked stone sarcophagus, small skull and bone piles, two purple soul candles and one tiny green soul lantern. Arrange everything as a dense oval graveyard cluster with a clear center and low profile, KayKit-inspired proportions, readable from a high three-quarter camera, dark gray stone, muted bone white, black iron, purple primary glow, subtle green accents, clean flat stylized materials, centered at world origin, all pieces touching the ground, no hex tile, no large terrain base, no building, no people, no text.",
+        "negative_prompt": "photorealistic, giant castle, tall tower, forest, full landscape, hexagonal floor tile, floating objects, characters, text, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 6500,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "882e62cb47ffbe038fe2865db5c30a3457226a821f2e4a8216eae8784f527b27",
+      "taskId": "2a91ffbb-0acd-4100-83d0-ff75c0e1ece1",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-cemetery-cluster-a/model-2a91ffbb.glb",
+          "bytes": 705904,
+          "sha256": "76effd4d4cc51468d1c7bb2e0e95a46136f505f9522d7c0b363e532cda567328"
+        },
+        "preview": {
+          "path": "undead-cemetery-cluster-a/preview-2a91ffbb.webp",
+          "bytes": 17898,
+          "sha256": "f1be56ca3925f2293e6b2462309824de8e9efc8c096fdeb7299fe64464bd270a"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "2a91ffbb-0acd-4100-83d0-ff75c0e1ece1",
+        "path": "runtime/undead-cemetery-cluster-a.glb",
+        "bytes": 705904,
+        "sha256": "76effd4d4cc51468d1c7bb2e0e95a46136f505f9522d7c0b363e532cda567328"
+      }
+    },
+    {
+      "id": "undead-cemetery-cluster-b",
+      "label": "墓园组合 B",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly rectangular undead cemetery plot for an isometric RTS game, one cohesive reusable environment prop with five chunky leaning gothic tombstones, one open grave, a short broken bone fence, skull corner posts and three purple soul candles. Arrange the pieces as a compact rectangular grave plot with an open center and low profile, visibly different from an oval cemetery cluster, KayKit-inspired chunky proportions, readable from a high three-quarter camera, medium gray stone, muted bone white, black iron, purple primary glow and tiny toxic green accents, clean flat stylized materials, centered at world origin, every piece touching the ground, no terrain tile, no building, no people, no text.",
+        "negative_prompt": "photorealistic, giant castle, tower, forest, full landscape, hexagonal floor tile, floating objects, fragile thin parts, characters, text, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 6500,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "c492cf181468115ddde249cc1b2a6380078b6413df6f471c9a85179b79cc7c65",
+      "taskId": "fcdca101-875a-44ee-ba24-17364e997a59",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-cemetery-cluster-b/model-fcdca101.glb",
+          "bytes": 686872,
+          "sha256": "8b0939b2cac09a8c4f0e8900ca6be3c1567e1060cd8ebacae907ab3bd8196c4f"
+        },
+        "preview": {
+          "path": "undead-cemetery-cluster-b/preview-fcdca101.webp",
+          "bytes": 25144,
+          "sha256": "939be73408aeea780c9e724bd3f4da70f8f10585069201aa3d1e3d8ad47bc820"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "fcdca101-875a-44ee-ba24-17364e997a59",
+        "path": "runtime/undead-cemetery-cluster-b.glb",
+        "bytes": 686872,
+        "sha256": "8b0939b2cac09a8c4f0e8900ca6be3c1567e1060cd8ebacae907ab3bd8196c4f"
+      }
+    },
+    {
+      "id": "undead-cemetery-cluster-c",
+      "label": "墓园组合 C",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly circular ruined undead cemetery prop for an isometric RTS game, four chunky varied grave markers surrounding one central cracked crypt lid, scattered skulls, two short broken iron fence sections, purple candles and one small green soul lantern. Make a cohesive compact circular arrangement with an uneven ruined silhouette and low profile, KayKit-inspired proportions readable from a high three-quarter camera, medium gray stone, muted bone white, black iron, purple primary glow, subtle toxic green accent, clean flat stylized materials, centered at world origin, all objects grounded, no terrain tile, no large floor base, no building, no people, no text.",
+        "negative_prompt": "photorealistic, giant castle, tower, forest, full landscape, hexagonal floor tile, floating objects, fragile thin parts, characters, text, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 6500,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "808d3c6df8cbf717d331a6e52b9a6c651b243755069cf229e4b96e61e2fe5037",
+      "taskId": "8bfc64c5-de40-4492-a775-27cb49473fbc",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-cemetery-cluster-c/model-8bfc64c5.glb",
+          "bytes": 683324,
+          "sha256": "f7313c70d51e8848ba100f4adb75aa36baf7f593770697fe9b9fb4e3ca901036"
+        },
+        "preview": {
+          "path": "undead-cemetery-cluster-c/preview-8bfc64c5.webp",
+          "bytes": 18136,
+          "sha256": "4d92c809f49e394d0f5b226820bb2f9d60452191a8a2aa0b401c2c7950c1802c"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "8bfc64c5-de40-4492-a775-27cb49473fbc",
+        "path": "runtime/undead-cemetery-cluster-c.glb",
+        "bytes": 683324,
+        "sha256": "f7313c70d51e8848ba100f4adb75aa36baf7f593770697fe9b9fb4e3ca901036"
+      }
+    },
+    {
+      "id": "undead-gothic-tombstone-a",
+      "label": "哥特墓碑 A",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly single gothic tombstone prop for an isometric RTS game, a broad sturdy arched gray headstone with a large readable skull relief, chipped corners, a thick stepped foot and two small purple candles, KayKit-inspired chunky proportions, strong silhouette from a high three-quarter camera, medium gray stone, muted bone relief, subtle purple glow, clean flat stylized materials, centered at world origin, bottom on ground, isolated complete prop, no terrain tile, no surrounding graves, no people, no text.",
+        "negative_prompt": "photorealistic, thin fragile slab, ornate filigree, large landscape, ground plane, floating objects, characters, readable writing, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 2500,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "cea6af4661752cfbd387a94672fc34582b7c70bdaf0197890479c838033f97fc",
+      "taskId": "9fcf1a04-fe03-425a-8d3d-16b5b7d3fb49",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-gothic-tombstone-a/model-9fcf1a04.glb",
+          "bytes": 269884,
+          "sha256": "a325e804011ae2fc5fa53c6408213db495187d132374304ce106a7ec13692f04"
+        },
+        "preview": {
+          "path": "undead-gothic-tombstone-a/preview-9fcf1a04.webp",
+          "bytes": 17170,
+          "sha256": "5cf7b8a62bc749c3abf16dab34e35fda6f1a1ebf3c7b82d8c66872f061b149b9"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "9fcf1a04-fe03-425a-8d3d-16b5b7d3fb49",
+        "path": "runtime/undead-gothic-tombstone-a.glb",
+        "bytes": 269884,
+        "sha256": "a325e804011ae2fc5fa53c6408213db495187d132374304ce106a7ec13692f04"
+      }
+    },
+    {
+      "id": "undead-gothic-tombstone-b",
+      "label": "哥特墓碑 B",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly single gothic tombstone prop for an isometric RTS game, a tall but robust split stone cross with a carved bone motif, thick beveled arms, a wide stable base, cracked edges and a small glowing purple rune gem, KayKit-inspired chunky proportions readable from a high three-quarter camera, medium gray stone, muted bone trim, subtle purple glow, clean flat stylized materials, centered at world origin, bottom resting on ground, isolated prop, no terrain tile, no people, no text.",
+        "negative_prompt": "photorealistic, Christian inscription, skinny fragile cross, ornate filigree, landscape, ground plane, floating objects, characters, text, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 2500,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "031d5295e79e1f7bb7f7f8cd7b67a14747a5e0458dc8a526c1212c4afe2c968b",
+      "taskId": "57f63927-92c3-49d5-a679-237a93ee29b6",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-gothic-tombstone-b/model-57f63927.glb",
+          "bytes": 344672,
+          "sha256": "7efc56370cf7c98e8aa9f79219903da3cf0a906fb06c7e8bb7561dc74ccb7532"
+        },
+        "preview": {
+          "path": "undead-gothic-tombstone-b/preview-57f63927.webp",
+          "bytes": 15858,
+          "sha256": "4232b8badb54b92ae75b1bfb9151798291c36ba5b5a01f9ac15eb2b317841abd"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "57f63927-92c3-49d5-a679-237a93ee29b6",
+        "path": "runtime/undead-gothic-tombstone-b.glb",
+        "bytes": 344672,
+        "sha256": "7efc56370cf7c98e8aa9f79219903da3cf0a906fb06c7e8bb7561dc74ccb7532"
+      }
+    },
+    {
+      "id": "undead-gothic-tombstone-c",
+      "label": "哥特墓碑 C",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly ruined double tombstone prop for an isometric RTS game, two thick leaning gray grave slabs joined by one heavy chain, one slab broken at the top, a carved skull medallion and a wide stone base with a glowing purple rune seam, KayKit-inspired chunky proportions readable from a high three-quarter camera, medium gray stone, muted bone accent, black chain and restrained purple glow, clean flat stylized materials, centered at world origin, all pieces grounded, isolated prop, no terrain tile, no other graves, no people, no text.",
+        "negative_prompt": "photorealistic, thin fragile slabs, ornate filigree, landscape, ground plane, floating objects, characters, readable writing, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 2500,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "c5c7c520e62c4c5593c67e368881a3060db0d6f04639937be173127431e94895",
+      "taskId": "21efffbd-3e5d-4019-95bb-657aed85d518",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-gothic-tombstone-c/model-21efffbd.glb",
+          "bytes": 348844,
+          "sha256": "4820521c7375674d1a43c83edf94665b2548f218080dab5c7232f5ab1a48e61a"
+        },
+        "preview": {
+          "path": "undead-gothic-tombstone-c/preview-21efffbd.webp",
+          "bytes": 19624,
+          "sha256": "6271382160ed78b9e968ae3c85c80af99305c9cac86886036e824c5aae64c0fb"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "21efffbd-3e5d-4019-95bb-657aed85d518",
+        "path": "runtime/undead-gothic-tombstone-c.glb",
+        "bytes": 348844,
+        "sha256": "4820521c7375674d1a43c83edf94665b2548f218080dab5c7232f5ab1a48e61a"
+      }
+    },
+    {
+      "id": "undead-dead-tree-a",
+      "label": "枯树 A",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly single dead tree prop for an isometric RTS cemetery, a squat gnarled leafless tree with a thick forked trunk, broad exposed roots and five sturdy crooked branches, compact readable silhouette with no leaves, KayKit-inspired chunky proportions, gray-brown bark with muted charcoal shadows and a tiny purple fungus accent, clean flat stylized materials, centered at world origin, roots resting on ground, isolated complete tree, no terrain tile, no forest cluster, no people, no text.",
+        "negative_prompt": "photorealistic, green leaves, foliage, thin fragile twigs, full forest, landscape, ground plane, floating branches, characters, text, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 3500,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "ae4cb41f361b236b403787c59d6643196219b3d792386006eb8ab803299cd42a",
+      "taskId": "f3510eae-1d94-43b0-8c62-784d82628686",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-dead-tree-a/model-f3510eae.glb",
+          "bytes": 336272,
+          "sha256": "8d05f0811e68d85dee76ab2366293cc07d9152ba6d5a9400c8f2b812e8a37d14"
+        },
+        "preview": {
+          "path": "undead-dead-tree-a/preview-f3510eae.webp",
+          "bytes": 23716,
+          "sha256": "83ef8c0100afa29575a4033313ffa906dd5424ef4a3f0c51135aa75869c7bfb0"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "f3510eae-1d94-43b0-8c62-784d82628686",
+        "path": "runtime/undead-dead-tree-a.glb",
+        "bytes": 336272,
+        "sha256": "8d05f0811e68d85dee76ab2366293cc07d9152ba6d5a9400c8f2b812e8a37d14"
+      }
+    },
+    {
+      "id": "undead-dead-tree-b",
+      "label": "枯树 B",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly single tall dead tree prop for an isometric RTS cemetery, a twisted leafless trunk with broad stable roots, thick hooked branches and three small hanging bone charms, strong asymmetric silhouette with no leaves, KayKit-inspired chunky proportions, gray-brown bark, muted bone charms and a faint purple magical scar in the trunk, clean flat stylized materials, centered at world origin, roots resting on ground, isolated complete tree, no terrain tile, no forest cluster, no people, no text.",
+        "negative_prompt": "photorealistic, green leaves, foliage, thin fragile twigs, full forest, landscape, ground plane, floating branches, characters, text, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 3500,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "d7125b5263e96047ffc647fd83b818ec8f4b1eb9f9731a7d225e0bb67bfbfb0c",
+      "taskId": "679230ad-93f7-4394-b494-e8b91468cc13",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-dead-tree-b/model-679230ad.glb",
+          "bytes": 358316,
+          "sha256": "705b7928d6419336fef9e7ca28fd6bf11740e4472301301d7baddec30f7792f9"
+        },
+        "preview": {
+          "path": "undead-dead-tree-b/preview-679230ad.webp",
+          "bytes": 17204,
+          "sha256": "8b4e270bec8b6a22bbd24921b4080b2578b6fa84e0cd4838615e13db9e632805"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "679230ad-93f7-4394-b494-e8b91468cc13",
+        "path": "runtime/undead-dead-tree-b.glb",
+        "bytes": 358316,
+        "sha256": "705b7928d6419336fef9e7ca28fd6bf11740e4472301301d7baddec30f7792f9"
+      }
+    },
+    {
+      "id": "undead-bone-pile",
+      "label": "骸骨堆",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly compact bone pile prop for an isometric RTS cemetery, one cohesive low cluster of three oversized skulls, rib cages and thick long bones, with one short purple soul candle tucked between the bones, KayKit-inspired chunky proportions, readable silhouette from a high three-quarter camera, muted ivory bone, dark gray shadows, subtle purple glow, clean flat stylized materials, centered at world origin, all bones grounded, isolated prop, no terrain tile, no graveyard scene, no people, no text.",
+        "negative_prompt": "photorealistic gore, blood, anatomy study, scattered tiny fragments, landscape, ground plane, floating bones, characters, text, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 3000,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "80f28a313c723eb9f7f875c4cc6bdb47bf9a6e75050cf2ab3a349324ace2e298",
+      "taskId": "d76f5cfd-4486-4667-be45-f4042dd67fd7",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-bone-pile/model-d76f5cfd.glb",
+          "bytes": 333536,
+          "sha256": "be984e021b648403266d4569c39d9a7fedd9d098db9fd8448a04a7c9533380ba"
+        },
+        "preview": {
+          "path": "undead-bone-pile/preview-d76f5cfd.webp",
+          "bytes": 17626,
+          "sha256": "5c48ce365d0f8182dcd2885f56b90446cfe4d08f430b08be3ed6bf23a75736c6"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "d76f5cfd-4486-4667-be45-f4042dd67fd7",
+        "path": "runtime/undead-bone-pile.glb",
+        "bytes": 333536,
+        "sha256": "be984e021b648403266d4569c39d9a7fedd9d098db9fd8448a04a7c9533380ba"
+      }
+    },
+    {
+      "id": "undead-soul-brazier",
+      "label": "灵魂火盆",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly undead soul brazier prop for an isometric RTS cemetery, a broad black iron and stone bowl held by three thick bone legs on a stable circular foot, containing one large static faceted purple soul flame with a small toxic green core, KayKit-inspired chunky proportions and a strong readable silhouette from above, charcoal metal, medium gray stone, muted bone white, purple primary glow, clean flat stylized materials, centered at world origin, bottom resting on ground, isolated prop, no terrain tile, no building, no people, no text.",
+        "negative_prompt": "photorealistic fire, transparent smoke, skinny legs, fragile filigree, landscape, ground plane, floating parts, characters, text, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 3000,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "9de9c5ecaa922f318c591cf880a7f41039ab8bda63294ece388d9980f85415ff",
+      "taskId": "417d0915-bdff-4685-b17c-de78b945936c",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-soul-brazier/model-417d0915.glb",
+          "bytes": 352604,
+          "sha256": "570fefc188ff334a39a806442baef46d33f81a07525651d96da767c946c1bde9"
+        },
+        "preview": {
+          "path": "undead-soul-brazier/preview-417d0915.webp",
+          "bytes": 14736,
+          "sha256": "4a190150770241bc634be90c572afce7f49eecb489dfce4f00f00f24d5a7455d"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "417d0915-bdff-4685-b17c-de78b945936c",
+        "path": "runtime/undead-soul-brazier.glb",
+        "bytes": 352604,
+        "sha256": "570fefc188ff334a39a806442baef46d33f81a07525651d96da767c946c1bde9"
+      }
+    },
+    {
+      "id": "undead-soul-obelisk",
+      "label": "灵魂方尖碑",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly undead soul obelisk prop for an isometric RTS cemetery, one chunky gothic gray stone obelisk on a wide stepped base, a large purple crystal set into its front, broad carved rune channels and two small toxic green corner lanterns, KayKit-inspired sturdy proportions readable from a high three-quarter camera, medium gray stone, charcoal trim, purple primary glow and restrained green accents, clean flat stylized materials, centered at world origin, base resting on ground, isolated prop, no terrain tile, no surrounding ruins, no people, no readable text.",
+        "negative_prompt": "photorealistic, skyscraper, thin needle, excessive spikes, landscape, ground plane, floating parts, characters, alphabet text, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 4000,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "7fa7a949d393babfef31d269e5720a320b112ae4b911d50108474f70f27b4170",
+      "taskId": "13bb8ba3-1afd-4c7e-82c0-cafdc2f1888e",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-soul-obelisk/model-13bb8ba3.glb",
+          "bytes": 383740,
+          "sha256": "117e4c9a719cb270e90a0c562cdae39008cd87b2870b78e1adb75683291d4157"
+        },
+        "preview": {
+          "path": "undead-soul-obelisk/preview-13bb8ba3.webp",
+          "bytes": 14968,
+          "sha256": "f6a1de23255d1af198d516024ef2ba38b5774f99c7099dca07dfa1e451c6ba1e"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "13bb8ba3-1afd-4c7e-82c0-cafdc2f1888e",
+        "path": "runtime/undead-soul-obelisk.glb",
+        "bytes": 383740,
+        "sha256": "117e4c9a719cb270e90a0c562cdae39008cd87b2870b78e1adb75683291d4157"
+      }
+    },
+    {
+      "id": "undead-stone-sarcophagus",
+      "label": "亡灵石棺",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly closed stone sarcophagus prop for an isometric RTS cemetery, a thick heavy gray coffin with a raised skull relief on the lid, chipped corners, two broad black chains and a bright purple magical seam around the lid, KayKit-inspired chunky proportions readable from a high three-quarter camera, medium gray stone, muted bone skull, charcoal chains and restrained purple glow, clean flat stylized materials, centered at world origin, bottom resting on ground, isolated complete prop, no terrain tile, no crypt building, no people, no text.",
+        "negative_prompt": "photorealistic, open coffin, corpse, gore, fragile chains, landscape, ground plane, floating parts, characters, readable writing, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 3500,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "f6154f039464c62d1643b6715d453349a8a15eb9d365959b4bd759fa44b8cbe5",
+      "taskId": "59b3dcf1-fcaa-44e6-b283-185222883f2f",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-stone-sarcophagus/model-59b3dcf1.glb",
+          "bytes": 528484,
+          "sha256": "cf2978b964ecd0bcdce395c27ad9e7c26f0b88567b347b60c66581045933e13a"
+        },
+        "preview": {
+          "path": "undead-stone-sarcophagus/preview-59b3dcf1.webp",
+          "bytes": 21004,
+          "sha256": "a50b7de3b0a5c6ade2f01340f753c3b227128e1002f7d4be14967fe3fad161f0"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "59b3dcf1-fcaa-44e6-b283-185222883f2f",
+        "path": "runtime/undead-stone-sarcophagus.glb",
+        "bytes": 528484,
+        "sha256": "cf2978b964ecd0bcdce395c27ad9e7c26f0b88567b347b60c66581045933e13a"
+      }
+    },
+    {
+      "id": "undead-banner",
+      "label": "亡灵旗帜",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly standalone undead banner prop for an isometric RTS cemetery, a short thick black pole on a broad weighted bone and gray stone base, with a chunky torn dark purple cloth banner showing one simple pale skull emblem, KayKit-inspired sturdy proportions readable from a high three-quarter camera, charcoal metal, medium gray stone, muted bone white and deep purple cloth, clean flat stylized materials, centered at world origin, base resting on ground, isolated complete prop, no terrain tile, no building, no people, no readable text.",
+        "negative_prompt": "photorealistic fabric, skinny fragile pole, detailed letters, national flag, landscape, ground plane, floating parts, characters, text, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 3000,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "293331a02fbe7ee51ad035d10fcc09b68ec1eab83e7e6409ef774677c39abd09",
+      "taskId": "8d7779db-b70d-4d9e-bbec-068eab87ce2f",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-banner/model-8d7779db.glb",
+          "bytes": 304884,
+          "sha256": "a8f3de661ffd1ec1687e65950654906600beb8ce555d963880380dcac043b13c"
+        },
+        "preview": {
+          "path": "undead-banner/preview-8d7779db.webp",
+          "bytes": 11832,
+          "sha256": "8578339a35fdd034574efa0c679348d7081a3ec5c7ea2a48ab664fcbda472988"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "8d7779db-b70d-4d9e-bbec-068eab87ce2f",
+        "path": "runtime/undead-banner.glb",
+        "bytes": 304884,
+        "sha256": "a8f3de661ffd1ec1687e65950654906600beb8ce555d963880380dcac043b13c"
+      }
+    },
+    {
+      "id": "undead-cemetery-fence-straight",
+      "label": "墓园铁栅栏直段",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly straight gothic cemetery iron fence module for an isometric RTS game, one long reusable straight fence section between two thick square gray stone posts, six sturdy black iron vertical bars with broad spear tips, one centered skull ornament, a few heavy chains and tiny purple rune accents, KayKit-inspired chunky proportions, readable silhouette from a high three-quarter camera, charcoal iron, medium gray stone, muted bone, clean flat stylized materials, centered at world origin, both posts resting on ground, isolated modular fence, perfectly straight, no terrain strip, no graves, no people, no text.",
+        "negative_prompt": "photorealistic, thin fragile wires, ornate filigree, bent fence, full cemetery, landscape, ground plane, floating parts, characters, text, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 2500,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "46858756ef0ee9dc6343def62c13d6f6cfc0d7d1bec8ee7a7ef1be6ac940306e",
+      "taskId": "c8cf4d4c-45af-4887-9510-bcfb7659089e",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-cemetery-fence-straight/model-c8cf4d4c.glb",
+          "bytes": 346308,
+          "sha256": "85918e2834648ddf776c3cf091f073d364440ce40093313bb8dbf8a3bffe3532"
+        },
+        "preview": {
+          "path": "undead-cemetery-fence-straight/preview-c8cf4d4c.webp",
+          "bytes": 20810,
+          "sha256": "3773c27211be63d33fc0bcb775df68ff3ff2c130e743ecd831c13c9760867a01"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "c8cf4d4c-45af-4887-9510-bcfb7659089e",
+        "path": "runtime/undead-cemetery-fence-straight.glb",
+        "bytes": 346308,
+        "sha256": "85918e2834648ddf776c3cf091f073d364440ce40093313bb8dbf8a3bffe3532"
+      }
+    },
+    {
+      "id": "undead-cemetery-fence-corner",
+      "label": "墓园铁栅栏转角",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly ninety-degree gothic cemetery iron fence corner module for an isometric RTS game, two short sturdy black iron fence wings meeting at one thick square gray stone corner post, broad spear-tip bars, skull corner cap, one heavy chain and a small purple soul lantern, clear L-shaped footprint, KayKit-inspired chunky proportions readable from a high three-quarter camera, charcoal iron, medium gray stone, muted bone and restrained purple glow, clean flat stylized materials, centered at world origin, all three posts resting on ground, isolated modular corner, no terrain strip, no cemetery scene, no people, no text.",
+        "negative_prompt": "photorealistic, thin fragile wires, curved fence, ornate filigree, full cemetery, landscape, ground plane, floating parts, characters, text, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 3000,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "cf3cbda72bc68ff1987b463739a7306433d16c88d2e13d9e75119ffba76dee2f",
+      "taskId": "48f94950-5f26-4d8e-ae4b-7503176f3da1",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-cemetery-fence-corner/model-48f94950.glb",
+          "bytes": 393832,
+          "sha256": "7dcdb2b3c4651ced235dc590730b2c74b9fd010fdcea943f4482638c9f214f79"
+        },
+        "preview": {
+          "path": "undead-cemetery-fence-corner/preview-48f94950.webp",
+          "bytes": 22804,
+          "sha256": "f17a92c76f314d1d0be52f848ddfa5c83c472eefa295dc79e0e5ffa11410c180"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "48f94950-5f26-4d8e-ae4b-7503176f3da1",
+        "path": "runtime/undead-cemetery-fence-corner.glb",
+        "bytes": 393832,
+        "sha256": "7dcdb2b3c4651ced235dc590730b2c74b9fd010fdcea943f4482638c9f214f79"
+      }
+    },
+    {
+      "id": "undead-cemetery-fence-gate",
+      "label": "墓园铁门",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly gothic cemetery iron gate module for an isometric RTS game, a closed double-leaf black iron gate between two thick square gray stone pillars, broad sturdy bars, an arched top, large centered skull crest, heavy side chains, two small toxic green lanterns and restrained purple rune glow, KayKit-inspired chunky proportions, strong symmetrical silhouette from a high three-quarter camera, charcoal iron, medium gray stone, muted bone, clean flat stylized materials, centered at world origin, both pillars resting on ground, isolated complete gate module, no wall, no terrain strip, no cemetery scene, no people, no text.",
+        "negative_prompt": "photorealistic, open gate, thin fragile wires, ornate filigree, castle facade, full cemetery, landscape, ground plane, floating parts, characters, text, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 3500,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "afc2f16925e40aff2ec15558a4bd3ff4fdcb62f4912d46e0a377fdc6dc4b02e9",
+      "taskId": "2edb27bf-c304-427f-8948-60dc6f0b8e6a",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-cemetery-fence-gate/model-2edb27bf.glb",
+          "bytes": 470712,
+          "sha256": "ecaf06abebc5cc0ec5f612e72af38505bfe43e04f807f7beae6e8c529a18e96c"
+        },
+        "preview": {
+          "path": "undead-cemetery-fence-gate/preview-2edb27bf.webp",
+          "bytes": 28304,
+          "sha256": "4d984f67d99fe9cad7958c9a537d8831df9a736fce208eb6530aa2bf6b2a8948"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "2edb27bf-c304-427f-8948-60dc6f0b8e6a",
+        "path": "runtime/undead-cemetery-fence-gate.glb",
+        "bytes": 470712,
+        "sha256": "ecaf06abebc5cc0ec5f612e72af38505bfe43e04f807f7beae6e8c529a18e96c"
+      }
+    },
+    {
+      "id": "undead-frost-bone-dragon",
+      "label": "冰霜骨龙",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly frost undead bone dragon creature model for a future isometric RTS flying unit, one complete skeletal dragon in a powerful horizontal gliding pose, facing forward, large horned skull with bright cyan-blue eye sockets, articulated spine and rib cage, four sturdy skeletal limbs tucked close to the body, long segmented tail, two broad symmetrical fully spread skeletal wings with thick finger bones and torn translucent-looking icy blue membrane geometry, chunky connected bones with no loose or floating pieces, readable silhouette from a high three-quarter camera, KayKit-inspired proportions, muted ivory bone, frosted blue-gray joints, cyan frost glow, subtle purple runes, clean flat stylized materials, centered at world origin, isolated full creature, no display stand, no terrain, no rider, no text.",
+        "negative_prompt": "photorealistic, living flesh dragon, feathers, skin-covered body, wyvern missing legs, folded wings, tiny wings, asymmetric wings, detached bones, floating parts, gore, rider, saddle, landscape, ground plane, text, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 8000,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "13203626eee63ee01c0fb68b2b2693c23758345799daa016de3e9ca8c8b4162f",
+      "taskId": "dafa6635-b5f4-468c-bf2d-2c6284a9e9d7",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-frost-bone-dragon/model-dafa6635.glb",
+          "bytes": 1016660,
+          "sha256": "6b852bf7aecd755140ffff8bcbf0b2e1b377d312b812b7e0a3c6cd2fa3dcdb26"
+        },
+        "preview": {
+          "path": "undead-frost-bone-dragon/preview-dafa6635.webp",
+          "bytes": 19104,
+          "sha256": "466aab217e484b3d7241e0c11dd7ce412b5176f40c93b7831008f6c634eb50ea"
+        }
+      },
+      "generationHistory": [],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "dafa6635-b5f4-468c-bf2d-2c6284a9e9d7",
+        "path": "runtime/undead-frost-bone-dragon.glb",
+        "bytes": 1016660,
+        "sha256": "6b852bf7aecd755140ffff8bcbf0b2e1b377d312b812b7e0a3c6cd2fa3dcdb26"
+      }
+    },
+    {
+      "id": "undead-shipwreck",
+      "label": "亡灵沉船",
+      "modelFamily": "P1",
+      "endpoint": "/v3/generation/text-to-model",
+      "request": {
+        "prompt": "Game-ready stylized low-poly undead shipwreck for an isometric RTS shoreline, one destroyed half-ship wreck: only a broken stern and partial tilted hull remain, with the bow split away and jagged exposed ribs, a collapsed snapped mast lying diagonally across the hull, one very small shredded dark purple sail fragment, a cracked bone skull figurehead, thick black chains, small purple soul flames and restrained toxic green ghost lights inside the hull. KayKit-inspired chunky proportions and a clear asymmetric silhouette from a high three-quarter camera, weathered charcoal wood, medium gray metal, muted bone white, purple primary glow, clean flat stylized materials, centered at world origin, lowest hull edge resting on ground, isolated complete shipwreck, no water plane, no terrain tile, no ocean scene, no people, no text.",
+        "negative_prompt": "photorealistic, intact sailing ship, complete boat, upright mast, full sail, two full sails, modern ship, full ocean, water base, island, thin rigging, floating debris, characters, text, logo, broken mesh",
+        "model": "P1-20260311",
+        "face_limit": 6500,
+        "texture": true,
+        "pbr": false,
+        "texture_quality": "standard",
+        "auto_size": true,
+        "export_uv": true
+      },
+      "specHash": "5bb8ef3dbb448d40291dcc5db03b4ed7beaa865ed6a9442ec612512248524c53",
+      "taskId": "8d32800b-85f4-4378-b31a-6d014897bbf2",
+      "status": "success",
+      "progress": 100,
+      "creditsConsumed": 40,
+      "files": {
+        "model": {
+          "path": "undead-shipwreck/model-8d32800b.glb",
+          "bytes": 739412,
+          "sha256": "a2901e0560c5fd3a02be82cef57aba62f237b4cd3b001691ec1cea4e397a4594"
+        },
+        "preview": {
+          "path": "undead-shipwreck/preview-8d32800b.webp",
+          "bytes": 13918,
+          "sha256": "99d31e52503ec80be2594012eda4bf1a28dfce92f47d3c2d9387dfee284babad"
+        }
+      },
+      "generationHistory": [
+        {
+          "id": "undead-shipwreck",
+          "label": "亡灵沉船",
+          "modelFamily": "P1",
+          "endpoint": "/v3/generation/text-to-model",
+          "request": {
+            "prompt": "Game-ready stylized low-poly undead shipwreck for an isometric RTS shoreline, one cohesive medium-size wrecked wooden warship with a split tilted hull, broken bow and exposed ribs, one snapped mast, two short torn dark purple sails, a large bone skull figurehead, thick black chains, small purple soul flames and restrained toxic green ghost lights inside the hull. KayKit-inspired chunky proportions and a clear asymmetric silhouette from a high three-quarter camera, weathered charcoal wood, medium gray metal, muted bone white, purple primary glow, clean flat stylized materials, centered at world origin, lowest hull edge resting on ground, isolated complete shipwreck, no water plane, no terrain tile, no ocean scene, no people, no text.",
+            "negative_prompt": "photorealistic, intact sailing ship, modern ship, full ocean, water base, island, tall fragile mast, thin rigging, floating debris, characters, text, logo, broken mesh",
+            "model": "P1-20260311",
+            "face_limit": 6500,
+            "texture": true,
+            "pbr": false,
+            "texture_quality": "standard",
+            "auto_size": true,
+            "export_uv": true
+          },
+          "specHash": "4ad6fea3c82e14b60974c9f1a2049daafcc166f45207a84e4c6a07f69a43ee81",
+          "taskId": "3ea18b80-66fd-4a21-9398-4291bfd97c8d",
+          "status": "success",
+          "progress": 100,
+          "creditsConsumed": 40,
+          "files": {
+            "model": {
+              "path": "undead-shipwreck/model-3ea18b80.glb",
+              "bytes": 765412,
+              "sha256": "dc6a185e039c0b2770c0cba19c14638724b759cbb1694b79e49a0411e343c310"
+            },
+            "preview": {
+              "path": "undead-shipwreck/preview-3ea18b80.webp",
+              "bytes": 13478,
+              "sha256": "d79a3643c615e3ed306a414081a655460e31e85d2d6dff10869ce0dbaa4cd9db"
+            }
+          },
+          "runtime": {
+            "sourceStage": "generation",
+            "sourceTaskId": "3ea18b80-66fd-4a21-9398-4291bfd97c8d",
+            "path": "runtime/undead-shipwreck.glb",
+            "bytes": 765412,
+            "sha256": "dc6a185e039c0b2770c0cba19c14638724b759cbb1694b79e49a0411e343c310"
+          }
+        }
+      ],
+      "runtime": {
+        "sourceStage": "generation",
+        "sourceTaskId": "8d32800b-85f4-4378-b31a-6d014897bbf2",
+        "path": "runtime/undead-shipwreck.glb",
+        "bytes": 739412,
+        "sha256": "a2901e0560c5fd3a02be82cef57aba62f237b4cd3b001691ec1cea4e397a4594"
       }
     }
   ]
