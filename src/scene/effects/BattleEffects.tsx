@@ -79,6 +79,7 @@ const FROST_CORE = "#e8fbff";
 const FROST_JET = "#7ad7ff";
 const FROST_MIST = "#9ee6ff";
 const FROST_CRYSTAL = "#c9f4ff";
+const FROST_SHEET_VERTICAL_OFFSET = -0.06;
 
 export function BattleEffects({ battle }: { readonly battle: BattleState }) {
   const fxTextures = useBattleFxTextures();
@@ -262,7 +263,7 @@ function FrostBreathCone({
       const sheetWidth = Math.tan(coneHalfAngle) * sheetLength * 1.35;
       sheet.current.position.set(
         sheetLength * 0.52,
-        -FROST_BREATH_MOUTH_HEIGHT + 0.08,
+        FROST_SHEET_VERTICAL_OFFSET,
         0,
       );
       sheet.current.scale.set(sheetLength, Math.max(1.1, sheetWidth), 1);
@@ -303,7 +304,6 @@ function FrostBreathCone({
           color={FROST_CORE}
           transparent
           opacity={0}
-          depthTest={false}
           depthWrite={false}
           toneMapped={false}
           blending={AdditiveBlending}
@@ -317,7 +317,6 @@ function FrostBreathCone({
           color={FROST_CORE}
           transparent
           opacity={0}
-          depthTest={false}
           depthWrite={false}
           toneMapped={false}
           side={DoubleSide}
@@ -332,7 +331,6 @@ function FrostBreathCone({
           color={FROST_CORE}
           transparent
           opacity={0}
-          depthTest={false}
           depthWrite={false}
           toneMapped={false}
           side={DoubleSide}
@@ -347,7 +345,6 @@ function FrostBreathCone({
           color={FROST_JET}
           transparent
           opacity={0}
-          depthTest={false}
           depthWrite={false}
           toneMapped={false}
           side={DoubleSide}
@@ -362,7 +359,6 @@ function FrostBreathCone({
           color={FROST_JET}
           transparent
           opacity={0}
-          depthTest={false}
           depthWrite={false}
           toneMapped={false}
           side={DoubleSide}
@@ -377,7 +373,6 @@ function FrostBreathCone({
           color={FROST_MIST}
           transparent
           opacity={0}
-          depthTest={false}
           depthWrite={false}
           toneMapped={false}
           side={DoubleSide}
@@ -398,7 +393,6 @@ function FrostBreathCone({
             color={slot.kind === "sparkle" ? FROST_CRYSTAL : FROST_MIST}
             transparent
             opacity={0}
-            depthTest={false}
             depthWrite={false}
             toneMapped={false}
             blending={AdditiveBlending}

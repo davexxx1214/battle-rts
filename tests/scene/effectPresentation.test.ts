@@ -5,6 +5,7 @@ import {
   BATTLE_FX_URLS,
   FROST_BREATH_PARTICLES,
   FROST_BREATH_DURATION_SECONDS,
+  FROST_BREATH_MOUTH_HEIGHT,
   FROST_BREATH_MOUTH_OFFSET,
   LIGHTNING_STRIKE_COLORS,
   LIGHTNING_STRIKE_DURATION_SECONDS,
@@ -99,7 +100,8 @@ describe("battle effect presentation", () => {
 
   it("aims the frost jet from the dragon mouth along the attack ray", () => {
     const layout = frostBreathLayout({ x: 0, z: 0 }, { x: 8, z: 0 }, 6.8);
-    expect(FROST_BREATH_MOUTH_OFFSET).toBe(1.65);
+    expect(FROST_BREATH_MOUTH_OFFSET).toBe(1.9);
+    expect(FROST_BREATH_MOUTH_HEIGHT).toBe(0.5);
     expect(layout.directionX).toBeCloseTo(1);
     expect(layout.directionZ).toBeCloseTo(0);
     expect(layout.yaw).toBeCloseTo(0);

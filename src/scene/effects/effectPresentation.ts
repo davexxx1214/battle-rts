@@ -19,8 +19,8 @@ export const FROST_BREATH_PARTICLES = {
 } as const;
 
 export const FROST_BREATH_DURATION_SECONDS = 0.62;
-export const FROST_BREATH_MOUTH_OFFSET = 1.65;
-export const FROST_BREATH_MOUTH_HEIGHT = 0.56;
+export const FROST_BREATH_MOUTH_OFFSET = 1.9;
+export const FROST_BREATH_MOUTH_HEIGHT = 0.5;
 
 export const LIGHTNING_STRIKE_PARTICLES = {
   bolt: "/assets/fx/kenney-particles/spark_05.png",
