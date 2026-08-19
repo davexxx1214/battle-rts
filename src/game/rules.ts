@@ -195,7 +195,7 @@ export const UNIT_SPECS = {
     attackMode: "cone",
     movementMode: "ground",
     coneAngleDegrees: 52,
-    maxHealth: 280,
+    maxHealth: 480,
     damage: 34,
     damageReduction: 0.2,
     attackRange: 6.8,

@@ -175,7 +175,7 @@ describe("central game rules", () => {
       movementMode: "ground",
       attackMode: "cone",
       coneAngleDegrees: 52,
-      maxHealth: 280,
+      maxHealth: 480,
       splashRadius: 0,
     });
     expect(unitSpecFor("bone-dragon", "undead").attackRange)

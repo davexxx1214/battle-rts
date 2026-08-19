@@ -4,7 +4,9 @@ import {
   getTroopBalanceProfiles,
   runBalanceArenaMatch,
 } from "../src/game/balanceArena";
-import { troopDesignForRace, type TroopKind } from "../src/game/rules";
+import { createArenaBattle } from "../src/game/arenaBattle";
+import { stepBattle, type BattleState } from "../src/game/battle";
+import { GAME_RULES, troopDesignForRace, type TroopKind } from "../src/game/rules";
 import type { BattleRace, Faction } from "../src/game/types";
 
 const TROOPS = ["spearman", "archer", "swordsman", "mage", "catapult"] as const;
@@ -90,6 +92,72 @@ test("compares undead and human per-100-gold scores in a mirrored tournament", (
     && row.场次 === 20
   ))).toBe(true);
 }, 120_000);
+
+test("compares complete equal-value arena armies with a side swap", () => {
+  const rows = (["verdant", "crimson"] as const).map((undeadFaction) => {
+    const humanFaction = oppositeFaction(undeadFaction);
+    const result = runMixedArmyMatch(undeadFaction);
+    return {
+      亡灵方位: undeadFaction,
+      胜者: result.state.winner,
+      亡灵单位伤害: round(result.unitDamage[undeadFaction]),
+      人类单位伤害: round(result.unitDamage[humanFaction]),
+      亡灵建筑伤害: round(result.buildingDamage[undeadFaction]),
+      人类建筑伤害: round(result.buildingDamage[humanFaction]),
+      亡灵存活数: result.state.units.filter((unit) => (
+        unit.faction === undeadFaction && unit.health > 0
+      )).length,
+      人类存活数: result.state.units.filter((unit) => (
+        unit.faction === humanFaction && unit.health > 0
+      )).length,
+    };
+  });
+
+  console.log("\n竞技场等价混合军团换边结果");
+  console.table(rows);
+  expect(rows).toHaveLength(2);
+  expect(rows.every((row) => (
+    Number.isFinite(row.亡灵单位伤害)
+    && Number.isFinite(row.人类单位伤害)
+    && row.亡灵单位伤害 > 0
+    && row.人类单位伤害 > 0
+  ))).toBe(true);
+  expect(rows.filter((row) => row.胜者 === row.亡灵方位)).toHaveLength(1);
+  expect(rows.every((row) => Math.abs(row.亡灵存活数 - row.人类存活数) <= 2)).toBe(true);
+}, 120_000);
+
+function runMixedArmyMatch(undeadFaction: Faction): {
+  readonly state: BattleState;
+  readonly unitDamage: Readonly<Record<Faction, number>>;
+  readonly buildingDamage: Readonly<Record<Faction, number>>;
+} {
+  const humanFaction = oppositeFaction(undeadFaction);
+  const factionRaces: Readonly<Record<Faction, BattleRace>> = undeadFaction === "verdant"
+    ? { verdant: "undead", crimson: "human" }
+    : { verdant: "human", crimson: "undead" };
+  let state = createArenaBattle(factionRaces);
+  const factionsByUnitId = new Map(state.units.map((unit) => [unit.id, unit.faction] as const));
+  const buildingKindsById = new Map(state.buildings.map((building) => (
+    [building.id, building.kind] as const
+  )));
+  const unitDamage = { verdant: 0, crimson: 0 };
+  const buildingDamage = { verdant: 0, crimson: 0 };
+  let lastSequence = -1;
+  while (state.winner === null && state.matchElapsed < GAME_RULES.match.durationSeconds) {
+    state = stepBattle(state, 0.05);
+    for (const event of state.events) {
+      if (event.sequence <= lastSequence || event.type !== "damage-applied") continue;
+      const faction = factionsByUnitId.get(event.sourceId);
+      if (!faction) continue;
+      if (event.targetType === "unit") unitDamage[faction] += event.amount;
+      else if (buildingKindsById.get(event.targetId) === "castle") {
+        buildingDamage[faction] += event.amount;
+      }
+    }
+    lastSequence = state.nextEventSequence - 1;
+  }
+  return { state, unitDamage, buildingDamage };
+}
 
 function addResult(
   scores: Map<string, RaceScore>,

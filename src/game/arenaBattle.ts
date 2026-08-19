@@ -5,6 +5,7 @@ import {
   type BattleUnit,
 } from "./battle";
 import {
+  deploymentCostForRace,
   troopCountForRace,
   unitRoleForRace,
   type TroopKind,
@@ -13,7 +14,7 @@ import { createFactionRaces } from "./factions";
 import type { Faction, FactionRaces } from "./types";
 import { BATTLEFIELD_MAP, axialToWorld } from "../map/battlefield";
 
-export const ARENA_STARTING_UNITS_PER_FACTION = 40;
+export const ARENA_STARTING_GOLD_PER_FACTION = 7800;
 
 const ARENA_ROSTER = [
   "spearman",
@@ -50,12 +51,13 @@ function createArenaFaction(
 
   const units: BattleUnit[] = [];
   let squadIndex = 0;
-  while (units.length < ARENA_STARTING_UNITS_PER_FACTION) {
+  let spentGold = 0;
+  while (spentGold < ARENA_STARTING_GOLD_PER_FACTION) {
     const kind = ARENA_ROSTER[squadIndex % ARENA_ROSTER.length]!;
-    const squadSize = Math.min(
-      troopCountForRace(kind, factionRaces[faction]),
-      ARENA_STARTING_UNITS_PER_FACTION - units.length,
-    );
+    const race = factionRaces[faction];
+    const squadCost = deploymentCostForRace(kind, race);
+    if (spentGold + squadCost > ARENA_STARTING_GOLD_PER_FACTION) break;
+    const squadSize = troopCountForRace(kind, race);
     const cell = frontCells[squadIndex % frontCells.length]!;
     const squadCenter = axialToWorld(cell);
     const squadId = `arena-${faction}-${squadIndex + 1}-${kind}`;
@@ -74,6 +76,7 @@ function createArenaFaction(
         },
       }));
     }
+    spentGold += squadCost;
     squadIndex += 1;
   }
   return units;

@@ -187,7 +187,7 @@ describe("deterministic opponent deployment AI", () => {
       faction: "crimson",
       role: "bone-dragon",
       combatProfile: "undead",
-      maxHealth: 280,
+      maxHealth: 480,
     }));
   });
 

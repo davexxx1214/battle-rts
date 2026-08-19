@@ -222,8 +222,8 @@ describe("atomic battle deployment", () => {
     expect(dragons[0]).toMatchObject({
       role: "bone-dragon",
       combatProfile: "undead",
-      maxHealth: 280,
-      health: 280,
+      maxHealth: 480,
+      health: 480,
     });
   });
 
