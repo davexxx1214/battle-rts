@@ -4,12 +4,17 @@ import type { GameMode } from "../app/gameMode";
 import type { DeployableKind } from "../game/rules";
 import { GameModeSelector } from "../ui/GameModeSelector";
 import {
-  CAMPAIGN_CHAPTERS,
-  CAMPAIGN_MISSIONS,
+  deployableIconForRace,
+  deployableLabelForRace,
+} from "../ui/deployablePresentation";
+import {
+  CAMPAIGNS,
+  getCampaignDefinition,
   getMissionDeployables,
   getUnlockedDeployables,
   isCampaignMissionAvailable,
   isCampaignMissionCompleted,
+  type CampaignId,
   type CampaignMission,
   type CampaignProgress,
 } from "./campaign";
@@ -26,55 +31,63 @@ const DEPLOYABLE_LABELS = {
   barracks: "兵营",
 } as const satisfies Readonly<Record<DeployableKind, string>>;
 
-const DEPLOYABLE_ICONS = {
-  spearman: "/assets/ui/deployables/spearman.png",
-  swordsman: "/assets/ui/deployables/swordsman.png",
-  archer: "/assets/ui/deployables/archer.png",
-  mage: "/assets/ui/deployables/mage.png",
-  catapult: "/assets/ui/deployables/catapult.png",
-  "guard-tower": "/assets/ui/deployables/guard-tower.png",
-  "gold-mine": "/assets/ui/deployables/gold-mine.png",
-  barracks: "/assets/ui/deployables/barracks.png",
-} as const satisfies Readonly<Record<DeployableKind, string>>;
-
 export function CampaignMap({
   mode,
   progress,
+  campaignId = "human",
   onStartMission,
+  onSelectCampaign,
   onChangeMode,
 }: {
   readonly mode: GameMode;
   readonly progress: CampaignProgress;
+  readonly campaignId?: CampaignId;
   readonly onStartMission: (mission: CampaignMission) => void;
+  readonly onSelectCampaign?: (campaignId: CampaignId) => void;
   readonly onChangeMode: (mode: GameMode) => void;
 }) {
+  const campaign = getCampaignDefinition(campaignId);
+  const missions = campaign.missions;
   const recommendedMission = useMemo(() => (
-    CAMPAIGN_MISSIONS.find((mission) => (
+    missions.find((mission) => (
       isCampaignMissionAvailable(mission, progress)
       && !isCampaignMissionCompleted(progress, mission.id)
-    )) ?? CAMPAIGN_MISSIONS[0]
-  ), [progress]);
-  const [selectedMissionId, setSelectedMissionId] = useState(recommendedMission.id);
-  const selectedMission = CAMPAIGN_MISSIONS.find(({ id }) => id === selectedMissionId)
+    )) ?? missions[0]
+  ), [missions, progress]);
+  const [selectedMissionIds, setSelectedMissionIds] = useState<Partial<
+    Record<CampaignId, string>
+  >>({});
+  const [mobileBriefingOpen, setMobileBriefingOpen] = useState(false);
+  const selectedMissionId = selectedMissionIds[campaignId] ?? recommendedMission.id;
+  const selectedMission = missions.find(({ id }) => id === selectedMissionId)
     ?? recommendedMission;
-  const unlocked = getUnlockedDeployables(progress);
+  const unlocked = getUnlockedDeployables(progress, campaignId);
   const missionDeployables = getMissionDeployables(selectedMission, progress);
   const selectedAvailable = isCampaignMissionAvailable(selectedMission, progress);
-  const completedStoryMissions = CAMPAIGN_MISSIONS.filter((mission) => (
+  const completedStoryMissions = missions.filter((mission) => (
     mission.kind === "story" && isCampaignMissionCompleted(progress, mission.id)
   )).length;
-  const totalStoryMissions = CAMPAIGN_MISSIONS.filter(({ kind }) => kind === "story").length;
-  const totalStars = Object.values(progress.missionStars)
-    .reduce((total, stars) => total + stars, 0);
+  const totalStoryMissions = missions.filter(({ kind }) => kind === "story").length;
+  const totalStars = missions.reduce(
+    (total, mission) => total + (progress.missionStars[mission.id] ?? 0),
+    0,
+  );
+  const challengeLabel = campaign.challengeLabel;
 
   return (
-    <section className={styles.campaign} aria-label="铁原战役地图">
+    <section
+      className={styles.campaign}
+      data-campaign={campaign.id}
+      aria-label={`${campaign.title}地图`}
+    >
       <header className={styles.header}>
         <div className={styles.brand}>
-          <div className={styles.sigil} aria-hidden="true">⚔</div>
+          <div className={styles.sigil} aria-hidden="true">
+            {campaign.playerRace === "undead" ? "☠" : "⚔"}
+          </div>
           <div>
-            <p>IRONFIELD · CAMPAIGN</p>
-            <h1>铁原战役</h1>
+            <p>{campaign.englishTitle}</p>
+            <h1>{campaign.title}</h1>
           </div>
         </div>
         <GameModeSelector mode={mode} onChange={onChangeMode} />
@@ -89,16 +102,33 @@ export function CampaignMap({
         <main className={styles.mapPanel}>
           <div className={styles.mapHeading}>
             <div>
-              <span>THE NORTHERN MARCH</span>
-              <h2>北境进军路线</h2>
+              <span>{campaign.routeKicker}</span>
+              <h2>{campaign.routeTitle}</h2>
             </div>
-            <p>主线关卡推进战役；金色军备试炼可永久解锁新的兵种和建筑。</p>
+            <nav className={styles.campaignSelector} aria-label="选择战役阵营">
+              {CAMPAIGNS.map((candidate) => (
+                <button
+                  type="button"
+                  data-active={candidate.id === campaign.id}
+                  aria-pressed={candidate.id === campaign.id}
+                  onClick={() => {
+                    setMobileBriefingOpen(false);
+                    onSelectCampaign?.(candidate.id);
+                  }}
+                  key={candidate.id}
+                >
+                  <span aria-hidden="true">{candidate.playerRace === "undead" ? "☠" : "⚔"}</span>
+                  {candidate.label}
+                </button>
+              ))}
+            </nav>
+            <p>{campaign.overview}</p>
             <small className={styles.mapGestureHint}>双指缩放 · 拖动查看路线</small>
           </div>
 
           <div className={styles.chapterList}>
-            {CAMPAIGN_CHAPTERS.map((chapter) => {
-              const missions = CAMPAIGN_MISSIONS.filter(({ chapterId }) => (
+            {campaign.chapters.map((chapter) => {
+              const chapterMissions = missions.filter(({ chapterId }) => (
                 chapterId === chapter.id
               ));
               return (
@@ -109,7 +139,7 @@ export function CampaignMap({
                     <small>{chapter.subtitle}</small>
                   </header>
                   <div className={styles.missionRoute}>
-                    {missions.map((mission) => {
+                    {chapterMissions.map((mission) => {
                       const available = isCampaignMissionAvailable(mission, progress);
                       const completed = isCampaignMissionCompleted(progress, mission.id);
                       const selected = mission.id === selectedMission.id;
@@ -123,18 +153,24 @@ export function CampaignMap({
                           type="button"
                           aria-pressed={selected}
                           aria-label={`${mission.title}，${completed ? `已获得 ${stars} 星` : available ? "可出战" : "尚未解锁"}`}
-                          onClick={() => setSelectedMissionId(mission.id)}
+                          onClick={() => {
+                            setMobileBriefingOpen(false);
+                            setSelectedMissionIds((current) => ({
+                              ...current,
+                              [campaignId]: mission.id,
+                            }));
+                          }}
                           key={mission.id}
                         >
                           <span className={styles.nodeMarker} aria-hidden="true">
                             {completed ? "✓" : available ? mission.sequence : "×"}
                           </span>
                           <span className={styles.nodeCopy}>
-                            <small>{mission.kind === "challenge" ? "军备试炼" : `任务 ${mission.sequence}`}</small>
+                            <small>{mission.kind === "challenge" ? challengeLabel : `任务 ${mission.sequence}`}</small>
                             <strong>{mission.title}</strong>
                             {completed && <em>{"★".repeat(stars)}{"☆".repeat(3 - stars)}</em>}
                             {!completed && mission.reward && (
-                              <em>解锁：{DEPLOYABLE_LABELS[mission.reward]}</em>
+                              <em>解锁：{deployableLabelForRace(mission.reward, campaign.playerRace)}</em>
                             )}
                           </span>
                         </button>
@@ -147,10 +183,16 @@ export function CampaignMap({
           </div>
         </main>
 
-        <aside className={styles.missionBriefing} aria-label="任务简报">
+        <aside
+          className={styles.missionBriefing}
+          data-mobile-open={mobileBriefingOpen}
+          aria-label="任务简报"
+        >
           <div className={styles.briefingType} data-kind={selectedMission.kind}>
-            <span>{selectedMission.kind === "challenge" ? "ARMAMENT TRIAL" : "CAMPAIGN MISSION"}</span>
-            <strong>{selectedMission.kind === "challenge" ? "军备试炼" : "主线任务"}</strong>
+            <span>{selectedMission.kind === "challenge"
+              ? campaign.challengeKicker
+              : "CAMPAIGN MISSION"}</span>
+            <strong>{selectedMission.kind === "challenge" ? challengeLabel : "主线任务"}</strong>
           </div>
           <p className={styles.missionIndex}>NO. {String(selectedMission.sequence).padStart(2, "0")}</p>
           <h2>{selectedMission.title}</h2>
@@ -172,10 +214,13 @@ export function CampaignMap({
 
           {selectedMission.reward && (
             <section className={styles.rewardBlock}>
-              <img src={DEPLOYABLE_ICONS[selectedMission.reward]} alt="" />
+              <img
+                src={deployableIconForRace(selectedMission.reward, campaign.playerRace)}
+                alt=""
+              />
               <div>
                 <span>首次通关奖励</span>
-                <strong>{DEPLOYABLE_LABELS[selectedMission.reward]}</strong>
+                <strong>{deployableLabelForRace(selectedMission.reward, campaign.playerRace)}</strong>
                 <small>{unlocked.includes(selectedMission.reward) ? "已收入永久军备" : "试炼中临时借用"}</small>
               </div>
             </section>
@@ -186,7 +231,7 @@ export function CampaignMap({
             <div>
               {missionDeployables.map((kind) => (
                 <span data-loaned={selectedMission.loanedDeployables?.includes(kind) ?? false} key={kind}>
-                  {DEPLOYABLE_LABELS[kind]}
+                  {deployableLabelForRace(kind, campaign.playerRace)}
                 </span>
               ))}
             </div>
@@ -209,17 +254,28 @@ export function CampaignMap({
 
       <div className={styles.mobileMissionBar}>
         <div>
-          <small>{selectedMission.kind === "challenge" ? "军备试炼" : "当前任务"}</small>
+          <small>{selectedMission.kind === "challenge" ? challengeLabel : "当前任务"}</small>
           <strong>{selectedMission.title}</strong>
         </div>
-        <button
-          type="button"
-          disabled={!selectedAvailable}
-          aria-label={`开始任务：${selectedMission.title}`}
-          onClick={() => onStartMission(selectedMission)}
-        >
-          {selectedAvailable ? "开始任务" : "尚未解锁"}
-        </button>
+        <div className={styles.mobileMissionActions}>
+          <button
+            className={styles.mobileBriefingButton}
+            type="button"
+            aria-expanded={mobileBriefingOpen}
+            onClick={() => setMobileBriefingOpen((open) => !open)}
+          >
+            {mobileBriefingOpen ? "收起简报" : "任务简报"}
+          </button>
+          <button
+            className={styles.mobileStartButton}
+            type="button"
+            disabled={!selectedAvailable}
+            aria-label={`开始任务：${selectedMission.title}`}
+            onClick={() => onStartMission(selectedMission)}
+          >
+            {selectedAvailable ? "开始任务" : "尚未解锁"}
+          </button>
+        </div>
       </div>
 
       <footer className={styles.armory}>
@@ -227,9 +283,15 @@ export function CampaignMap({
         {(Object.keys(DEPLOYABLE_LABELS) as DeployableKind[]).map((kind) => {
           const isUnlocked = unlocked.includes(kind);
           return (
-            <div data-unlocked={isUnlocked} title={DEPLOYABLE_LABELS[kind]} key={kind}>
-              <img src={DEPLOYABLE_ICONS[kind]} alt="" />
-              <small>{isUnlocked ? DEPLOYABLE_LABELS[kind] : "未解锁"}</small>
+            <div
+              data-unlocked={isUnlocked}
+              title={deployableLabelForRace(kind, campaign.playerRace)}
+              key={kind}
+            >
+              <img src={deployableIconForRace(kind, campaign.playerRace)} alt="" />
+              <small>{isUnlocked
+                ? deployableLabelForRace(kind, campaign.playerRace)
+                : "未解锁"}</small>
             </div>
           );
         })}

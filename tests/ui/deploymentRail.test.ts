@@ -78,6 +78,8 @@ describe("deployment rail", () => {
 
     expect(markup).toContain("骸骨先锋");
     expect(markup).toContain("冰霜骨龙");
+    expect(markup).toContain("魂火尖塔");
+    expect(markup).toContain("诅咒晶矿");
     expect(markup).toContain("墓穴兵营");
     expect(markup).toContain("每 12 秒召唤 墓穴卫士");
     expect(markup).toContain("召唤 墓穴卫士");

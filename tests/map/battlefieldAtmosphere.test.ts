@@ -63,6 +63,15 @@ describe("battlefield atmosphere", () => {
     expect(cloudView.vertical).toBeCloseTo(anchorView.vertical, 1);
   });
 
+  it("moves the upper-right cloud farther right without dropping it into the battlefield", () => {
+    const cloud = BATTLEFIELD_CLOUDS.find(({ id }) => id === "upper-east-small");
+
+    expect(cloud?.position).toEqual([8.8, 7, -14.65]);
+    expect(defaultViewPosition(cloud!.position).horizontal).toBeGreaterThan(15);
+    expect(defaultViewPosition(cloud!.position).vertical).toBeGreaterThan(9);
+    expect(defaultViewPosition(cloud!.position).vertical).toBeLessThan(10);
+  });
+
   it("loads clouds from local KayKit assets without entering gameplay collision data", () => {
     expect(BATTLEFIELD_CLOUD_SCENE_ASSETS).toEqual({
       big: {

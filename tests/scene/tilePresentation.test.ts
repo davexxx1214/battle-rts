@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MeshStandardMaterial } from "three";
 
 import { BATTLEFIELD_MAP, coordinateKey } from "../../src/map/battlefield";
 import {
@@ -23,9 +24,15 @@ import {
   UNDEAD_MINE_DRESSING,
   UNDEAD_RIVERBANK_DRESSING,
   UNDEAD_SHIPWRECK_DRESSING,
+  UNDEAD_CASTLE_HIGHLAND_TINT,
+  UNDEAD_TERRAIN_EMISSIVE_COLOR,
+  UNDEAD_TERRAIN_EMISSIVE_INTENSITY,
+  UNDEAD_TERRAIN_MATERIAL_COLOR,
   applyUndeadTerrainTint,
+  applyUndeadTerrainTintForFaction,
   cemeteryFacingRotation,
   sceneryVisibleForMode,
+  createUndeadTerrainMaterial,
   undeadFortificationRotation,
   undeadStructureRotation,
 } from "../../src/scene/terrain/BattlefieldTerrain";
@@ -35,6 +42,20 @@ function grayBrightness(hex: string): number {
 }
 
 describe("terrain tile presentation", () => {
+  it("uses a lit rough material so undead terrain keeps visible height shading", () => {
+    const material = createUndeadTerrainMaterial();
+
+    expect(material).toBeInstanceOf(MeshStandardMaterial);
+    expect(`#${material.color.getHexString()}`).toBe(UNDEAD_TERRAIN_MATERIAL_COLOR);
+    expect(`#${material.emissive.getHexString()}`).toBe(UNDEAD_TERRAIN_EMISSIVE_COLOR);
+    expect(material.emissiveIntensity).toBe(UNDEAD_TERRAIN_EMISSIVE_INTENSITY);
+    expect(material.flatShading).toBe(true);
+    expect(material.metalness).toBe(0);
+    expect(material.roughness).toBe(0.94);
+    expect(material.vertexColors).toBe(true);
+    material.dispose();
+  });
+
   it("gives every map cell an official KayKit tile without changing terrain semantics", () => {
     const plan = createTerrainTilePlan(BATTLEFIELD_MAP);
 
@@ -130,6 +151,31 @@ describe("terrain tile presentation", () => {
     expect(grayBrightness(groundTintAt(-5))).toBeLessThan(grayBrightness(groundTintAt(-2)));
   });
 
+  it.each(["verdant", "crimson"] as const)(
+    "keeps the %s undead castle on mirrored high ground with one deep-gray treatment",
+    (faction) => {
+      const highlandTiles = createTerrainTilePlan(BATTLEFIELD_MAP).filter(({ cell }) => (
+        cell.territory === faction && cell.surface === "camp"
+      ));
+      const mirroredFaction = faction === "verdant" ? "crimson" : "verdant";
+      const mirroredHighlandKeys = new Set(BATTLEFIELD_MAP.cells
+        .filter(({ territory, surface }) => (
+          territory === mirroredFaction && surface === "camp"
+        ))
+        .map(({ q, r }) => coordinateKey({ q: -q, r: -r })));
+
+      expect(highlandTiles.length).toBeGreaterThan(0);
+      expect(highlandTiles.every(({ cell, renderHeight }) => (
+        renderHeight === 0.72
+        && mirroredHighlandKeys.has(coordinateKey(cell))
+      ))).toBe(true);
+      expect(new Set(highlandTiles
+        .map((tile) => applyUndeadTerrainTintForFaction(tile, faction).tint)))
+        .toEqual(new Set([UNDEAD_CASTLE_HIGHLAND_TINT]));
+      expect(highlandTiles.some(({ assetKey }) => assetKey.startsWith("road-"))).toBe(true);
+    },
+  );
+
   it("turns the undead rear territory into a KayKit cemetery without blocking its attack lane", () => {
     const plan = createTerrainTilePlan(BATTLEFIELD_MAP);
     const cemeteryTiles = plan
@@ -148,7 +194,13 @@ describe("terrain tile presentation", () => {
     expect(new Set(cemeteryTiles.map(({ tint }) => tint)).size).toBeGreaterThan(6);
     expect(dressedFarmKeys).toEqual(farmKeys);
     expect(UNDEAD_CEMETERY_DRESSING.some(({ asset }) => asset === "crypt")).toBe(true);
-    expect(UNDEAD_CEMETERY_DRESSING.some(({ asset }) => asset === "shrine")).toBe(true);
+    expect(UNDEAD_CEMETERY_DRESSING).toContainEqual(expect.objectContaining({
+      id: "cemetery-waterside-coffin",
+      asset: "coffinDecorated",
+      coordinate: { q: -3, r: -2 },
+      offset: [0, 0.14],
+      scale: 0.68,
+    }));
     expect(UNDEAD_CEMETERY_DRESSING.some(({ asset }) => asset === "gravePit")).toBe(true);
     expect(UNDEAD_CEMETERY_DRESSING.some(({ asset }) => asset === "coffinDecorated"))
       .toBe(true);

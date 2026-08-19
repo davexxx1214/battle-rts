@@ -219,6 +219,17 @@ describe("battlefield island", () => {
       const gate = structures.find((structure) => structure.kind === "wall-gate");
       expect(gate).toBeDefined();
       expect(getBattlefieldCell(gate!.coordinate)?.walkable).toBe(true);
+      for (const coordinate of [
+        castle.coordinate,
+        BATTLEFIELD_MAP.castleApproaches[faction],
+        ...walls.map(({ coordinate }) => coordinate),
+        ...towers.map(({ coordinate }) => coordinate),
+      ]) {
+        expect(getBattlefieldCell(coordinate)).toMatchObject({
+          height: 0.72,
+          surface: "camp",
+        });
+      }
       const interior = BATTLEFIELD_MAP.cells.find((cell) => (
         cell.walkable
         && hexDistance(cell, castle.coordinate) === 1

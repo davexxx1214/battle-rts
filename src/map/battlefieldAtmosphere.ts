@@ -39,7 +39,7 @@ export const BATTLEFIELD_CLOUDS: readonly BattlefieldCloud[] = [
   {
     id: "upper-east-small",
     kind: "big",
-    position: [5.5, 7, -12],
+    position: [8.8, 7, -14.65],
     scale: 0.78,
     rotationY: -Math.PI / 4,
     opacity: 0.8,

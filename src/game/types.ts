@@ -9,6 +9,7 @@ export type UnitRole =
   | "catapult"
   | "bone-dragon";
 export type UnitCombatProfile = "human" | "undead";
+export type AttackVisualKind = "poison-cloud";
 
 export interface WorldPoint {
   readonly x: number;

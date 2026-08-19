@@ -22,6 +22,25 @@ export const FROST_BREATH_DURATION_SECONDS = 0.62;
 export const FROST_BREATH_MOUTH_OFFSET = 1.9;
 export const FROST_BREATH_MOUTH_HEIGHT = 0.5;
 
+export const POISON_CLOUD_PARTICLES = {
+  cloud: "/assets/fx/kenney-particles/smoke_08.png",
+  burst: "/assets/fx/kenney-particles/smoke_09.png",
+  ring: "/assets/fx/kenney-particles/smoke_10.png",
+} as const;
+
+export const POISON_CLOUD_COLORS = {
+  cloud: "#69c846",
+  core: "#c0ed57",
+  ring: "#78b936",
+} as const;
+
+export const POISON_CLOUD_FLIGHT_SCALE = 0.82;
+export const POISON_CLOUD_CORE_SCALE = 0.56;
+export const POISON_CLOUD_LAUNCH_HEIGHT = 2.58;
+export const POISON_CLOUD_LANDING_HEIGHT = 0.78;
+export const POISON_CLOUD_MUZZLE_DURATION_SECONDS = 0.24;
+export const POISON_CLOUD_IMPACT_DURATION_SECONDS = 0.42;
+
 export const LIGHTNING_STRIKE_PARTICLES = {
   bolt: "/assets/fx/kenney-particles/spark_05.png",
   boltAlt: "/assets/fx/kenney-particles/spark_06.png",
@@ -72,13 +91,12 @@ export function frostBreathLayout(
   };
 }
 
-const FROST_BREATH_URLS = new Set<string>(Object.values(FROST_BREATH_PARTICLES));
-
-export const BATTLE_FX_URLS = [
+export const BATTLE_FX_URLS = [...new Set<string>([
   ...Object.values(BATTLE_FX_SEQUENCES).flat(),
   ...Object.values(FROST_BREATH_PARTICLES),
-  ...Object.values(LIGHTNING_STRIKE_PARTICLES).filter((url) => !FROST_BREATH_URLS.has(url)),
-];
+  ...Object.values(LIGHTNING_STRIKE_PARTICLES),
+  ...Object.values(POISON_CLOUD_PARTICLES),
+])];
 
 export function mageAttackUsesSkyLightning(
   role: UnitRole | string,

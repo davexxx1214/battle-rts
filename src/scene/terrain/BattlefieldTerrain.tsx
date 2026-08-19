@@ -7,7 +7,6 @@ import {
   InstancedMesh,
   MathUtils,
   Mesh,
-  MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
 } from "three";
@@ -224,6 +223,23 @@ export function applyUndeadTerrainTint(
   return applyUndeadTerrainTintForFaction(tile, "crimson");
 }
 
+export const UNDEAD_CASTLE_HIGHLAND_TINT = "#4d5159";
+export const UNDEAD_TERRAIN_MATERIAL_COLOR = "#a8adb6";
+export const UNDEAD_TERRAIN_EMISSIVE_COLOR = "#383c44";
+export const UNDEAD_TERRAIN_EMISSIVE_INTENSITY = 0.75;
+
+export function createUndeadTerrainMaterial(): MeshStandardMaterial {
+  return new MeshStandardMaterial({
+    color: UNDEAD_TERRAIN_MATERIAL_COLOR,
+    emissive: UNDEAD_TERRAIN_EMISSIVE_COLOR,
+    emissiveIntensity: UNDEAD_TERRAIN_EMISSIVE_INTENSITY,
+    flatShading: true,
+    metalness: 0,
+    roughness: 0.94,
+    vertexColors: true,
+  });
+}
+
 export function applyUndeadTerrainTintForFaction(
   tile: TerrainTilePresentation,
   faction: Faction,
@@ -231,13 +247,14 @@ export function applyUndeadTerrainTintForFaction(
   if (!coordinateBelongsToFactionModule(tile.cell, faction) || tile.cell.surface === "water") {
     return tile;
   }
+  if (tile.cell.surface === "camp") {
+    return { ...tile, tint: UNDEAD_CASTLE_HIGHLAND_TINT };
+  }
   const reference = toCrimsonModuleCoordinate(tile.cell, faction);
   const depth = MathUtils.clamp((-reference.r - 2) / 7, 0, 1);
   const gradient = tile.assetKey.startsWith("road-")
     ? { front: "#d4d6da", rear: "#8c9097" }
-    : tile.cell.surface === "camp"
-      ? { front: "#b6b8be", rear: "#565b63" }
-      : tile.cell.surface === "forest"
+    : tile.cell.surface === "forest"
         ? { front: "#a4a7ad", rear: "#50555d" }
         : tile.cell.surface === "rock"
           ? { front: "#b0b3b8", rear: "#646870" }
@@ -335,10 +352,7 @@ function TileInstances({
   }, [template.geometry, untextured]);
   const material = useMemo(() => {
     if (!untextured) return template.material;
-    return new MeshBasicMaterial({
-      color: "#ffffff",
-      vertexColors: true,
-    });
+    return createUndeadTerrainMaterial();
   }, [template.material, untextured]);
   useLayoutEffect(() => {
     const mesh = instances.current;
@@ -483,7 +497,15 @@ export const UNDEAD_CEMETERY_DRESSING: readonly UndeadCemeteryDressingItem[] = [
   cemeteryItem("cemetery-yew-marker", "graveMarkerA", -2, -5, [-0.46, 0.38], 0.92),
   cemeteryItem("cemetery-chapel-shrine", "shrineCandles", -3, -4, [0.06, 0.02], 1.12, CEMETERY_MIRROR_TURN + Math.PI / 3),
   cemeteryItem("cemetery-chapel-skull", "postSkull", -3, -4, [-0.52, 0.4], 1, CEMETERY_MIRROR_TURN),
-  cemeteryItem("cemetery-waterside-shrine", "shrine", -3, -2, [0, 0.22], 1.18, CEMETERY_MIRROR_TURN),
+  cemeteryItem(
+    "cemetery-waterside-coffin",
+    "coffinDecorated",
+    -3,
+    -2,
+    [0, 0.14],
+    0.68,
+    CEMETERY_MIRROR_TURN + Math.PI / 6,
+  ),
   cemeteryItem("cemetery-waterfront-pine", "treePineOrangeLarge", -4, -2, [-0.04, 0.08], 1.04, CEMETERY_MIRROR_TURN + Math.PI / 6),
   cemeteryItem("cemetery-plot-1-8-pad", "floorDirtSmall", 1, -8, [0, 0], 0.92),
   cemeteryItem("cemetery-plot-1-8", "graveStone", 1, -8, [0.06, 0.04], 0.7),

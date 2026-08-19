@@ -23,15 +23,17 @@ import {
   hasRace,
 } from "./game/factions";
 import type { BattleRace, Faction, FactionRaces } from "./game/types";
-import { CampaignMap, DEPLOYABLE_LABELS } from "./campaign/CampaignMap";
+import { CampaignMap } from "./campaign/CampaignMap";
 import {
   completeCampaignMission,
   createCampaignBattle,
   evaluateCampaignMission,
+  getCampaignFactionRaces,
   getCampaignMission,
   getMissionDeployables,
   loadCampaignProgress,
   saveCampaignProgress,
+  type CampaignId,
   type CampaignMission,
 } from "./campaign/campaign";
 import { DEFAULT_AUDIO_ENABLED } from "./audio/battleAudio";
@@ -84,6 +86,7 @@ import {
 import { AiDifficultySelector } from "./ui/AiDifficultySelector";
 import { GameModeSelector } from "./ui/GameModeSelector";
 import { FactionRaceSelector } from "./ui/FactionRaceSelector";
+import { deployableLabelForRace } from "./ui/deployablePresentation";
 import {
   fieldPointerCoordinates,
   fieldPointerDistance,
@@ -134,7 +137,9 @@ export function App() {
   const [factionRaces, setFactionRaces] = useState<FactionRaces>(initialFactionRaces);
   const [difficulty, setDifficulty] = useState<AiDifficulty>(DEFAULT_AI_DIFFICULTY);
   const [campaignProgress, setCampaignProgress] = useState(loadCampaignProgress);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<CampaignId>("human");
   const [activeCampaignMissionId, setActiveCampaignMissionId] = useState<string | null>(null);
+  const [mobileMatchSetupOpen, setMobileMatchSetupOpen] = useState(false);
   const [app, setApp] = useState<AppState>(() => (
     createAppState(benchmarkMode, initialMode, null, frostPreview, initialFactionRaces)
   ));
@@ -260,8 +265,11 @@ export function App() {
       nextMode,
       activeCampaignMission !== null,
     );
-    const nextFactionRaces = factionRacesForGameMode(nextMode);
+    const nextFactionRaces = nextMode === "campaign"
+      ? getCampaignFactionRaces(selectedCampaignId)
+      : factionRacesForGameMode(nextMode);
     setMode(nextMode);
+    setMobileMatchSetupOpen(false);
     setFactionRaces(nextFactionRaces);
     setActiveCampaignMissionId(null);
     setApp(createAppState(benchmarkMode, nextMode, null, false, nextFactionRaces));
@@ -272,7 +280,7 @@ export function App() {
     setCameraResetToken((current) => current + 1);
     cameraViewStore.publish(DEFAULT_CAMERA_VIEW);
     setBattleInstanceRevision((current) => current + 1);
-  }, [activeCampaignMission, benchmarkMode, cameraViewStore, mode]);
+  }, [activeCampaignMission, benchmarkMode, cameraViewStore, mode, selectedCampaignId]);
 
   const changeFactionRace = useCallback((faction: Faction, race: BattleRace) => {
     if (battlePhase !== "briefing" || factionRaces[faction] === race) return;
@@ -299,9 +307,11 @@ export function App() {
   ]);
 
   const startCampaignMission = useCallback((mission: CampaignMission) => {
-    setFactionRaces(factionRacesForGameMode("campaign"));
+    const nextFactionRaces = getCampaignFactionRaces(mission.campaignId);
+    setSelectedCampaignId(mission.campaignId);
+    setFactionRaces(nextFactionRaces);
     setActiveCampaignMissionId(mission.id);
-    setApp(createAppState(false, "campaign", mission));
+    setApp(createAppState(false, "campaign", mission, false, nextFactionRaces));
     setAssetsReady(false);
     setAssetLoadProgress({ loaded: 0, total: 0 });
     setAssetLoadError(null);
@@ -311,16 +321,22 @@ export function App() {
     setBattleInstanceRevision((current) => current + 1);
   }, [cameraViewStore]);
 
+  const selectCampaign = useCallback((campaignId: CampaignId) => {
+    setSelectedCampaignId(campaignId);
+    setFactionRaces(getCampaignFactionRaces(campaignId));
+  }, []);
+
   const returnToCampaignMap = useCallback(() => {
-    setFactionRaces(factionRacesForGameMode("campaign"));
+    const nextFactionRaces = getCampaignFactionRaces(selectedCampaignId);
+    setFactionRaces(nextFactionRaces);
     setActiveCampaignMissionId(null);
-    setApp(createAppState(false, "campaign"));
+    setApp(createAppState(false, "campaign", null, false, nextFactionRaces));
     setAssetsReady(false);
     setAssetLoadProgress({ loaded: 0, total: 0 });
     setAssetLoadError(null);
     setCursorWorld(null);
     setBattleInstanceRevision((current) => current + 1);
-  }, []);
+  }, [selectedCampaignId]);
 
   const changeDifficulty = useCallback((nextDifficulty: AiDifficulty) => {
     if (battlePhase !== "briefing" || nextDifficulty === difficulty) return;
@@ -329,6 +345,7 @@ export function App() {
 
   const engageBattle = useCallback(() => {
     if (!assetsReady) return;
+    setMobileMatchSetupOpen(false);
     setApp((current) => ({
       ...current,
       session: beginBattleSession(current.session),
@@ -348,11 +365,20 @@ export function App() {
   const selectDeployable = useCallback((kind: DeployableKind) => {
     if (campaignDeployables && !campaignDeployables.includes(kind)) return;
     playUiCue("select");
-    setApp((current) => ({
-      ...current,
-      selectedDeployable: kind,
-      feedback: { tone: "info", message: "移动到己方区域，绿色预览表示可以部署" },
-    }));
+    setCursorWorld(null);
+    setApp((current) => {
+      const isCancelling = current.selectedDeployable === kind;
+      return {
+        ...current,
+        selectedDeployable: isCancelling ? null : kind,
+        feedback: {
+          tone: "info",
+          message: isCancelling
+            ? "已取消部署"
+            : "移动到己方区域，绿色预览表示可以部署",
+        },
+      };
+    });
   }, [campaignDeployables, playUiCue]);
 
   const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
@@ -531,7 +557,9 @@ export function App() {
         <CampaignMap
           mode={mode}
           progress={campaignProgress}
+          campaignId={selectedCampaignId}
           onStartMission={startCampaignMission}
+          onSelectCampaign={selectCampaign}
           onChangeMode={changeMode}
         />
       </main>
@@ -560,18 +588,31 @@ export function App() {
         <div className={styles.commandCenter}>
           {!benchmarkMode && <GameModeSelector mode={mode} onChange={changeMode} />}
           {!benchmarkMode && mode !== "campaign" && (
-            <FactionRaceSelector
-              disabled={battlePhase !== "briefing"}
-              factionRaces={factionRaces}
-              onChange={changeFactionRace}
-            />
-          )}
-          {!benchmarkMode && mode !== "campaign" && (
-            <AiDifficultySelector
-              difficulty={difficulty}
-              disabled={battlePhase !== "briefing"}
-              onChange={changeDifficulty}
-            />
+            <>
+              <button
+                className={styles.mobileMatchSetupButton}
+                type="button"
+                aria-expanded={mobileMatchSetupOpen}
+                onClick={() => setMobileMatchSetupOpen((open) => !open)}
+              >
+                对战设置
+              </button>
+              <div
+                className={styles.matchSetupControls}
+                data-mobile-open={mobileMatchSetupOpen}
+              >
+                <FactionRaceSelector
+                  disabled={battlePhase !== "briefing"}
+                  factionRaces={factionRaces}
+                  onChange={changeFactionRace}
+                />
+                <AiDifficultySelector
+                  difficulty={difficulty}
+                  disabled={battlePhase !== "briefing"}
+                  onChange={changeDifficulty}
+                />
+              </div>
+            </>
           )}
           <div className={styles.battlePulse} aria-live="polite">
             <span>{battlePhase === "briefing"
@@ -620,15 +661,18 @@ export function App() {
       <section
         className={styles.warTable}
         data-phase={battlePhase}
+        data-winner={battle.winner ?? "none"}
         inert={!assetsReady}
         aria-hidden={!assetsReady}
       >
-        <DeploymentRail
-          session={app.session}
-          selectedKind={app.selectedDeployable}
-          allowedKinds={campaignDeployables}
-          onSelect={selectDeployable}
-        />
+        {battle.winner === null && (
+          <DeploymentRail
+            session={app.session}
+            selectedKind={app.selectedDeployable}
+            allowedKinds={campaignDeployables}
+            onSelect={selectDeployable}
+          />
+        )}
 
         <div
           className={styles.battlefield}
@@ -748,7 +792,10 @@ export function App() {
                   </small>
                 ))}
                 {campaignResult.success && activeCampaignMission?.reward && (
-                  <em>军备解锁：{DEPLOYABLE_LABELS[activeCampaignMission.reward]}</em>
+                  <em>军备解锁：{deployableLabelForRace(
+                    activeCampaignMission.reward,
+                    activeCampaignMission.playerRace,
+                  )}</em>
                 )}
               </div>
             )}

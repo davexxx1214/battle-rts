@@ -57,11 +57,50 @@ describe("authoritative arrow tower combat", () => {
       speed: GAME_RULES.buildings.arrowTower.projectileSpeed,
       damage: GAME_RULES.buildings.arrowTower.damage,
     }));
+    expect(state.projectiles.find(({ attackerId }) => attackerId === tower.id)?.visualKind)
+      .toBeUndefined();
     expect(state.events).toContainEqual(expect.objectContaining({
       type: "attack-started",
       attackerId: tower.id,
       targetId: nearer.id,
       role: "arrow-tower",
+    }));
+  });
+
+  it("marks an undead tower projectile and its impact as poison cloud visuals", () => {
+    const factionRaces = { verdant: "undead" as const };
+    const probe = createBattleState([], { factionRaces });
+    const tower = verdantTower(probe);
+    const target = createBattleUnit({
+      id: "crimson-poison-tower-target",
+      faction: "crimson",
+      role: "ranger",
+      position: { x: tower.position.x, z: tower.position.z - 5 },
+    });
+    const initial = createBattleState([target], { factionRaces });
+    let state: BattleState = { ...initial, buildings: [tower] };
+
+    state = stepBattle(state, 0.1);
+    expect(state.projectiles).toContainEqual(expect.objectContaining({
+      attackerId: tower.id,
+      visualKind: "poison-cloud",
+    }));
+    expect(state.events).toContainEqual(expect.objectContaining({
+      type: "attack-started",
+      attackerId: tower.id,
+      visualKind: "poison-cloud",
+    }));
+    expect(state.events).toContainEqual(expect.objectContaining({
+      type: "projectile-spawned",
+      attackerId: tower.id,
+      visualKind: "poison-cloud",
+    }));
+
+    for (let index = 0; index < 6; index += 1) state = stepBattle(state, 0.1);
+    expect(state.events).toContainEqual(expect.objectContaining({
+      type: "projectile-hit",
+      attackerId: tower.id,
+      visualKind: "poison-cloud",
     }));
   });
 
@@ -138,13 +177,17 @@ describe("authoritative arrow tower combat", () => {
         z: axialToWorld(coordinate).z - 5,
       },
     });
-    let state: BattleState = { ...createBattleState([target]), buildings: [tower] };
+    let state: BattleState = {
+      ...createBattleState([target], { factionRaces: { verdant: "undead" } }),
+      buildings: [tower],
+    };
 
     state = stepBattle(state, 0.1);
     expect(state.projectiles).toContainEqual(expect.objectContaining({
       attackerId: tower.id,
       speed: GAME_RULES.buildings.guardTower.projectileSpeed,
       damage: GAME_RULES.buildings.guardTower.damage,
+      visualKind: "poison-cloud",
     }));
 
     state = { ...createBattleState([]), buildings: [tower] };

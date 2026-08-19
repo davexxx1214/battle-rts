@@ -131,7 +131,6 @@ function runMixedArmyMatch(undeadFaction: Faction): {
   readonly unitDamage: Readonly<Record<Faction, number>>;
   readonly buildingDamage: Readonly<Record<Faction, number>>;
 } {
-  const humanFaction = oppositeFaction(undeadFaction);
   const factionRaces: Readonly<Record<Faction, BattleRace>> = undeadFaction === "verdant"
     ? { verdant: "undead", crimson: "human" }
     : { verdant: "human", crimson: "undead" };

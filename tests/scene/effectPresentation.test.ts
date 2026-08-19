@@ -11,6 +11,14 @@ import {
   LIGHTNING_STRIKE_DURATION_SECONDS,
   LIGHTNING_STRIKE_HEIGHT,
   LIGHTNING_STRIKE_PARTICLES,
+  POISON_CLOUD_COLORS,
+  POISON_CLOUD_CORE_SCALE,
+  POISON_CLOUD_FLIGHT_SCALE,
+  POISON_CLOUD_IMPACT_DURATION_SECONDS,
+  POISON_CLOUD_LANDING_HEIGHT,
+  POISON_CLOUD_LAUNCH_HEIGHT,
+  POISON_CLOUD_MUZZLE_DURATION_SECONDS,
+  POISON_CLOUD_PARTICLES,
   combatProfileForAttacker,
   effectFrameIndex,
   frostBreathLayout,
@@ -50,7 +58,29 @@ describe("battle effect presentation", () => {
       "/assets/fx/kenney-particles/circle_05.png",
     ]);
     expect(BATTLE_FX_URLS).toEqual(expect.arrayContaining(Object.values(FROST_BREATH_PARTICLES)));
-    expect(BATTLE_FX_URLS).toHaveLength(23);
+    expect(BATTLE_FX_URLS).toHaveLength(25);
+  });
+
+  it("preloads compact Kenney poison clouds for undead tower attacks", () => {
+    expect(Object.values(POISON_CLOUD_PARTICLES)).toEqual([
+      "/assets/fx/kenney-particles/smoke_08.png",
+      "/assets/fx/kenney-particles/smoke_09.png",
+      "/assets/fx/kenney-particles/smoke_10.png",
+    ]);
+    expect(BATTLE_FX_URLS).toEqual(expect.arrayContaining(
+      Object.values(POISON_CLOUD_PARTICLES),
+    ));
+    expect(POISON_CLOUD_COLORS).toEqual({
+      cloud: "#69c846",
+      core: "#c0ed57",
+      ring: "#78b936",
+    });
+    expect(POISON_CLOUD_FLIGHT_SCALE).toBe(0.82);
+    expect(POISON_CLOUD_CORE_SCALE).toBeLessThan(POISON_CLOUD_FLIGHT_SCALE);
+    expect(POISON_CLOUD_LAUNCH_HEIGHT).toBeLessThan(2.65);
+    expect(POISON_CLOUD_LANDING_HEIGHT).toBeLessThan(1);
+    expect(POISON_CLOUD_MUZZLE_DURATION_SECONDS).toBe(0.24);
+    expect(POISON_CLOUD_IMPACT_DURATION_SECONDS).toBe(0.42);
   });
 
   it("uses Kenney lightning bolts for undead mage sky strikes", () => {

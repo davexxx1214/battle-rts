@@ -1,5 +1,5 @@
 import type { CombatTarget, CombatTargetType } from "./combat";
-import type { UnitRole, WorldPoint } from "./types";
+import type { AttackVisualKind, UnitRole, WorldPoint } from "./types";
 
 export interface BattleProjectile {
   readonly id: string;
@@ -8,6 +8,7 @@ export interface BattleProjectile {
   readonly targetId: string;
   readonly targetType: CombatTargetType;
   readonly role: UnitRole;
+  readonly visualKind?: AttackVisualKind;
   readonly origin: WorldPoint;
   readonly position: WorldPoint;
   readonly destination: WorldPoint;

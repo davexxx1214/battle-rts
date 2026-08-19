@@ -36,6 +36,14 @@ import {
   LIGHTNING_STRIKE_HEIGHT,
   LIGHTNING_STRIKE_PARTICLES,
   LIGHTNING_STRIKE_WIDTH,
+  POISON_CLOUD_COLORS,
+  POISON_CLOUD_CORE_SCALE,
+  POISON_CLOUD_FLIGHT_SCALE,
+  POISON_CLOUD_IMPACT_DURATION_SECONDS,
+  POISON_CLOUD_LANDING_HEIGHT,
+  POISON_CLOUD_LAUNCH_HEIGHT,
+  POISON_CLOUD_MUZZLE_DURATION_SECONDS,
+  POISON_CLOUD_PARTICLES,
   combatProfileForAttacker,
   effectFrameIndex,
   frostBreathLayout,
@@ -54,6 +62,7 @@ const MAGIC_FLIGHT_DURATION_SECONDS = 0.36;
 type BattleFxTextures = Readonly<Record<BattleFxSequenceName, readonly Texture[]>> & {
   readonly frost: Readonly<Record<keyof typeof FROST_BREATH_PARTICLES, Texture>>;
   readonly lightning: Readonly<Record<keyof typeof LIGHTNING_STRIKE_PARTICLES, Texture>>;
+  readonly poison: Readonly<Record<keyof typeof POISON_CLOUD_PARTICLES, Texture>>;
 };
 
 const FROST_PUFF_SLOTS = [
@@ -83,18 +92,28 @@ const FROST_SHEET_VERTICAL_OFFSET = -0.06;
 
 export function BattleEffects({ battle }: { readonly battle: BattleState }) {
   const fxTextures = useBattleFxTextures();
-  const recentImpacts = battle.events.filter((event) => (
-    event.type === "projectile-hit"
-    && projectileImpactLifetime(event.role) > 0
-    && battle.elapsed - event.time <= projectileImpactLifetime(event.role)
-  ));
+  const recentImpacts = battle.events.filter((event) => {
+    if (event.type !== "projectile-hit") return false;
+    const lifetime = event.visualKind === "poison-cloud"
+      ? POISON_CLOUD_IMPACT_DURATION_SECONDS
+      : projectileImpactLifetime(event.role);
+    return lifetime > 0 && battle.elapsed - event.time <= lifetime;
+  });
   const recentDamage = battle.events.filter((event) => (
     event.type === "damage-applied" && battle.elapsed - event.time <= 0.5
+  ));
+  const poisonHits = battle.events.filter((event) => (
+    event.type === "projectile-hit" && event.visualKind === "poison-cloud"
   ));
   const recentBreaths = battle.events.filter((event) => (
     event.type === "attack-started"
     && event.role === "bone-dragon"
     && battle.elapsed - event.time <= FROST_BREATH_DURATION_SECONDS
+  ));
+  const recentPoisonMuzzles = battle.events.filter((event) => (
+    event.type === "attack-started"
+    && event.visualKind === "poison-cloud"
+    && battle.elapsed - event.time <= POISON_CLOUD_MUZZLE_DURATION_SECONDS
   ));
   const visibleProjectiles = battle.projectiles.filter((projectile) => (
     !mageAttackUsesSkyLightning(
@@ -113,6 +132,19 @@ export function BattleEffects({ battle }: { readonly battle: BattleState }) {
   return (
     <group>
       <ProjectilePool projectiles={visibleProjectiles} fxTextures={fxTextures} />
+      {recentPoisonMuzzles.map((event) => {
+        if (event.type !== "attack-started" || event.visualKind !== "poison-cloud") return null;
+        return (
+          <PoisonCloudMuzzle
+            origin={event.origin}
+            target={event.targetPosition}
+            age={battle.elapsed - event.time}
+            sequence={event.sequence}
+            textures={fxTextures.poison}
+            key={`poison-muzzle-${event.sequence}`}
+          />
+        );
+      })}
       {recentLightning.map((event) => {
         if (event.type !== "projectile-hit") return null;
         return (
@@ -139,6 +171,17 @@ export function BattleEffects({ battle }: { readonly battle: BattleState }) {
       })}
       {recentImpacts.map((event) => {
         if (event.type !== "projectile-hit") return null;
+        if (event.visualKind === "poison-cloud") {
+          return (
+            <PoisonCloudImpact
+              position={event.position}
+              age={battle.elapsed - event.time}
+              sequence={event.sequence}
+              textures={fxTextures.poison}
+              key={`poison-impact-${event.sequence}`}
+            />
+          );
+        }
         return event.role === "ranger" ? (
           <AnimatedFxSprite
             position={event.position}
@@ -160,6 +203,12 @@ export function BattleEffects({ battle }: { readonly battle: BattleState }) {
       })}
       {recentDamage.map((event) => {
         if (event.type !== "damage-applied") return null;
+        const poisonHit = poisonHits.some((hit) => (
+          hit.type === "projectile-hit"
+          && hit.attackerId === event.sourceId
+          && hit.targetId === event.targetId
+          && hit.time === event.time
+        ));
         return (
           <group key={`damage-${event.sequence}`}>
             {event.sourceRole === "bone-dragon" ? (
@@ -168,7 +217,7 @@ export function BattleEffects({ battle }: { readonly battle: BattleState }) {
                 age={battle.elapsed - event.time}
                 texture={fxTextures.frost.impact}
               />
-            ) : event.sourceRole !== "mage" ? (
+            ) : event.sourceRole !== "mage" && !poisonHit ? (
               <HitSpark position={event.targetPosition} age={battle.elapsed - event.time} />
             ) : null}
             <DamageNumber
@@ -179,6 +228,173 @@ export function BattleEffects({ battle }: { readonly battle: BattleState }) {
           </group>
         );
       })}
+    </group>
+  );
+}
+
+function PoisonCloudMuzzle({
+  origin,
+  target,
+  age,
+  sequence,
+  textures,
+}: {
+  readonly origin: WorldPoint;
+  readonly target: WorldPoint;
+  readonly age: number;
+  readonly sequence: number;
+  readonly textures: BattleFxTextures["poison"];
+}) {
+  const root = useRef<Object3D>(null);
+  const cloud = useRef<Sprite>(null);
+  const ring = useRef<Sprite>(null);
+  const cloudMaterial = useRef<SpriteMaterial>(null);
+  const ringMaterial = useRef<SpriteMaterial>(null);
+  const bornAt = useRef<number | null>(null);
+  const offsetX = target.x - origin.x;
+  const offsetZ = target.z - origin.z;
+  const length = Math.hypot(offsetX, offsetZ);
+  const directionX = length > 1e-8 ? offsetX / length : 0;
+  const directionZ = length > 1e-8 ? offsetZ / length : 1;
+  const startX = origin.x + directionX * 0.2;
+  const startZ = origin.z + directionZ * 0.2;
+  const startY = terrainHeightAt(origin) + POISON_CLOUD_LAUNCH_HEIGHT;
+  useFrame(({ clock }) => {
+    bornAt.current ??= clock.elapsedTime - age;
+    const progress = MathUtils.clamp(
+      (clock.elapsedTime - bornAt.current) / POISON_CLOUD_MUZZLE_DURATION_SECONDS,
+      0,
+      1,
+    );
+    const visible = progress < 1;
+    if (root.current) {
+      root.current.position.set(
+        startX + directionX * progress * 0.2,
+        startY + progress * 0.04,
+        startZ + directionZ * progress * 0.2,
+      );
+      root.current.visible = visible;
+    }
+    if (cloud.current) cloud.current.scale.setScalar(0.34 + progress * 0.34);
+    if (ring.current) ring.current.scale.setScalar(0.28 + progress * 0.5);
+    if (cloudMaterial.current) cloudMaterial.current.opacity = (1 - progress) * 0.72;
+    if (ringMaterial.current) {
+      ringMaterial.current.opacity = Math.sin(progress * Math.PI) * 0.68;
+    }
+  });
+  return (
+    <group ref={root} position={[startX, startY, startZ]}>
+      <sprite ref={cloud} scale={0.34} renderOrder={31}>
+        <spriteMaterial
+          ref={cloudMaterial}
+          map={textures.cloud}
+          color={POISON_CLOUD_COLORS.cloud}
+          rotation={(sequence * 1.618) % (Math.PI * 2)}
+          transparent
+          opacity={0.72}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </sprite>
+      <sprite ref={ring} scale={0.28} renderOrder={32}>
+        <spriteMaterial
+          ref={ringMaterial}
+          map={textures.burst}
+          color={POISON_CLOUD_COLORS.core}
+          rotation={(sequence * 2.399) % (Math.PI * 2)}
+          transparent
+          opacity={0}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </sprite>
+    </group>
+  );
+}
+
+function PoisonCloudImpact({
+  position,
+  age,
+  sequence,
+  textures,
+}: {
+  readonly position: WorldPoint;
+  readonly age: number;
+  readonly sequence: number;
+  readonly textures: BattleFxTextures["poison"];
+}) {
+  const root = useRef<Object3D>(null);
+  const cloud = useRef<Sprite>(null);
+  const burst = useRef<Sprite>(null);
+  const ring = useRef<Sprite>(null);
+  const cloudMaterial = useRef<SpriteMaterial>(null);
+  const burstMaterial = useRef<SpriteMaterial>(null);
+  const ringMaterial = useRef<SpriteMaterial>(null);
+  const bornAt = useRef<number | null>(null);
+  const baseY = terrainHeightAt(position) + 0.68;
+  useFrame(({ clock }) => {
+    bornAt.current ??= clock.elapsedTime - age;
+    const progress = MathUtils.clamp(
+      (clock.elapsedTime - bornAt.current) / POISON_CLOUD_IMPACT_DURATION_SECONDS,
+      0,
+      1,
+    );
+    const visible = progress < 1;
+    if (root.current) {
+      root.current.position.y = baseY + progress * 0.12;
+      root.current.visible = visible;
+    }
+    if (cloud.current) cloud.current.scale.setScalar(0.54 + progress * 0.34);
+    if (burst.current) burst.current.scale.setScalar(0.38 + progress * 0.44);
+    if (ring.current) ring.current.scale.setScalar(0.42 + progress * 0.7);
+    if (cloudMaterial.current) {
+      cloudMaterial.current.opacity = Math.pow(1 - progress, 0.7) * 0.78;
+    }
+    if (burstMaterial.current) {
+      burstMaterial.current.opacity = Math.sin(progress * Math.PI) * 0.62;
+    }
+    if (ringMaterial.current) {
+      ringMaterial.current.opacity = Math.sin(progress * Math.PI) * 0.56;
+    }
+  });
+  return (
+    <group ref={root} position={[position.x, baseY, position.z]}>
+      <sprite ref={cloud} scale={0.54} renderOrder={33}>
+        <spriteMaterial
+          ref={cloudMaterial}
+          map={textures.cloud}
+          color={POISON_CLOUD_COLORS.cloud}
+          rotation={(sequence * 1.414) % (Math.PI * 2)}
+          transparent
+          opacity={0.78}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </sprite>
+      <sprite ref={burst} scale={0.38} renderOrder={34}>
+        <spriteMaterial
+          ref={burstMaterial}
+          map={textures.burst}
+          color={POISON_CLOUD_COLORS.core}
+          rotation={(sequence * 2.399) % (Math.PI * 2)}
+          transparent
+          opacity={0}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </sprite>
+      <sprite ref={ring} scale={0.42} renderOrder={35}>
+        <spriteMaterial
+          ref={ringMaterial}
+          map={textures.ring}
+          color={POISON_CLOUD_COLORS.ring}
+          rotation={(sequence * 0.925) % (Math.PI * 2)}
+          transparent
+          opacity={0}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </sprite>
     </group>
   );
 }
@@ -481,6 +697,11 @@ function useBattleFxTextures(): BattleFxTextures {
         flare: byUrl.get(LIGHTNING_STRIKE_PARTICLES.flare)!,
         impact: byUrl.get(LIGHTNING_STRIKE_PARTICLES.impact)!,
       },
+      poison: {
+        cloud: byUrl.get(POISON_CLOUD_PARTICLES.cloud)!,
+        burst: byUrl.get(POISON_CLOUD_PARTICLES.burst)!,
+        ring: byUrl.get(POISON_CLOUD_PARTICLES.ring)!,
+      },
     };
   }, [loaded]);
 }
@@ -719,6 +940,8 @@ function ProjectilePool({
   const arrowShafts = useRef<InstancedMesh>(null);
   const arrowHeads = useRef<InstancedMesh>(null);
   const arrowFletchings = useRef<InstancedMesh>(null);
+  const poisonClouds = useRef<InstancedMesh>(null);
+  const poisonCores = useRef<InstancedMesh>(null);
   const magicFrames = useRef<(InstancedMesh | null)[]>([]);
   const stones = useRef<InstancedMesh>(null);
   const dummy = useMemo(() => new Object3D(), []);
@@ -745,6 +968,8 @@ function ProjectilePool({
       setHiddenMatrix(arrowShafts.current, dummy, index);
       setHiddenMatrix(arrowHeads.current, dummy, index);
       setHiddenMatrix(arrowFletchings.current, dummy, index);
+      setHiddenMatrix(poisonClouds.current, dummy, index);
+      setHiddenMatrix(poisonCores.current, dummy, index);
       for (const magicFrame of magicFrames.current) {
         setHiddenMatrix(magicFrame, dummy, index);
       }
@@ -757,6 +982,34 @@ function ProjectilePool({
         const totalDistance = Math.max(0.001, distance(projectile.origin, projectile.destination));
         const travelled = distance(projectile.origin, projectile.position);
         const progress = MathUtils.clamp(travelled / totalDistance, 0, 1);
+        if (projectile.visualKind === "poison-cloud") {
+          const flightAge = travelled / Math.max(0.001, projectile.speed);
+          const pulse = 1 + Math.sin(flightAge * 9 + assignment.index * 1.7) * 0.06;
+          dummy.position.set(
+            projectile.position.x,
+            projectileFlightHeight(
+              "mage",
+              progress,
+              terrainHeightAt(projectile.origin),
+              terrainHeightAt(projectile.destination),
+              POISON_CLOUD_LAUNCH_HEIGHT,
+              POISON_CLOUD_LANDING_HEIGHT,
+            ),
+            projectile.position.z,
+          );
+          dummy.quaternion.copy(camera.quaternion);
+          dummy.rotateZ(flightAge * 1.4 + assignment.index * 0.71);
+          dummy.scale.setScalar(POISON_CLOUD_FLIGHT_SCALE * pulse);
+          dummy.updateMatrix();
+          poisonClouds.current?.setMatrixAt(assignment.index, dummy.matrix);
+
+          dummy.quaternion.copy(camera.quaternion);
+          dummy.rotateZ(-flightAge * 1.9 + assignment.index * 1.13);
+          dummy.scale.setScalar(POISON_CLOUD_CORE_SCALE * (2 - pulse));
+          dummy.updateMatrix();
+          poisonCores.current?.setMatrixAt(assignment.index, dummy.matrix);
+          continue;
+        }
         direction.set(
           projectile.destination.x - projectile.position.x,
           projectileArcSlope("ranger", progress, totalDistance),
@@ -838,6 +1091,8 @@ function ProjectilePool({
     if (arrowShafts.current) arrowShafts.current.instanceMatrix.needsUpdate = true;
     if (arrowHeads.current) arrowHeads.current.instanceMatrix.needsUpdate = true;
     if (arrowFletchings.current) arrowFletchings.current.instanceMatrix.needsUpdate = true;
+    if (poisonClouds.current) poisonClouds.current.instanceMatrix.needsUpdate = true;
+    if (poisonCores.current) poisonCores.current.instanceMatrix.needsUpdate = true;
     for (const magicFrame of magicFrames.current) {
       if (magicFrame) magicFrame.instanceMatrix.needsUpdate = true;
     }
@@ -857,6 +1112,40 @@ function ProjectilePool({
       <instancedMesh ref={arrowFletchings} args={[undefined, undefined, PROJECTILE_POOL_CAPACITY]} frustumCulled={false}>
         <coneGeometry args={[0.048, 0.13, 4, 1, true]} />
         <meshStandardMaterial color="#8d2832" roughness={0.88} side={DoubleSide} />
+      </instancedMesh>
+      <instancedMesh
+        ref={poisonClouds}
+        args={[undefined, undefined, PROJECTILE_POOL_CAPACITY]}
+        frustumCulled={false}
+        renderOrder={29}
+      >
+        <planeGeometry args={[1, 1]} />
+        <meshBasicMaterial
+          map={fxTextures.poison.cloud}
+          color={POISON_CLOUD_COLORS.cloud}
+          transparent
+          opacity={0.82}
+          depthWrite={false}
+          toneMapped={false}
+          side={DoubleSide}
+        />
+      </instancedMesh>
+      <instancedMesh
+        ref={poisonCores}
+        args={[undefined, undefined, PROJECTILE_POOL_CAPACITY]}
+        frustumCulled={false}
+        renderOrder={30}
+      >
+        <planeGeometry args={[1, 1]} />
+        <meshBasicMaterial
+          map={fxTextures.poison.burst}
+          color={POISON_CLOUD_COLORS.core}
+          transparent
+          opacity={0.62}
+          depthWrite={false}
+          toneMapped={false}
+          side={DoubleSide}
+        />
       </instancedMesh>
       {fxTextures.magicFlight.map((texture, index) => (
         <instancedMesh

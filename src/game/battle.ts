@@ -396,12 +396,17 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       )
     : { buildings: buildingStep.buildings, attacks: [] };
   for (const attack of arrowTowerAttackStep.attacks) {
+    const visualKind = state.factionRaces[attack.faction] === "undead"
+      ? "poison-cloud" as const
+      : undefined;
+    const visual = visualKind ? { visualKind } : {};
     const attackEvent = emit({
       type: "attack-started",
       attackerId: attack.towerId,
       targetId: attack.targetId,
       targetType: "unit",
       role: "arrow-tower",
+      ...visual,
       origin: attack.origin,
       targetPosition: attack.targetPosition,
     });
@@ -413,6 +418,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       targetId: attack.targetId,
       targetType: "unit",
       role: "ranger",
+      ...visual,
       origin: { ...attack.origin },
       position: { ...attack.origin },
       destination: { ...attack.targetPosition },
@@ -427,6 +433,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       targetId: attack.targetId,
       targetType: "unit",
       role: "ranger",
+      ...visual,
       origin: attack.origin,
       destination: attack.targetPosition,
     });
@@ -798,6 +805,7 @@ function resolveProjectileImpact(
     targetId: projectile.targetId,
     targetType: projectile.targetType,
     role: projectile.role,
+    ...(projectile.visualKind ? { visualKind: projectile.visualKind } : {}),
     position: { ...position },
     splashRadius: projectile.splashRadius,
   });

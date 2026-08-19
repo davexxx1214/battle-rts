@@ -68,3 +68,13 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 720px) {
+  .selector {
+    grid-template-columns: repeat(2, minmax(112px, 1fr));
+  }
+
+  .option {
+    min-height: 44px;
+  }
+}

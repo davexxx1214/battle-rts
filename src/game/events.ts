@@ -1,4 +1,9 @@
-import type { Faction, UnitRole, WorldPoint } from "./types";
+import type {
+  AttackVisualKind,
+  Faction,
+  UnitRole,
+  WorldPoint,
+} from "./types";
 import type { BuildingSimulationEvent } from "./buildings";
 import type { BuildingKind, TroopKind } from "./rules";
 import type { HexCoordinate } from "../map/battlefield";
@@ -45,6 +50,7 @@ export type BattleEventInput =
       readonly targetId: string;
       readonly targetType: CombatTargetType;
       readonly role: UnitRole | "castle" | "arrow-tower";
+      readonly visualKind?: AttackVisualKind;
       readonly origin: WorldPoint;
       readonly targetPosition: WorldPoint;
     }
@@ -55,6 +61,7 @@ export type BattleEventInput =
       readonly targetId: string;
       readonly targetType: CombatTargetType;
       readonly role: UnitRole;
+      readonly visualKind?: AttackVisualKind;
       readonly origin: WorldPoint;
       readonly destination: WorldPoint;
     }
@@ -65,6 +72,7 @@ export type BattleEventInput =
       readonly targetId: string;
       readonly targetType: CombatTargetType;
       readonly role: UnitRole;
+      readonly visualKind?: AttackVisualKind;
       readonly position: WorldPoint;
       readonly splashRadius: number;
     }
