@@ -95,13 +95,23 @@ function CharacterUnitModel({
     race,
   );
   const visualScale = asset.visualScale ?? 1;
-  const equipment = characterEquipmentFor(asset, unit.faction);
-  const characterGltfs = useLoader(
-    GLTFLoader,
-    [asset.modelUrl, ...equipment.map((piece) => piece.url)],
+  const equipment = useMemo(
+    () => characterEquipmentFor(asset, unit.faction),
+    [asset, unit.faction],
   );
+  const modelUrls = useMemo(
+    () => [asset.modelUrl, ...equipment.map((piece) => piece.url)],
+    [asset.modelUrl, equipment],
+  );
+  const loadedCharacterGltfs = useLoader(GLTFLoader, modelUrls);
+  const characterGltfs = Array.isArray(loadedCharacterGltfs)
+    ? loadedCharacterGltfs
+    : [loadedCharacterGltfs];
   const gltf = characterGltfs[0]!;
-  const animationGltfs = useLoader(GLTFLoader, [...CHARACTER_ANIMATION_URLS]);
+  const loadedAnimationGltfs = useLoader(GLTFLoader, [...CHARACTER_ANIMATION_URLS]);
+  const animationGltfs = Array.isArray(loadedAnimationGltfs)
+    ? loadedAnimationGltfs
+    : [loadedAnimationGltfs];
   const root = useRef<Object3D>(null);
   const healthRoot = useRef<Object3D>(null);
   const healthParentRotation = useMemo(() => new Quaternion(), []);
@@ -119,12 +129,10 @@ function CharacterUnitModel({
         source: characterGltfs[index + 1]!.scene,
       })),
     ),
-    [characterGltfs, equipment, gltf.scene, race, role, unit.faction, visualScale],
+    [equipment, gltf.scene, race, role, unit.faction, visualScale],
   );
-  const clips = useMemo(
-    () => animationGltfs.flatMap((animation) => animation.animations),
-    [animationGltfs],
-  );
+  const animationGltfsRef = useRef(animationGltfs);
+  animationGltfsRef.current = animationGltfs;
   const mixer = useMemo(() => new AnimationMixer(model), [model]);
   const modelMaterials = useMemo(() => collectModelMaterials(model), [model]);
   const animationAccumulator = useRef(0);
@@ -139,9 +147,10 @@ function CharacterUnitModel({
   });
 
   useEffect(() => {
-    const clip = clips.find((candidate) => candidate.name === animationName)
-      ?? clips.find((candidate) => candidate.name === "Idle_A")
-      ?? clips[0];
+    const available = animationGltfsRef.current.flatMap((animation) => animation.animations);
+    const clip = available.find((candidate) => candidate.name === animationName)
+      ?? available.find((candidate) => candidate.name === "Idle_A")
+      ?? available[0];
     if (!clip) return;
     const action = mixer.clipAction(clip);
     const previous = activeAction.current;
@@ -159,7 +168,7 @@ function CharacterUnitModel({
     }
     action.fadeIn(0.12).play();
     activeAction.current = action;
-  }, [animationName, attackSequence, clips, damageTime, mixer, unit.status]);
+  }, [animationName, attackSequence, damageTime, mixer, unit.status]);
 
   useEffect(() => () => {
     activeAction.current = null;

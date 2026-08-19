@@ -87,7 +87,12 @@ export function CatapultUnitModel({
     [operatorGltf.scene, race, unit.faction],
   );
   const operatorClips = useMemo(
-    () => operatorAnimationGltfs.flatMap((animation) => animation.animations),
+    () => {
+      const files = Array.isArray(operatorAnimationGltfs)
+        ? operatorAnimationGltfs
+        : [operatorAnimationGltfs];
+      return files.flatMap((animation) => animation.animations);
+    },
     [operatorAnimationGltfs],
   );
   const operatorMixer = useMemo(() => new AnimationMixer(operator), [operator]);
