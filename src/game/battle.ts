@@ -40,7 +40,6 @@ import type {
 import {
   createFactionRaces,
   legacyUndeadOpponentRaces,
-  resolveBattleRace,
 } from "./factions";
 import { BattleSpatialIndex } from "./spatialIndex";
 import { unitSpecFor } from "./rules";
@@ -373,6 +372,8 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
         economy: economyStep.state,
         map: BATTLEFIELD_MAP,
         units: damagedUnits,
+        factionRaces: state.factionRaces,
+        undeadOpponent: state.undeadOpponent,
       })
     : {
         buildings: buildingHealthSettlement.buildings,
@@ -470,11 +471,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     id: spawn.unitId,
     faction: spawn.faction,
     role: spawn.role,
-    combatProfile: resolveBattleRace(
-      state.factionRaces,
-      spawn.faction,
-      state.undeadOpponent,
-    ),
+    combatProfile: spawn.race,
     squadId: `${spawn.buildingId}-spawned`,
     position: spawn.position,
   }));

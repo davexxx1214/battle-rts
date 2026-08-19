@@ -113,7 +113,6 @@ export interface GameRules {
       readonly firstSpawnSeconds: number;
       readonly spawnIntervalSeconds: number;
       readonly spawnCount: number;
-      readonly spawnedUnit: TroopKind;
       readonly maximumActivePerFaction: number;
     };
   };
@@ -272,6 +271,40 @@ export const TROOP_ROLE_BY_DEPLOYABLE = {
   catapult: "catapult",
 } as const satisfies Readonly<Record<TroopKind, UnitRole>>;
 
+export const HUMAN_TROOP_COUNTS = {
+  spearman: 2,
+  swordsman: 3,
+  archer: 2,
+  mage: 2,
+  catapult: 1,
+} as const satisfies Readonly<Record<TroopKind, number>>;
+
+export const HUMAN_TROOP_DESIGNS = {
+  spearman: {
+    name: "长枪兵",
+    identity: "低费长柄近战",
+  },
+  swordsman: {
+    name: "剑士",
+    identity: "近战前锋",
+  },
+  archer: {
+    name: "弓箭手",
+    identity: "远程单体",
+  },
+  mage: {
+    name: "法师",
+    identity: "范围法术",
+  },
+  catapult: {
+    name: "投石车",
+    identity: "重型攻城",
+  },
+} as const satisfies Readonly<Record<
+  TroopKind,
+  { readonly name: string; readonly identity: string }
+>>;
+
 export const UNDEAD_TROOP_ROLE_BY_DEPLOYABLE = {
   spearman: "spearman",
   swordsman: "knight",
@@ -320,6 +353,52 @@ export const UNDEAD_AI_TROOP_CYCLES = {
   hard: ["catapult", "spearman", "swordsman", "archer", "mage"],
 } as const satisfies Readonly<Record<AiDifficulty, readonly TroopKind[]>>;
 
+export const HUMAN_AI_TROOP_CYCLES = {
+  easy: ["spearman", "archer", "swordsman"],
+  normal: ["spearman", "swordsman", "archer", "mage"],
+  hard: ["spearman", "swordsman", "archer", "mage", "catapult"],
+} as const satisfies Readonly<Record<AiDifficulty, readonly TroopKind[]>>;
+
+export interface RaceDeploymentCatalog {
+  readonly troopRoles: Readonly<Record<TroopKind, UnitRole>>;
+  readonly troopCounts: Readonly<Record<TroopKind, number>>;
+  readonly troopDesigns: Readonly<Record<
+    TroopKind,
+    { readonly name: string; readonly identity: string }
+  >>;
+  readonly barracks: {
+    readonly name: string;
+    readonly productionVerb: string;
+    readonly spawnedUnit: TroopKind;
+  };
+  readonly aiTroopCycles: Readonly<Record<AiDifficulty, readonly TroopKind[]>>;
+}
+
+export const RACE_DEPLOYMENT_CATALOG = {
+  human: {
+    troopRoles: TROOP_ROLE_BY_DEPLOYABLE,
+    troopCounts: HUMAN_TROOP_COUNTS,
+    troopDesigns: HUMAN_TROOP_DESIGNS,
+    barracks: {
+      name: "兵营",
+      productionVerb: "训练",
+      spawnedUnit: "swordsman",
+    },
+    aiTroopCycles: HUMAN_AI_TROOP_CYCLES,
+  },
+  undead: {
+    troopRoles: UNDEAD_TROOP_ROLE_BY_DEPLOYABLE,
+    troopCounts: UNDEAD_TROOP_COUNTS,
+    troopDesigns: UNDEAD_TROOP_DESIGNS,
+    barracks: {
+      name: "墓穴兵营",
+      productionVerb: "召唤",
+      spawnedUnit: "swordsman",
+    },
+    aiTroopCycles: UNDEAD_AI_TROOP_CYCLES,
+  },
+} as const satisfies Readonly<Record<BattleRace, RaceDeploymentCatalog>>;
+
 export function unitSpecFor(
   role: UnitRole,
   combatProfile: UnitCombatProfile = "human",
@@ -342,9 +421,7 @@ export function unitRoleForDeployment(
 }
 
 export function unitRoleForRace(kind: TroopKind, race: BattleRace): UnitRole {
-  return race === "undead"
-    ? UNDEAD_TROOP_ROLE_BY_DEPLOYABLE[kind]
-    : TROOP_ROLE_BY_DEPLOYABLE[kind];
+  return RACE_DEPLOYMENT_CATALOG[race].troopRoles[kind];
 }
 
 export function troopCountForDeployment(
@@ -359,9 +436,22 @@ export function troopCountForDeployment(
 }
 
 export function troopCountForRace(kind: TroopKind, race: BattleRace): number {
-  return race === "undead"
-    ? UNDEAD_TROOP_COUNTS[kind]
-    : GAME_RULES.deployment.troopCounts[kind];
+  return RACE_DEPLOYMENT_CATALOG[race].troopCounts[kind];
+}
+
+export function troopDesignForRace(kind: TroopKind, race: BattleRace) {
+  return RACE_DEPLOYMENT_CATALOG[race].troopDesigns[kind];
+}
+
+export function barracksDesignForRace(race: BattleRace) {
+  return RACE_DEPLOYMENT_CATALOG[race].barracks;
+}
+
+export function aiTroopCycleForRace(
+  race: BattleRace,
+  difficulty: AiDifficulty,
+): readonly TroopKind[] {
+  return RACE_DEPLOYMENT_CATALOG[race].aiTroopCycles[difficulty];
 }
 
 const GOLD_MINE_COST = 700;
@@ -392,13 +482,7 @@ export const GAME_RULES = {
       "gold-mine": GOLD_MINE_COST,
       barracks: BARRACKS_COST,
     },
-    troopCounts: {
-      spearman: 2,
-      swordsman: 3,
-      archer: 2,
-      mage: 2,
-      catapult: 1,
-    },
+    troopCounts: HUMAN_TROOP_COUNTS,
   },
   opponentAi: {
     strategies: {
@@ -406,7 +490,7 @@ export const GAME_RULES = {
         firstDecisionSeconds: 4,
         decisionIntervalSeconds: 24,
         buildingGoals: [],
-        troopCycle: ["spearman", "archer", "swordsman"],
+        troopCycle: HUMAN_AI_TROOP_CYCLES.easy,
         deploymentPosture: "defensive",
       },
       normal: {
@@ -415,7 +499,7 @@ export const GAME_RULES = {
         buildingGoals: [
           { kind: "gold-mine", desiredActive: 1 },
         ],
-        troopCycle: ["spearman", "swordsman", "archer", "mage"],
+        troopCycle: HUMAN_AI_TROOP_CYCLES.normal,
         deploymentPosture: "balanced",
       },
       hard: {
@@ -426,7 +510,7 @@ export const GAME_RULES = {
           { kind: "barracks", desiredActive: 1 },
           { kind: "guard-tower", desiredActive: 1 },
         ],
-        troopCycle: ["spearman", "swordsman", "archer", "mage", "catapult"],
+        troopCycle: HUMAN_AI_TROOP_CYCLES.hard,
         deploymentPosture: "aggressive",
       },
     },
@@ -469,7 +553,6 @@ export const GAME_RULES = {
       firstSpawnSeconds: 5,
       spawnIntervalSeconds: 8,
       spawnCount: 4,
-      spawnedUnit: "swordsman",
       maximumActivePerFaction: 2,
     },
   },

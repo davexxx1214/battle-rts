@@ -6,14 +6,17 @@ import {
 import { getMatchClock } from "../game/economy";
 import { resolveBattleRace } from "../game/factions";
 import {
+  barracksDesignForRace,
   DEPLOYABLE_CATEGORIES,
   GAME_RULES,
-  UNDEAD_TROOP_DESIGNS,
+  TROOP_KINDS,
   troopCountForRace,
+  troopDesignForRace,
   type BuildingKind,
   type DeployableKind,
   type TroopKind,
 } from "../game/rules";
+import type { BattleRace } from "../game/types";
 import styles from "./DeploymentRail.module.css";
 
 interface DeploymentRailProps {
@@ -33,67 +36,60 @@ interface DeployableDefinition extends PresentationMetadata {
   readonly kind: DeployableKind;
 }
 
-const TROOP_PRESENTATION = {
-  spearman: {
-    iconSrc: "/assets/ui/deployables/spearman.png",
-    name: "长枪兵",
-    detail: "低费长柄近战",
+const DEPLOYABLE_ICON_SOURCES = {
+  human: {
+    spearman: "/assets/ui/deployables/spearman.png",
+    swordsman: "/assets/ui/deployables/swordsman.png",
+    archer: "/assets/ui/deployables/archer.png",
+    mage: "/assets/ui/deployables/mage.png",
+    catapult: "/assets/ui/deployables/catapult.png",
+    "guard-tower": "/assets/ui/deployables/guard-tower.png",
+    "gold-mine": "/assets/ui/deployables/gold-mine.png",
+    barracks: "/assets/ui/deployables/barracks.png",
   },
-  swordsman: {
-    iconSrc: "/assets/ui/deployables/swordsman.png",
-    name: "剑士",
-    detail: "近战前锋",
+  undead: {
+    spearman: "/assets/ui/deployables/undead/spearman.png",
+    swordsman: "/assets/ui/deployables/undead/swordsman.png",
+    archer: "/assets/ui/deployables/undead/archer.png",
+    mage: "/assets/ui/deployables/undead/mage.png",
+    catapult: "/assets/ui/deployables/undead/catapult.png",
+    "guard-tower": "/assets/ui/deployables/undead/guard-tower.png",
+    "gold-mine": "/assets/ui/deployables/undead/gold-mine.png",
+    barracks: "/assets/ui/deployables/undead/barracks.png",
   },
-  archer: {
-    iconSrc: "/assets/ui/deployables/archer.png",
-    name: "弓箭手",
-    detail: "远程单体",
-  },
-  mage: {
-    iconSrc: "/assets/ui/deployables/mage.png",
-    name: "法师",
-    detail: "范围法术",
-  },
-  catapult: {
-    iconSrc: "/assets/ui/deployables/catapult.png",
-    name: "投石车",
-    detail: "重型攻城",
-  },
-} as const satisfies Readonly<Record<TroopKind, PresentationMetadata>>;
+} as const satisfies Readonly<Record<
+  BattleRace,
+  Readonly<Record<DeployableKind, string>>
+>>;
+
+const HUMAN_BARRACKS = barracksDesignForRace("human");
+const HUMAN_BARRACKS_UNIT = troopDesignForRace(HUMAN_BARRACKS.spawnedUnit, "human");
 
 const BUILDING_PRESENTATION = {
   "guard-tower": {
-    iconSrc: "/assets/ui/deployables/guard-tower.png",
+    iconSrc: DEPLOYABLE_ICON_SOURCES.human["guard-tower"],
     name: "箭塔",
     detail: `射程 ${GAME_RULES.buildings.guardTower.attackRange} · 持续 ${GAME_RULES.buildings.guardTower.lifetimeSeconds} 秒`,
   },
   "gold-mine": {
-    iconSrc: "/assets/ui/deployables/gold-mine.png",
+    iconSrc: DEPLOYABLE_ICON_SOURCES.human["gold-mine"],
     name: "金矿",
     detail: `每 ${GAME_RULES.buildings.goldMine.productionIntervalSeconds} 秒产出 ${GAME_RULES.buildings.goldMine.goldPerProduction}`,
   },
   barracks: {
-    iconSrc: "/assets/ui/deployables/barracks.png",
-    name: "兵营",
-    detail: `每 ${GAME_RULES.buildings.barracks.spawnIntervalSeconds} 秒生成 ${TROOP_PRESENTATION[GAME_RULES.buildings.barracks.spawnedUnit].name}`,
+    iconSrc: DEPLOYABLE_ICON_SOURCES.human.barracks,
+    name: HUMAN_BARRACKS.name,
+    detail: `每 ${GAME_RULES.buildings.barracks.spawnIntervalSeconds} 秒${HUMAN_BARRACKS.productionVerb} ${HUMAN_BARRACKS_UNIT.name}`,
   },
 } as const satisfies Readonly<Record<BuildingKind, PresentationMetadata>>;
 
-const DEPLOYABLE_PRESENTATION = {
-  ...BUILDING_PRESENTATION,
-  ...TROOP_PRESENTATION,
-} as const satisfies Readonly<Record<DeployableKind, PresentationMetadata>>;
-
-const DEPLOYABLES: readonly DeployableDefinition[] = (
-  Object.keys(DEPLOYABLE_PRESENTATION) as DeployableKind[]
-).map((kind) => ({ kind, ...DEPLOYABLE_PRESENTATION[kind] }));
-
-const BUILDINGS = DEPLOYABLES.filter(({ kind }) => (
-  DEPLOYABLE_CATEGORIES[kind] === "building"
-));
-const TROOPS = DEPLOYABLES.filter(({ kind }) => (
-  DEPLOYABLE_CATEGORIES[kind] === "troop"
-));
+const BUILDINGS: readonly DeployableDefinition[] = (
+  Object.keys(BUILDING_PRESENTATION) as BuildingKind[]
+).map((kind) => ({ kind, ...BUILDING_PRESENTATION[kind] }));
+const TROOPS: readonly DeployableDefinition[] = TROOP_KINDS.map((kind) => ({
+  kind,
+  ...troopPresentationForRace(kind, "human"),
+}));
 
 export function DeploymentRail({
   session,
@@ -205,13 +201,12 @@ function DeployableGroup({
           const troopKind = DEPLOYABLE_CATEGORIES[item.kind] === "troop"
             ? item.kind as TroopKind
             : null;
-          const presentation = playerRace === "undead" && troopKind
-            ? {
+          const presentation = troopKind
+            ? { ...item, ...troopPresentationForRace(troopKind, playerRace) }
+            : {
                 ...item,
-                name: UNDEAD_TROOP_DESIGNS[troopKind].name,
-                detail: UNDEAD_TROOP_DESIGNS[troopKind].identity,
-              }
-            : item;
+                ...buildingPresentationForRace(item.kind as BuildingKind, playerRace),
+              };
           const availability = getDeployableAvailability(
             session,
             "verdant",
@@ -237,7 +232,7 @@ function DeployableGroup({
               <span className={styles.iconFrame} aria-hidden="true">
                 <img
                   className={styles.deployableIcon}
-                  src={item.iconSrc}
+                  src={presentation.iconSrc}
                   alt=""
                   draggable={false}
                 />
@@ -261,6 +256,37 @@ function DeployableGroup({
       </div>
     </section>
   );
+}
+
+function troopPresentationForRace(
+  kind: TroopKind,
+  race: BattleRace,
+): PresentationMetadata {
+  const design = troopDesignForRace(kind, race);
+  return {
+    iconSrc: DEPLOYABLE_ICON_SOURCES[race][kind],
+    name: design.name,
+    detail: design.identity,
+  };
+}
+
+function buildingPresentationForRace(
+  kind: BuildingKind,
+  race: BattleRace,
+): PresentationMetadata {
+  if (kind !== "barracks") {
+    return {
+      ...BUILDING_PRESENTATION[kind],
+      iconSrc: DEPLOYABLE_ICON_SOURCES[race][kind],
+    };
+  }
+  const barracks = barracksDesignForRace(race);
+  const spawnedUnit = troopDesignForRace(barracks.spawnedUnit, race);
+  return {
+    iconSrc: DEPLOYABLE_ICON_SOURCES[race].barracks,
+    name: barracks.name,
+    detail: `每 ${GAME_RULES.buildings.barracks.spawnIntervalSeconds} 秒${barracks.productionVerb} ${spawnedUnit.name}`,
+  };
 }
 
 export function deploymentReasonLabel(reason: DeploymentFailureReason): string {

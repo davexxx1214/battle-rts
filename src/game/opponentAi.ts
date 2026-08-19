@@ -5,8 +5,8 @@ import {
   previewDeployment,
 } from "./deployTransaction";
 import {
+  aiTroopCycleForRace,
   GAME_RULES,
-  UNDEAD_AI_TROOP_CYCLES,
   isBuildingDeployable,
   type AiDeploymentPosture,
   type AiDifficulty,
@@ -68,7 +68,7 @@ function chooseDeployment(
   ) {
     return null;
   }
-  const troopKind = selectTroopKind(session, strategy, difficulty);
+  const troopKind = selectTroopKind(session, difficulty);
   const worldPosition = chooseDeploymentPosition(
     session,
     troopKind,
@@ -111,21 +111,19 @@ function selectOpponentKind(
     )).length;
     if (activeCount < goal.desiredActive) return goal.kind;
   }
-  return selectTroopKind(session, strategy, difficulty);
+  return selectTroopKind(session, difficulty);
 }
 
 function selectTroopKind(
   session: BattleSessionState,
-  strategy: OpponentAiStrategy,
   difficulty: AiDifficulty,
 ): TroopKind {
-  const troopCycle = resolveBattleRace(
+  const race = resolveBattleRace(
     session.battle.factionRaces,
     OPPONENT_FACTION,
     session.battle.undeadOpponent,
-  ) === "undead"
-    ? UNDEAD_AI_TROOP_CYCLES[difficulty]
-    : strategy.troopCycle;
+  );
+  const troopCycle = aiTroopCycleForRace(race, difficulty);
   const deployedTroops = troopCycle.reduce((total, kind) => (
     total + session.battle.deploymentCounts[OPPONENT_FACTION][kind]
   ), 0);

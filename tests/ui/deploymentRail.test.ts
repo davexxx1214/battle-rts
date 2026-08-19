@@ -78,7 +78,13 @@ describe("deployment rail", () => {
 
     expect(markup).toContain("骸骨先锋");
     expect(markup).toContain("冰霜骨龙");
+    expect(markup).toContain("墓穴兵营");
+    expect(markup).toContain("召唤 墓穴卫士");
     expect(markup).toContain("×3");
+    expect(new Set(
+      markup.match(/\/assets\/ui\/deployables\/undead\/[^"]+\.png/g),
+    ).size).toBe(8);
     expect(markup).not.toContain(">长枪兵<");
+    expect(markup).not.toContain(">兵营<");
   });
 });

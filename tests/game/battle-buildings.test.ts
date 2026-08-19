@@ -73,6 +73,31 @@ describe("battle building integration", () => {
     }));
   });
 
+  it("turns an undead barracks spawn into an undead combat unit", () => {
+    const barracks = createBattleBuilding({
+      id: "integrated-undead-barracks",
+      kind: "barracks",
+      faction: "verdant",
+      coordinate: BUILDING_COORDINATE,
+      createdAt: 0,
+    });
+    const battle = {
+      ...createUnresolvedBattle(),
+      factionRaces: { verdant: "undead", crimson: "human" } as const,
+    };
+    let state = withBuilding(battle, barracks);
+
+    state = advance(state, 50);
+
+    expect(state.units).toContainEqual(expect.objectContaining({
+      id: `${barracks.id}-swordsman-1`,
+      faction: "verdant",
+      role: "knight",
+      combatProfile: "undead",
+      maxHealth: 300,
+    }));
+  });
+
   it("releases a destroyed building when its authoritative removal time arrives", () => {
     const mine = {
       ...createBattleBuilding({

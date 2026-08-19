@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  aiTroopCycleForRace,
+  barracksDesignForRace,
   GAME_RULES,
   TROOP_KINDS,
   TROOP_ROLE_BY_DEPLOYABLE,
@@ -10,7 +12,9 @@ import {
   UNDEAD_UNIT_SPECS,
   UNIT_SPECS,
   troopCountForDeployment,
+  troopDesignForRace,
   unitRoleForDeployment,
+  unitRoleForRace,
   unitSpecFor,
   validateGameRules,
   type GameRules,
@@ -188,8 +192,25 @@ describe("central game rules", () => {
       mage: "mage",
       catapult: "catapult",
     });
-    expect(TROOP_ROLE_BY_DEPLOYABLE[GAME_RULES.buildings.barracks.spawnedUnit])
+    expect(unitRoleForRace(barracksDesignForRace("human").spawnedUnit, "human"))
       .toBe("knight");
+  });
+
+  it("keeps each race's troops, barracks, and AI cycle in one deployment catalog", () => {
+    expect(troopDesignForRace("swordsman", "human").name).toBe("剑士");
+    expect(troopDesignForRace("swordsman", "undead").name).toBe("墓穴卫士");
+    expect(barracksDesignForRace("human")).toMatchObject({
+      name: "兵营",
+      productionVerb: "训练",
+      spawnedUnit: "swordsman",
+    });
+    expect(barracksDesignForRace("undead")).toMatchObject({
+      name: "墓穴兵营",
+      productionVerb: "召唤",
+      spawnedUnit: "swordsman",
+    });
+    expect(aiTroopCycleForRace("human", "hard")[0]).toBe("spearman");
+    expect(aiTroopCycleForRace("undead", "hard")[0]).toBe("catapult");
   });
 
   it("keeps castle range at least as long as archers and mages without matching catapults", () => {

@@ -13,11 +13,19 @@ import {
 import type { CombatDamageIntent, CombatTarget } from "./combat";
 import { grantGold, type EconomyState } from "./economy";
 import {
+  barracksDesignForRace,
   GAME_RULES,
-  TROOP_ROLE_BY_DEPLOYABLE,
+  unitRoleForRace,
   type BuildingKind,
 } from "./rules";
-import type { Faction, UnitRole, WorldPoint } from "./types";
+import { resolveBattleRace } from "./factions";
+import type {
+  BattleRace,
+  Faction,
+  FactionRaces,
+  UnitRole,
+  WorldPoint,
+} from "./types";
 
 export type BattleBuildingKind = BuildingKind | "castle" | "arrow-tower";
 export type BattleBuildingStatus = "active" | "destroyed";
@@ -66,6 +74,7 @@ export interface BuildingUnitSpawn {
   readonly buildingId: string;
   readonly unitId: string;
   readonly faction: Faction;
+  readonly race: BattleRace;
   readonly role: UnitRole;
   readonly position: WorldPoint;
   readonly scheduledAt: number;
@@ -88,6 +97,7 @@ export type BuildingSimulationEvent =
       readonly buildingId: string;
       readonly faction: Faction;
       readonly unitId: string;
+      readonly race: BattleRace;
       readonly role: UnitRole;
       readonly position: WorldPoint;
       readonly scheduledAt: number;
@@ -122,6 +132,8 @@ export interface AdvanceBuildingsInput {
   readonly elapsedSeconds: number;
   readonly deltaSeconds: number;
   readonly damageIntents: readonly CombatDamageIntent[];
+  readonly factionRaces?: FactionRaces;
+  readonly undeadOpponent?: boolean;
 }
 
 export interface AdvanceBuildingsResult {
@@ -153,6 +165,8 @@ export interface AdvanceBuildingProductionInput {
   readonly economy: EconomyState;
   readonly map: BattlefieldMap;
   readonly units: readonly BuildingSpawnBlocker[];
+  readonly factionRaces?: FactionRaces;
+  readonly undeadOpponent?: boolean;
 }
 
 export interface BuildingCleanupResult {
@@ -253,6 +267,8 @@ export function advanceBuildings(
     economy: input.economy,
     map: input.map,
     units: input.units,
+    factionRaces: input.factionRaces,
+    undeadOpponent: input.undeadOpponent,
   });
 }
 
@@ -345,12 +361,18 @@ export function advanceBuildingProduction(
         continue;
       }
       spawnedCoordinateKeys.add(coordinateKey(worldToAxial(position)));
-      const spawnedUnit = GAME_RULES.buildings.barracks.spawnedUnit;
+      const race = resolveBattleRace(
+        input.factionRaces,
+        action.building.faction,
+        input.undeadOpponent,
+      );
+      const spawnedUnit = barracksDesignForRace(race).spawnedUnit;
       const spawn: BuildingUnitSpawn = {
         buildingId: action.building.id,
         unitId: `${action.building.id}-${spawnedUnit}-${action.sequence}`,
         faction: action.building.faction,
-        role: TROOP_ROLE_BY_DEPLOYABLE[spawnedUnit],
+        race,
+        role: unitRoleForRace(spawnedUnit, race),
         position,
         scheduledAt: action.scheduledAt,
         spawnSequence: action.sequence,

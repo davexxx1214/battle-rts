@@ -161,6 +161,38 @@ describe("building simulation", () => {
     expect(new Set(first.unitSpawns.map((spawn) => JSON.stringify(spawn.position))).size).toBe(4);
   });
 
+  it("uses the owning faction's race when a barracks produces units", () => {
+    const barracks = createBattleBuilding({
+      id: "undead-barracks-1",
+      kind: "barracks",
+      faction: "verdant",
+      coordinate: BARRACKS_COORDINATE,
+      createdAt: 0,
+    });
+    const result = advanceBuildings({
+      buildings: [barracks],
+      economy: createEconomyState(),
+      occupancy: occupy(barracks),
+      map: BATTLEFIELD_MAP,
+      units: [],
+      elapsedSeconds: 0,
+      deltaSeconds: GAME_RULES.buildings.barracks.firstSpawnSeconds,
+      damageIntents: [],
+      factionRaces: { verdant: "undead", crimson: "human" },
+    });
+
+    expect(result.unitSpawns).toHaveLength(1);
+    expect(result.unitSpawns[0]).toMatchObject({
+      faction: "verdant",
+      race: "undead",
+      role: "knight",
+    });
+    expect(result.events).toContainEqual(expect.objectContaining({
+      type: "building-unit-spawned",
+      race: "undead",
+    }));
+  });
+
   it("skips a blocked barracks spawn without queueing it for later", () => {
     const barracks = createBattleBuilding({
       id: "verdant-barracks-blocked",
