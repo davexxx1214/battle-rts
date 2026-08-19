@@ -592,12 +592,15 @@ export function App() {
               <button
                 className={styles.mobileMatchSetupButton}
                 type="button"
+                aria-label="对战设置"
+                aria-controls="mobile-match-setup"
                 aria-expanded={mobileMatchSetupOpen}
                 onClick={() => setMobileMatchSetupOpen((open) => !open)}
               >
-                对战设置
+                设置
               </button>
               <div
+                id="mobile-match-setup"
                 className={styles.matchSetupControls}
                 data-mobile-open={mobileMatchSetupOpen}
               >
@@ -645,12 +648,30 @@ export function App() {
             className={styles.audioToggle}
             data-enabled={audioEnabled}
             type="button"
-            aria-label={audioEnabled ? "关闭结算音乐和界面音效" : "开启结算音乐和界面音效"}
+            aria-label="游戏声音"
             aria-pressed={audioEnabled}
+            title={audioEnabled ? "关闭游戏声音" : "开启游戏声音"}
             onClick={() => setAudioEnabled((current) => !current)}
           >
-            <span aria-hidden="true">{audioEnabled ? "♪" : "×"}</span>
-            音频 <strong>{audioEnabled ? "开启" : "关闭"}</strong>
+            <span
+              className={styles.audioIcon}
+              data-sound-state={audioEnabled ? "on" : "off"}
+              aria-hidden="true"
+            >
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M3.5 9h4L13 4.75v14.5L7.5 15h-4Z" fill="currentColor" />
+                {audioEnabled ? (
+                  <>
+                    <path d="M16 8.5c2.1 1.8 2.1 5.2 0 7" />
+                    <path d="M18.7 6c4 3.2 4 8.8 0 12" />
+                  </>
+                ) : (
+                  <path d="m16.5 9 5 6m0-6-5 6" />
+                )}
+              </svg>
+            </span>
+            <span className={styles.audioLabel}>声音</span>
+            <strong>{audioEnabled ? "开启" : "关闭"}</strong>
           </button>
           <button className={styles.restartButton} type="button" onClick={resetBattle}>
             重新开局

@@ -404,6 +404,10 @@
 
 .audioToggle {
   min-width: 104px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   padding: 10px 12px;
   color: var(--muted);
   font-size: 9px;
@@ -411,11 +415,27 @@
   letter-spacing: 0.06em;
 }
 
-.audioToggle span {
-  display: inline-block;
-  width: 14px;
+.audioIcon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
   color: var(--crimson);
-  font-size: 12px;
+}
+
+.audioIcon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.audioIcon path:not([fill]) {
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
 }
 
 .audioToggle strong {
@@ -429,7 +449,7 @@
   box-shadow: inset 0 0 16px rgb(115 212 155 / 8%);
 }
 
-.audioToggle[data-enabled="true"] span {
+.audioToggle[data-enabled="true"] .audioIcon {
   color: var(--verdant);
 }
 
@@ -821,14 +841,14 @@
   .audioToggle {
     min-width: 38px;
     padding: 8px;
-    font-size: 0;
   }
 
-  .audioToggle span {
-    width: auto;
-    font-size: 12px;
+  .audioIcon {
+    width: 18px;
+    height: 18px;
   }
 
+  .audioLabel,
   .audioToggle strong {
     display: none;
   }
@@ -858,26 +878,20 @@
 }
 
 @media (orientation: landscape) and (max-height: 520px),
-  (orientation: portrait) and (max-width: 1024px) {
+  (orientation: portrait) and (max-width: 520px) {
   .commandBar {
-    height: 56px;
-    grid-template-columns: auto 1fr auto;
-    gap: 6px;
-    padding-right: max(8px, var(--game-safe-right));
-    padding-left: max(8px, var(--game-safe-left));
+    z-index: 40;
+    height: 48px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px;
+    padding-right: max(6px, var(--game-safe-right));
+    padding-left: max(6px, var(--game-safe-left));
   }
 
   .brandLockup {
-    gap: 0;
+    display: none;
   }
 
-  .brandSigil {
-    width: 40px;
-    height: 40px;
-    font-size: 18px;
-  }
-
-  .brandLockup > div:last-child,
   .battlePulse {
     display: none;
   }
@@ -887,6 +901,11 @@
     gap: 4px;
   }
 
+  .commandCenter {
+    min-width: 0;
+    justify-self: start;
+  }
+
   .restartButton,
   .audioToggle,
   .engagementOrder {
@@ -894,33 +913,33 @@
   }
 
   .restartButton {
-    width: 54px;
-    padding: 6px;
-    font-size: 8px;
+    width: 48px;
+    padding: 4px;
+    font-size: 7px;
     letter-spacing: 0.04em;
   }
 
   .audioToggle {
     width: 44px;
     min-width: 44px;
-    padding: 6px;
-    font-size: 0;
+    padding: 4px;
   }
 
-  .audioToggle span {
-    width: auto;
-    font-size: 14px;
+  .audioIcon {
+    width: 20px;
+    height: 20px;
   }
 
+  .audioLabel,
   .audioToggle strong {
     display: none;
   }
 
   .engagementOrder {
-    width: 64px;
-    min-width: 64px;
+    width: 58px;
+    min-width: 58px;
     height: 44px;
-    padding: 5px 7px;
+    padding: 4px 5px;
   }
 
   .engagementOrder span {
@@ -928,11 +947,11 @@
   }
 
   .engagementOrder strong {
-    font-size: 13px;
+    font-size: 11px;
   }
 
   .warTable {
-    height: calc(100% - 56px);
+    height: calc(100% - 48px);
   }
 
   .battlefield {
@@ -945,8 +964,8 @@
   }
 
   .objectiveFlag {
-    top: 8px;
-    right: max(8px, var(--game-safe-right));
+    top: 6px;
+    right: max(6px, var(--game-safe-right));
     left: auto;
     width: max-content;
     max-width: min(230px, calc(100% - 190px));
@@ -1001,20 +1020,29 @@
   .zoomControls {
     position: absolute;
     z-index: 12;
-    right: max(8px, var(--game-safe-right));
-    bottom: calc(84px + max(8px, var(--game-safe-bottom)));
+    right: max(6px, var(--game-safe-right));
+    bottom: calc(63px + max(4px, var(--game-safe-bottom)));
     display: grid;
     grid-template-columns: repeat(2, 44px);
-    gap: 4px;
-    padding: 4px;
+    gap: 3px;
+    padding: 3px;
     border: 1px solid rgb(222 211 183 / 18%);
     background: rgb(10 11 9 / 72%);
     box-shadow: 0 8px 22px rgb(0 0 0 / 26%);
   }
 
+  .zoomButton {
+    width: 44px;
+    height: 44px;
+  }
+
+  .zoomButton span {
+    font-size: 20px;
+  }
+
   .victoryBanner {
-    width: calc(100% - 16px);
-    max-height: calc(100% - 16px);
+    width: min(420px, calc(100% - 16px - var(--game-safe-left) - var(--game-safe-right)));
+    max-height: calc(100% - 16px - var(--game-safe-top) - var(--game-safe-bottom));
     padding: 14px;
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -1041,17 +1069,17 @@
   }
 }
 
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 720px),
-  (orientation: portrait) and (max-width: 520px) and (max-height: 720px) {
+@media (orientation: landscape) and (max-height: 520px),
+  (orientation: portrait) and (max-width: 520px) {
   .mobileMatchSetupButton {
-    min-width: 68px;
+    min-width: 54px;
     min-height: 44px;
     display: block;
-    padding: 5px 7px;
+    padding: 4px 6px;
     border: 1px solid var(--line-strong);
     color: var(--parchment);
     background: #181914;
-    font-size: 8px;
+    font-size: 7px;
     font-weight: 900;
     cursor: pointer;
   }
@@ -1071,12 +1099,14 @@
     position: absolute;
     z-index: 30;
     top: 100%;
-    right: max(8px, var(--game-safe-right));
-    left: max(8px, var(--game-safe-left));
+    right: auto;
+    left: max(6px, var(--game-safe-left));
+    width: 430px;
+    max-width: calc(100% - 12px - var(--game-safe-left) - var(--game-safe-right));
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 6px;
-    padding: 7px;
+    gap: 4px;
+    padding: 4px;
     border: 1px solid var(--line-strong);
     border-top: 2px solid var(--amber);
     background: rgb(13 14 12 / 98%);

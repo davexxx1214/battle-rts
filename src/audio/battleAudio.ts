@@ -52,7 +52,7 @@ export interface CombatAudioPlayback {
 
 export type BattleMusicScene = "victory" | "defeat";
 
-export const DEFAULT_AUDIO_ENABLED = false;
+export const DEFAULT_AUDIO_ENABLED = true;
 
 const MASTER_VOLUME_MULTIPLIER = 0.5;
 

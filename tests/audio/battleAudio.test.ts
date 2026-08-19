@@ -14,8 +14,8 @@ import {
 import { stampBattleEvent } from "../../src/game/events";
 
 describe("battle audio", () => {
-  it("keeps audio off by default and keeps the shared mix restrained", () => {
-    expect(DEFAULT_AUDIO_ENABLED).toBe(false);
+  it("keeps audio on by default and keeps the shared mix restrained", () => {
+    expect(DEFAULT_AUDIO_ENABLED).toBe(true);
     expect(scaleAudioGain(1)).toBe(0.5);
     expect(scaleAudioGain(0.72)).toBe(0.36);
   });

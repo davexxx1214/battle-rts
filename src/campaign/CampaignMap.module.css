@@ -658,7 +658,7 @@
 }
 
 @media (orientation: landscape) and (max-height: 520px),
-  (orientation: portrait) and (max-width: 1024px) {
+  (orientation: portrait) and (max-width: 520px) {
   .campaign {
     height: 100%;
     min-height: 0;

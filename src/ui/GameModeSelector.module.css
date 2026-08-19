@@ -36,6 +36,10 @@
   outline-offset: 1px;
 }
 
+.shortLabel {
+  display: none;
+}
+
 @media (max-width: 620px) {
   .selector {
     grid-template-columns: repeat(3, minmax(56px, 1fr));
@@ -48,17 +52,25 @@
 }
 
 @media (orientation: landscape) and (max-height: 520px),
-  (orientation: portrait) and (max-width: 1024px) {
+  (orientation: portrait) and (max-width: 520px) {
   .selector {
-    grid-template-columns: repeat(3, minmax(50px, 1fr));
+    grid-template-columns: repeat(3, minmax(44px, 1fr));
     padding: 2px;
   }
 
   .option {
     min-height: 44px;
-    padding-inline: 5px;
+    padding-inline: 4px;
     font-size: 7px;
     letter-spacing: 0.03em;
+  }
+
+  .fullLabel {
+    display: none;
+  }
+
+  .shortLabel {
+    display: inline;
   }
 }
 

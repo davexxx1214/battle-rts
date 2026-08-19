@@ -27,7 +27,7 @@ describe("game mode selector", () => {
     expect(markup.match(/<button/g)).toHaveLength(3);
     expect(markup).toContain('aria-label="游戏模式"');
     expect(markup).toContain('aria-pressed="true"');
-    expect(markup).toMatch(/自由对战<\/button>/);
+    expect(markup).toMatch(/自由对战<\/span><span[^>]*aria-hidden="true">自由<\/span><\/button>/);
     expect(markup.indexOf("战役模式")).toBeLessThan(markup.indexOf("自由对战"));
   });
 
