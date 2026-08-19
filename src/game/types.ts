@@ -1,4 +1,6 @@
 export type Faction = "verdant" | "crimson";
+export type BattleRace = "human" | "undead";
+export type FactionRaces = Readonly<Record<Faction, BattleRace>>;
 export type UnitRole =
   | "knight"
   | "spearman"

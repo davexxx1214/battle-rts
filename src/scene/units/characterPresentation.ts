@@ -1,5 +1,5 @@
 import type { UnitRole, UnitStatus } from "../../game/battle";
-import type { Faction } from "../../game/types";
+import type { BattleRace, Faction } from "../../game/types";
 
 export type CharacterRole = Exclude<UnitRole, "catapult" | "bone-dragon">;
 
@@ -96,9 +96,12 @@ export const UNDEAD_CHARACTER_SCENE_ASSETS = {
 export function characterSceneAssetFor(
   role: CharacterRole,
   faction: Faction,
-  undeadOpponent = false,
+  raceOrLegacyUndeadOpponent: BattleRace | boolean = false,
 ): CharacterSceneAsset {
-  return undeadOpponent && faction === "crimson"
+  const undead = typeof raceOrLegacyUndeadOpponent === "string"
+    ? raceOrLegacyUndeadOpponent === "undead"
+    : raceOrLegacyUndeadOpponent && faction === "crimson";
+  return undead
     ? UNDEAD_CHARACTER_SCENE_ASSETS[role]
     : CHARACTER_SCENE_ASSETS[role];
 }

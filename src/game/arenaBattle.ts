@@ -5,11 +5,12 @@ import {
   type BattleUnit,
 } from "./battle";
 import {
-  GAME_RULES,
-  TROOP_ROLE_BY_DEPLOYABLE,
+  troopCountForRace,
+  unitRoleForRace,
   type TroopKind,
 } from "./rules";
-import type { Faction } from "./types";
+import { createFactionRaces } from "./factions";
+import type { Faction, FactionRaces } from "./types";
 import { BATTLEFIELD_MAP, axialToWorld } from "../map/battlefield";
 
 export const ARENA_STARTING_UNITS_PER_FACTION = 40;
@@ -23,11 +24,17 @@ const ARENA_ROSTER = [
 ] as const satisfies readonly TroopKind[];
 const FACTIONS = ["verdant", "crimson"] as const satisfies readonly Faction[];
 
-export function createArenaBattle(): BattleState {
-  return createBattleState(FACTIONS.flatMap(createArenaFaction));
+export function createArenaBattle(factionRaces: FactionRaces = createFactionRaces()): BattleState {
+  return createBattleState(
+    FACTIONS.flatMap((faction) => createArenaFaction(faction, factionRaces)),
+    { factionRaces },
+  );
 }
 
-function createArenaFaction(faction: Faction): readonly BattleUnit[] {
+function createArenaFaction(
+  faction: Faction,
+  factionRaces: FactionRaces,
+): readonly BattleUnit[] {
   const center = axialToWorld(BATTLEFIELD_MAP.center);
   const frontCells = BATTLEFIELD_MAP.cells
     .filter((cell) => cell.territory === faction && cell.walkable)
@@ -46,7 +53,7 @@ function createArenaFaction(faction: Faction): readonly BattleUnit[] {
   while (units.length < ARENA_STARTING_UNITS_PER_FACTION) {
     const kind = ARENA_ROSTER[squadIndex % ARENA_ROSTER.length]!;
     const squadSize = Math.min(
-      GAME_RULES.deployment.troopCounts[kind],
+      troopCountForRace(kind, factionRaces[faction]),
       ARENA_STARTING_UNITS_PER_FACTION - units.length,
     );
     const cell = frontCells[squadIndex % frontCells.length]!;
@@ -59,7 +66,8 @@ function createArenaFaction(faction: Faction): readonly BattleUnit[] {
         id: `arena-${faction}-${units.length + 1}`,
         squadId,
         faction,
-        role: TROOP_ROLE_BY_DEPLOYABLE[kind],
+        role: unitRoleForRace(kind, factionRaces[faction]),
+        combatProfile: factionRaces[faction],
         position: {
           x: squadCenter.x + Math.cos(angle) * radius,
           z: squadCenter.z + Math.sin(angle) * radius,

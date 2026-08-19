@@ -15,6 +15,8 @@ import { Suspense, useEffect, useMemo, useRef } from "react";
 
 import type { BattleState } from "../../game/battle";
 import type { BattleBuilding } from "../../game/buildings";
+import { legacyUndeadOpponentRaces } from "../../game/factions";
+import type { BattleRace, FactionRaces } from "../../game/types";
 import {
   BATTLEFIELD_MAP,
   axialToWorld,
@@ -38,11 +40,16 @@ import {
 
 export function BattleBuildingLayer({
   battle,
+  factionRaces,
   undeadOpponent = false,
 }: {
   readonly battle: BattleState;
+  readonly factionRaces?: FactionRaces;
   readonly undeadOpponent?: boolean;
 }) {
+  const resolvedFactionRaces = factionRaces
+    ?? (undeadOpponent ? legacyUndeadOpponentRaces(true) : battle.factionRaces)
+    ?? legacyUndeadOpponentRaces(undeadOpponent);
   return (
     <group>
       {battle.buildings.map((building) => (
@@ -50,7 +57,7 @@ export function BattleBuildingLayer({
           <BattleBuildingVisual
             battle={battle}
             building={building}
-            undeadOpponent={undeadOpponent}
+            race={resolvedFactionRaces[building.faction]}
           />
         </Suspense>
       ))}
@@ -61,11 +68,11 @@ export function BattleBuildingLayer({
 function BattleBuildingVisual({
   battle,
   building,
-  undeadOpponent,
+  race,
 }: {
   readonly battle: BattleState;
   readonly building: BattleBuilding;
-  readonly undeadOpponent: boolean;
+  readonly race: BattleRace;
 }) {
   const root = useRef<Object3D>(null);
   const presentation = buildingPresentation(building, battle.elapsed);
@@ -73,7 +80,7 @@ function BattleBuildingVisual({
   const hasBuildingDetails = battleBuildingDetailAssets(
     building.faction,
     building.kind,
-    undeadOpponent,
+    race,
   ).length > 0;
   const y = terrainHeightAt(building.position) + 0.03;
   useFrame(() => {
@@ -91,52 +98,52 @@ function BattleBuildingVisual({
       <BuildingFoundation
         faction={building.faction}
         kind={building.kind}
-        undeadOpponent={undeadOpponent}
+        race={race}
       />
       {building.kind === "castle"
-        ? <CastleBuildingModel faction={building.faction} undeadOpponent={undeadOpponent} />
+        ? <CastleBuildingModel faction={building.faction} race={race} />
         : <DeployedBuildingModel
             faction={building.faction}
             kind={building.kind}
-            undeadOpponent={undeadOpponent}
+            race={race}
           />}
       {hasBuildingDetails && (
         <BuildingDetailModels
           faction={building.faction}
           kind={building.kind}
-          undeadOpponent={undeadOpponent}
+          race={race}
         />
       )}
       <BuildingHealthBar
         ratio={presentation.healthRatio}
         tone={presentation.healthTone}
         height={building.kind === "castle"
-          ? undeadOpponent && building.faction === "crimson" ? 2.55 : 4.3
+          ? race === "undead" ? 2.55 : 4.3
           : building.kind === "arrow-tower" || building.kind === "guard-tower"
             ? 3.25
             : building.kind === "barracks"
-              ? undeadOpponent && building.faction === "crimson" ? 1.72 : 2.35
+              ? race === "undead" ? 1.72 : 2.35
               : 1.9}
       />
       {presentation.productionProgress !== null && (
         <ProductionProgress
           progress={presentation.productionProgress}
           faction={building.faction}
-          undeadOpponent={undeadOpponent}
+          race={race}
         />
       )}
       {signal && (
         <BuildingSignalEffect
           signal={signal}
           building={building}
-          undeadOpponent={undeadOpponent}
+          race={race}
         />
       )}
       {presentation.kingVisible && building.kind === "castle" && (
         <Suspense fallback={null}>
           <CastleBattleStandard
             faction={building.faction}
-            undeadOpponent={undeadOpponent}
+            race={race}
           />
         </Suspense>
       )}
@@ -150,13 +157,13 @@ function BattleBuildingVisual({
 function BuildingFoundation({
   faction,
   kind,
-  undeadOpponent,
+  race,
 }: {
   readonly faction: BattleBuilding["faction"];
   readonly kind: BattleBuilding["kind"];
-  readonly undeadOpponent: boolean;
+  readonly race: BattleRace;
 }) {
-  const colors = sceneColorsForFaction(faction, undeadOpponent);
+  const colors = sceneColorsForFaction(faction, race);
   const radius = kind === "castle" ? 1.04 : 0.98;
   return (
     <group>
@@ -174,15 +181,15 @@ function BuildingFoundation({
 
 function CastleBuildingModel({
   faction,
-  undeadOpponent,
+  race,
 }: {
   readonly faction: BattleBuilding["faction"];
-  readonly undeadOpponent: boolean;
+  readonly race: BattleRace;
 }) {
   const asset = structureSceneAssetFor(
     faction,
     BATTLE_BUILDING_ASSET_KEYS.castle,
-    undeadOpponent,
+    race,
   );
   const dedicatedUndeadAsset = asset.url.startsWith(
     "/assets/generated/tripo/runtime/undead-",
@@ -194,15 +201,15 @@ function CastleBuildingModel({
     () => prepareModel(
       gltf.scene,
       asset.scale,
-      undeadOpponent && faction === "crimson" && !dedicatedUndeadAsset,
+      race === "undead" && !dedicatedUndeadAsset,
     ),
-    [asset.scale, dedicatedUndeadAsset, faction, gltf.scene, undeadOpponent],
+    [asset.scale, dedicatedUndeadAsset, gltf.scene, race],
   );
   return (
     <primitive
       object={model}
-      rotation-y={undeadOpponent && faction === "crimson"
-        ? 0
+      rotation-y={race === "undead"
+        ? faction === "verdant" ? Math.PI : 0
         : faction === "verdant" ? 0 : Math.PI}
     />
   );
@@ -211,16 +218,16 @@ function CastleBuildingModel({
 function DeployedBuildingModel({
   faction,
   kind,
-  undeadOpponent,
+  race,
 }: {
   readonly faction: BattleBuilding["faction"];
   readonly kind: BattleBuilding["kind"];
-  readonly undeadOpponent: boolean;
+  readonly race: BattleRace;
 }) {
   const asset = structureSceneAssetFor(
     faction,
     BATTLE_BUILDING_ASSET_KEYS[kind],
-    undeadOpponent,
+    race,
   );
   const dedicatedUndeadAsset = asset.url.startsWith(
     "/assets/generated/tripo/runtime/undead-",
@@ -232,9 +239,9 @@ function DeployedBuildingModel({
     () => prepareModel(
       gltf.scene,
       asset.scale,
-      undeadOpponent && faction === "crimson" && !dedicatedUndeadAsset,
+      race === "undead" && !dedicatedUndeadAsset,
     ),
-    [asset.scale, dedicatedUndeadAsset, faction, gltf.scene, undeadOpponent],
+    [asset.scale, dedicatedUndeadAsset, gltf.scene, race],
   );
   return <primitive object={model} rotation-y={faction === "verdant" ? 0 : Math.PI} />;
 }
@@ -242,15 +249,15 @@ function DeployedBuildingModel({
 function BuildingDetailModels({
   faction,
   kind,
-  undeadOpponent,
+  race,
 }: {
   readonly faction: BattleBuilding["faction"];
   readonly kind: BattleBuilding["kind"];
-  readonly undeadOpponent: boolean;
+  readonly race: BattleRace;
 }) {
   const details = useMemo(
-    () => battleBuildingDetailAssets(faction, kind, undeadOpponent),
-    [faction, kind, undeadOpponent],
+    () => battleBuildingDetailAssets(faction, kind, race),
+    [faction, kind, race],
   );
   const gltfs = useLoader(GLTFLoader, details.map((detail) => detail.url));
   const models = useMemo(
@@ -311,17 +318,17 @@ function BuildingHealthBar({
 function ProductionProgress({
   progress,
   faction,
-  undeadOpponent,
+  race,
 }: {
   readonly progress: number;
   readonly faction: BattleBuilding["faction"];
-  readonly undeadOpponent: boolean;
+  readonly race: BattleRace;
 }) {
   return (
     <mesh position={[0, 0.13, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={80}>
       <ringGeometry args={[0.93, 1.04, 42, 1, -Math.PI / 2, progress * Math.PI * 2]} />
       <meshBasicMaterial
-        color={sceneColorsForFaction(faction, undeadOpponent).accent}
+        color={sceneColorsForFaction(faction, race).accent}
         transparent
         opacity={0.9}
         depthWrite={false}
@@ -333,11 +340,11 @@ function ProductionProgress({
 function BuildingSignalEffect({
   signal,
   building,
-  undeadOpponent,
+  race,
 }: {
   readonly signal: BuildingSignal;
   readonly building: BattleBuilding;
-  readonly undeadOpponent: boolean;
+  readonly race: BattleRace;
 }) {
   if (signal.kind === "destroy") return null;
   const label = signal.kind === "gold"
@@ -351,7 +358,7 @@ function BuildingSignalEffect({
     ? "#ffd45e"
     : signal.kind === "gold-wasted"
       ? "#d3a16f"
-      : sceneColorsForFaction(building.faction, undeadOpponent).accent;
+      : sceneColorsForFaction(building.faction, race).accent;
   return <RisingLabel age={signal.age} color={color} label={label} />;
 }
 
@@ -381,12 +388,12 @@ function RisingLabel({ age, color, label }: {
 
 function CastleBattleStandard({
   faction,
-  undeadOpponent,
+  race,
 }: {
   readonly faction: BattleBuilding["faction"];
-  readonly undeadOpponent: boolean;
+  readonly race: BattleRace;
 }) {
-  const isUndead = undeadOpponent && faction === "crimson";
+  const isUndead = race === "undead";
   const asset = isUndead ? UNDEAD_CASTLE_BATTLE_FLAG_ASSET : CASTLE_BATTLE_FLAG_ASSET;
   const gltf = useLoader(GLTFLoader, asset.url);
   const model = useMemo(() => prepareModel(gltf.scene, asset.scale), [asset.scale, gltf.scene]);
@@ -399,7 +406,7 @@ function CastleBattleStandard({
         <mesh position={[0, 0.5, 0]} castShadow>
           <cylinderGeometry args={[0.18, 0.27, 0.86, 8]} />
           <meshStandardMaterial
-            color={sceneColorsForFaction(faction, undeadOpponent).dark}
+            color={sceneColorsForFaction(faction, race).dark}
             roughness={0.82}
           />
         </mesh>

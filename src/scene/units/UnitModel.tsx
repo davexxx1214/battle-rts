@@ -19,6 +19,7 @@ import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.j
 import { useEffect, useMemo, useRef } from "react";
 
 import type { BattleUnit, UnitRole, WorldPoint } from "../../game/battle";
+import type { BattleRace } from "../../game/types";
 import { terrainHeightAt } from "../../map/battlefield";
 import { sceneColorsForFaction } from "../assets";
 import { CatapultUnitModel } from "./CatapultUnitModel";
@@ -41,6 +42,7 @@ const CHARACTER_SCALE = 0.27;
 const FAR_ANIMATION_STEP_SECONDS = 1 / 15;
 
 export function UnitModel({
+  race,
   undeadOpponent = false,
   ...props
 }: {
@@ -51,15 +53,18 @@ export function UnitModel({
   readonly battleTime: number;
   readonly damageTime?: number;
   readonly damageSourcePosition?: WorldPoint;
+  readonly race?: BattleRace;
   readonly undeadOpponent?: boolean;
 }) {
+  const resolvedRace: BattleRace = race
+    ?? (undeadOpponent && props.unit.faction === "crimson" ? "undead" : "human");
   if (props.unit.role === "bone-dragon") {
-    return <BoneDragonUnitModel {...props} undeadOpponent={undeadOpponent} />;
+    return <BoneDragonUnitModel {...props} race={resolvedRace} />;
   }
   if (props.unit.role === "catapult") {
-    return <CatapultUnitModel {...props} undeadOpponent={undeadOpponent} />;
+    return <CatapultUnitModel {...props} race={resolvedRace} />;
   }
-  return <CharacterUnitModel {...props} undeadOpponent={undeadOpponent} />;
+  return <CharacterUnitModel {...props} race={resolvedRace} />;
 }
 
 function CharacterUnitModel({
@@ -69,7 +74,7 @@ function CharacterUnitModel({
   battleTime,
   damageTime,
   damageSourcePosition,
-  undeadOpponent,
+  race,
 }: {
   readonly unit: BattleUnit;
   readonly selected: boolean;
@@ -78,13 +83,13 @@ function CharacterUnitModel({
   readonly battleTime: number;
   readonly damageTime?: number;
   readonly damageSourcePosition?: WorldPoint;
-  readonly undeadOpponent: boolean;
+  readonly race: BattleRace;
 }) {
   const role = unit.role as CharacterRole;
   const asset: CharacterSceneAsset = characterSceneAssetFor(
     role,
     unit.faction,
-    undeadOpponent,
+    race,
   );
   const equipment = asset.equipment;
   const equipmentUrl = equipment?.modelUrls[unit.faction];
@@ -104,12 +109,12 @@ function CharacterUnitModel({
       gltf.scene,
       unit.faction,
       role,
-      undeadOpponent,
+      race,
       equipment && characterGltfs[1]
         ? { ...equipment, source: characterGltfs[1].scene }
         : null,
     ),
-    [characterGltfs, equipment, gltf.scene, role, undeadOpponent, unit.faction],
+    [characterGltfs, equipment, gltf.scene, race, role, unit.faction],
   );
   const clips = useMemo(
     () => animationGltfs.flatMap((animation) => animation.animations),
@@ -211,7 +216,7 @@ function CharacterUnitModel({
   });
 
   const healthRatio = MathUtils.clamp(unit.health / Math.max(1, unit.maxHealth), 0, 1);
-  const factionColors = sceneColorsForFaction(unit.faction, undeadOpponent);
+  const factionColors = sceneColorsForFaction(unit.faction, race);
   const baseRing = unitBaseRingGeometry(unit.role);
   const healthWidth = 0.76 * healthRatio;
   return (
@@ -293,7 +298,7 @@ function prepareCharacterModel(
   source: Object3D,
   faction: BattleUnit["faction"],
   role: CharacterRole,
-  undeadOpponent: boolean,
+  race: BattleRace,
   equipment: (NonNullable<CharacterSceneAsset["equipment"]> & {
     readonly source: Object3D;
   }) | null,
@@ -310,8 +315,8 @@ function prepareCharacterModel(
       handSlot.add(attached);
     }
   }
-  const isUndead = undeadOpponent && faction === "crimson";
-  const tint = new Color(sceneColorsForFaction(faction, undeadOpponent).tint);
+  const isUndead = race === "undead";
+  const tint = new Color(sceneColorsForFaction(faction, race).tint);
   model.scale.setScalar(CHARACTER_SCALE);
   model.updateMatrixWorld(true);
   const bounds = new Box3().setFromObject(model);

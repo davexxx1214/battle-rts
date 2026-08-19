@@ -13,10 +13,16 @@ import {
 import styles from "./App.module.css";
 import {
   DEFAULT_GAME_MODE,
-  hasUndeadOpponent,
+  factionRacesForGameMode,
   requiresSceneAssetReload,
   type GameMode,
 } from "./app/gameMode";
+import {
+  BATTLE_RACE_LABELS,
+  createFactionRaces,
+  hasRace,
+} from "./game/factions";
+import type { BattleRace, Faction, FactionRaces } from "./game/types";
 import { CampaignMap, DEPLOYABLE_LABELS } from "./campaign/CampaignMap";
 import {
   completeCampaignMission,
@@ -77,6 +83,7 @@ import {
 } from "./ui/DeploymentRail";
 import { AiDifficultySelector } from "./ui/AiDifficultySelector";
 import { GameModeSelector } from "./ui/GameModeSelector";
+import { FactionRaceSelector } from "./ui/FactionRaceSelector";
 import {
   fieldPointerCoordinates,
   fieldPointerDistance,
@@ -119,17 +126,21 @@ export function App() {
   const frostPreview = useMemo(() => (
     isFrostBreathPreviewRequest(window.location.search)
   ), []);
-  const [mode, setMode] = useState<GameMode>(
-    frostPreview ? "undead" : DEFAULT_GAME_MODE,
-  );
+  const initialMode = frostPreview ? "undead" : DEFAULT_GAME_MODE;
+  const [mode, setMode] = useState<GameMode>(initialMode);
+  const [factionRaces, setFactionRaces] = useState<FactionRaces>(() => (
+    factionRacesForGameMode(initialMode)
+  ));
   const [difficulty, setDifficulty] = useState<AiDifficulty>(DEFAULT_AI_DIFFICULTY);
   const [campaignProgress, setCampaignProgress] = useState(loadCampaignProgress);
   const [activeCampaignMissionId, setActiveCampaignMissionId] = useState<string | null>(null);
   const [app, setApp] = useState<AppState>(() => (
-    createAppState(benchmarkMode, frostPreview ? "undead" : DEFAULT_GAME_MODE, null, frostPreview)
+    createAppState(benchmarkMode, initialMode, null, frostPreview, factionRacesForGameMode(initialMode))
   ));
   const { battle, phase: battlePhase } = app.session;
-  const undeadOpponent = hasUndeadOpponent(mode);
+  const undeadOpponent = factionRaces.crimson === "undead";
+  const undeadPlayer = factionRaces.verdant === "undead";
+  const hasUndeadTerritory = hasRace(factionRaces, "undead");
   const activeCampaignMission = activeCampaignMissionId
     ? getCampaignMission(activeCampaignMissionId) ?? null
     : null;
@@ -228,12 +239,18 @@ export function App() {
   }, []);
 
   const resetBattle = useCallback(() => {
-    setApp(createAppState(benchmarkMode, mode, activeCampaignMission, frostPreview));
+    setApp(createAppState(
+      benchmarkMode,
+      mode,
+      activeCampaignMission,
+      frostPreview,
+      factionRaces,
+    ));
     setCursorWorld(null);
     setCameraResetToken((current) => current + 1);
     cameraViewStore.publish(DEFAULT_CAMERA_VIEW);
     setBattleInstanceRevision((current) => current + 1);
-  }, [activeCampaignMission, benchmarkMode, cameraViewStore, frostPreview, mode]);
+  }, [activeCampaignMission, benchmarkMode, cameraViewStore, factionRaces, frostPreview, mode]);
 
   const changeMode = useCallback((nextMode: GameMode) => {
     if (nextMode === mode) return;
@@ -242,9 +259,11 @@ export function App() {
       nextMode,
       activeCampaignMission !== null,
     );
+    const nextFactionRaces = factionRacesForGameMode(nextMode);
     setMode(nextMode);
+    setFactionRaces(nextFactionRaces);
     setActiveCampaignMissionId(null);
-    setApp(createAppState(benchmarkMode, nextMode));
+    setApp(createAppState(benchmarkMode, nextMode, null, false, nextFactionRaces));
     if (reloadSceneAssets) setAssetsReady(false);
     setAssetLoadProgress({ loaded: 0, total: 0 });
     setAssetLoadError(null);
@@ -254,7 +273,34 @@ export function App() {
     setBattleInstanceRevision((current) => current + 1);
   }, [activeCampaignMission, benchmarkMode, cameraViewStore, mode]);
 
+  const changeFactionRace = useCallback((faction: Faction, race: BattleRace) => {
+    if (battlePhase !== "briefing" || factionRaces[faction] === race) return;
+    const nextFactionRaces = createFactionRaces({ ...factionRaces, [faction]: race });
+    const nextMode = mode === "undead" ? "normal" : mode;
+    if (nextMode !== mode) setMode(nextMode);
+    setFactionRaces(nextFactionRaces);
+    setApp(createAppState(
+      benchmarkMode,
+      nextMode,
+      activeCampaignMission,
+      false,
+      nextFactionRaces,
+    ));
+    setCursorWorld(null);
+    setCameraResetToken((current) => current + 1);
+    cameraViewStore.publish(DEFAULT_CAMERA_VIEW);
+    setBattleInstanceRevision((current) => current + 1);
+  }, [
+    activeCampaignMission,
+    battlePhase,
+    benchmarkMode,
+    cameraViewStore,
+    factionRaces,
+    mode,
+  ]);
+
   const startCampaignMission = useCallback((mission: CampaignMission) => {
+    setFactionRaces(factionRacesForGameMode("campaign"));
     setActiveCampaignMissionId(mission.id);
     setApp(createAppState(false, "campaign", mission));
     setAssetsReady(false);
@@ -267,6 +313,7 @@ export function App() {
   }, [cameraViewStore]);
 
   const returnToCampaignMap = useCallback(() => {
+    setFactionRaces(factionRacesForGameMode("campaign"));
     setActiveCampaignMissionId(null);
     setApp(createAppState(false, "campaign"));
     setAssetsReady(false);
@@ -495,7 +542,8 @@ export function App() {
   return (
     <main
       className={styles.appShell}
-      data-battle-theme={undeadOpponent ? "undead" : "human"}
+      data-battle-theme={hasUndeadTerritory ? "undead" : "human"}
+      data-enemy-race={factionRaces.crimson}
       aria-busy={!assetsReady}
     >
       <header
@@ -512,6 +560,13 @@ export function App() {
         </div>
         <div className={styles.commandCenter}>
           {!benchmarkMode && <GameModeSelector mode={mode} onChange={changeMode} />}
+          {!benchmarkMode && mode !== "campaign" && (
+            <FactionRaceSelector
+              disabled={battlePhase !== "briefing"}
+              factionRaces={factionRaces}
+              onChange={changeFactionRace}
+            />
+          )}
           {!benchmarkMode && mode !== "campaign" && (
             <AiDifficultySelector
               difficulty={difficulty}
@@ -592,7 +647,7 @@ export function App() {
         >
           <BattlefieldCanvas
             battle={battle}
-            undeadOpponent={undeadOpponent}
+            factionRaces={factionRaces}
             bridgeRef={bridgeRef}
             deploymentKind={app.selectedDeployable}
             deploymentPreview={app.selectedDeployable && deploymentPreview
@@ -626,16 +681,18 @@ export function App() {
               ? "DEPLOYMENT MODE"
               : activeCampaignMission
                 ? activeCampaignMission.title
-                : undeadOpponent ? "HUMANS VS UNDEAD" : "FORTIFIED FRONT"}</span>
+                : battleMatchupLabel(factionRaces)}</span>
             <strong aria-live="polite">{battlePhase === "briefing"
               ? activeCampaignMission?.primaryObjective ?? "点击交战，开始五分钟攻防"
               : fieldFeedback?.message ?? (app.selectedDeployable
                 ? "移动到己方区域，绿色预览表示可以部署"
                 : "选择建筑或兵种进入部署模式")}</strong>
           </div>
-          {undeadOpponent && battlePhase === "briefing" && (
+          {hasUndeadTerritory && battlePhase === "briefing" && (
             <aside className={styles.undeadRosterPanel} aria-label="亡灵兵种概览">
-              <span>UNDEAD ROSTER</span>
+              <span>{undeadPlayer && undeadOpponent
+                ? "UNDEAD MIRROR"
+                : undeadPlayer ? "PLAYER UNDEAD ROSTER" : "ENEMY UNDEAD ROSTER"}</span>
               {Object.values(UNDEAD_TROOP_DESIGNS).map((troop) => (
                 <div key={troop.name}>
                   <strong>{troop.name}</strong>
@@ -679,8 +736,8 @@ export function App() {
                 ? `任务完成 · ${"★".repeat(campaignResult.stars)}${"☆".repeat(3 - campaignResult.stars)}`
                 : battle.winner === "verdant" && !campaignResult.primaryConditionMet
                   ? "试炼条件未完成"
-                  : winnerLabel(battle.winner, undeadOpponent)
-              : winnerLabel(battle.winner, undeadOpponent)}</strong>
+                  : winnerLabel(battle.winner, factionRaces)
+              : winnerLabel(battle.winner, factionRaces)}</strong>
             {campaignResult && (
               <div className={styles.campaignObjectives}>
                 <small data-complete={campaignResult.primaryConditionMet}>
@@ -710,9 +767,9 @@ export function App() {
         </div>
 
         <aside className={styles.enemyRail} aria-label="敌军状态">
-          <span>{undeadOpponent ? "UNDEAD HOST" : "ENEMY HOST"}</span>
+          <span>{undeadOpponent ? "UNDEAD HOST" : "HUMAN HOST"}</span>
           <strong>{armyCounts.crimson}</strong>
-          <small>{undeadOpponent ? "亡灵军团存活" : "猩红军团存活"}</small>
+          <small>{undeadOpponent ? "亡灵军团存活" : "人类军团存活"}</small>
           <div className={styles.forceMeter}>
             <i style={{ height: `${enemyForceShare * 100}%` }} />
           </div>
@@ -785,6 +842,7 @@ function createAppState(
   mode: GameMode,
   campaignMission: CampaignMission | null = null,
   frostPreview = false,
+  factionRaces: FactionRaces = factionRacesForGameMode(mode),
 ): AppState {
   return {
     session: {
@@ -795,8 +853,8 @@ function createAppState(
           : campaignMission
             ? createCampaignBattle(campaignMission)
             : mode === "arena"
-              ? createArenaBattle()
-              : createInitialBattle({ undeadOpponent: hasUndeadOpponent(mode) }),
+              ? createArenaBattle(factionRaces)
+              : createInitialBattle({ factionRaces }),
       phase: benchmarkMode || frostPreview ? "engaged" : "briefing",
     },
     selectedDeployable: null,
@@ -876,11 +934,15 @@ function formatTime(seconds: number): string {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
-function winnerLabel(winner: BattleState["winner"], undeadOpponent = false): string {
-  if (winner === "verdant") return "苍蓝军团获胜";
-  if (winner === "crimson") return undeadOpponent ? "亡灵军团获胜" : "猩红军团获胜";
+function winnerLabel(winner: BattleState["winner"], factionRaces: FactionRaces): string {
+  if (winner === "verdant") return `${BATTLE_RACE_LABELS[factionRaces.verdant]}·苍蓝军团获胜`;
+  if (winner === "crimson") return `${BATTLE_RACE_LABELS[factionRaces.crimson]}·猩红军团获胜`;
   if (winner === "draw") return "双方平局";
   return "";
+}
+
+function battleMatchupLabel(factionRaces: FactionRaces): string {
+  return `${BATTLE_RACE_LABELS[factionRaces.verdant]} VS ${BATTLE_RACE_LABELS[factionRaces.crimson]}`;
 }
 
 export type { WorldPoint };

@@ -1,4 +1,4 @@
-import type { Faction, UnitCombatProfile, UnitRole } from "./types";
+import type { BattleRace, Faction, UnitCombatProfile, UnitRole } from "./types";
 
 export const AI_DIFFICULTIES = ["easy", "normal", "hard"] as const;
 export type AiDifficulty = typeof AI_DIFFICULTIES[number];
@@ -335,7 +335,14 @@ export function unitRoleForDeployment(
   faction: Faction,
   undeadOpponent: boolean,
 ): UnitRole {
-  return undeadOpponent && faction === "crimson"
+  return unitRoleForRace(
+    kind,
+    undeadOpponent && faction === "crimson" ? "undead" : "human",
+  );
+}
+
+export function unitRoleForRace(kind: TroopKind, race: BattleRace): UnitRole {
+  return race === "undead"
     ? UNDEAD_TROOP_ROLE_BY_DEPLOYABLE[kind]
     : TROOP_ROLE_BY_DEPLOYABLE[kind];
 }
@@ -345,7 +352,14 @@ export function troopCountForDeployment(
   faction: Faction,
   undeadOpponent: boolean,
 ): number {
-  return undeadOpponent && faction === "crimson"
+  return troopCountForRace(
+    kind,
+    undeadOpponent && faction === "crimson" ? "undead" : "human",
+  );
+}
+
+export function troopCountForRace(kind: TroopKind, race: BattleRace): number {
+  return race === "undead"
     ? UNDEAD_TROOP_COUNTS[kind]
     : GAME_RULES.deployment.troopCounts[kind];
 }

@@ -4,9 +4,12 @@ import {
   type DeploymentFailureReason,
 } from "../game/deployTransaction";
 import { getMatchClock } from "../game/economy";
+import { resolveBattleRace } from "../game/factions";
 import {
   DEPLOYABLE_CATEGORIES,
   GAME_RULES,
+  UNDEAD_TROOP_DESIGNS,
+  troopCountForRace,
   type BuildingKind,
   type DeployableKind,
   type TroopKind,
@@ -194,6 +197,21 @@ function DeployableGroup({
       <h2>{title}</h2>
       <div className={styles.cardList}>
         {items.map((item) => {
+          const playerRace = resolveBattleRace(
+            session.battle.factionRaces,
+            "verdant",
+            session.battle.undeadOpponent,
+          );
+          const troopKind = DEPLOYABLE_CATEGORIES[item.kind] === "troop"
+            ? item.kind as TroopKind
+            : null;
+          const presentation = playerRace === "undead" && troopKind
+            ? {
+                ...item,
+                name: UNDEAD_TROOP_DESIGNS[troopKind].name,
+                detail: UNDEAD_TROOP_DESIGNS[troopKind].identity,
+              }
+            : item;
           const availability = getDeployableAvailability(
             session,
             "verdant",
@@ -223,15 +241,15 @@ function DeployableGroup({
                   alt=""
                   draggable={false}
                 />
-                {DEPLOYABLE_CATEGORIES[item.kind] === "troop" && (
+                {troopKind && (
                   <b className={styles.squadSize}>
-                    ×{GAME_RULES.deployment.troopCounts[item.kind as TroopKind]}
+                    ×{troopCountForRace(troopKind, playerRace)}
                   </b>
                 )}
               </span>
               <span className={styles.identity}>
-                <strong>{item.name}</strong>
-                <small>{item.detail}</small>
+                <strong>{presentation.name}</strong>
+                <small>{presentation.detail}</small>
               </span>
               <span className={styles.price}>
                 <b>{GAME_RULES.deployment.costs[item.kind]}</b>

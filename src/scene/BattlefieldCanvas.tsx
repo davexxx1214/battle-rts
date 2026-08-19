@@ -15,6 +15,8 @@ import type { MutableRefObject } from "react";
 import type {
   BattleState,
 } from "../game/battle";
+import { hasRace, legacyUndeadOpponentRaces } from "../game/factions";
+import type { FactionRaces } from "../game/types";
 import type { DeploymentPreview } from "../game/deployTransaction";
 import { validDeploymentCoordinates } from "../game/deployTransaction";
 import { isBuildingDeployable, type DeployableKind } from "../game/rules";
@@ -46,6 +48,7 @@ export type { SceneInteractionBridge } from "./sceneInteractionBridge";
 
 interface BattlefieldCanvasProps {
   readonly battle: BattleState;
+  readonly factionRaces?: FactionRaces;
   readonly undeadOpponent?: boolean;
   readonly bridgeRef: MutableRefObject<SceneInteractionBridge>;
   readonly deploymentKind?: DeployableKind | null;
@@ -67,6 +70,7 @@ const ATTACK_PRESENTATION_SECONDS = 3.6;
 
 export function BattlefieldCanvas({
   battle,
+  factionRaces,
   undeadOpponent = false,
   bridgeRef,
   deploymentKind = null,
@@ -78,6 +82,10 @@ export function BattlefieldCanvas({
   onAssetError,
   onBenchmarkUpdate,
 }: BattlefieldCanvasProps) {
+  const resolvedFactionRaces = factionRaces
+    ?? (undeadOpponent ? legacyUndeadOpponentRaces(true) : battle.factionRaces)
+    ?? legacyUndeadOpponentRaces(undeadOpponent);
+  const hasUndeadTerritory = hasRace(resolvedFactionRaces, "undead");
   const attackPresentations = useAttackPresentationCache(battle);
   const deploymentMaskCoordinates = useMemo(() => (
     deploymentKind
@@ -99,7 +107,7 @@ export function BattlefieldCanvas({
       style={{
         width: "100%",
         height: "100%",
-        background: undeadOpponent ? "#777381" : "#aeb9ad",
+        background: hasUndeadTerritory ? "#777381" : "#aeb9ad",
       }}
     >
       {onAssetProgress && onAssetsReady && onAssetError && (
@@ -110,19 +118,19 @@ export function BattlefieldCanvas({
           />
         </SceneAssetErrorBoundary>
       )}
-      <color attach="background" args={[undeadOpponent ? "#777381" : "#aeb9ad"]} />
-      <fog attach="fog" args={[undeadOpponent ? "#777381" : "#aeb9ad", 34, 72]} />
+      <color attach="background" args={[hasUndeadTerritory ? "#777381" : "#aeb9ad"]} />
+      <fog attach="fog" args={[hasUndeadTerritory ? "#777381" : "#aeb9ad", 34, 72]} />
       <ambientLight intensity={1.15} />
       <hemisphereLight args={[
-        undeadOpponent ? "#d8d2e8" : "#dbe8e2",
-        undeadOpponent ? "#35243e" : "#51442f",
+        hasUndeadTerritory ? "#d8d2e8" : "#dbe8e2",
+        hasUndeadTerritory ? "#35243e" : "#51442f",
         1.8,
       ]} />
       <directionalLight
         castShadow
         position={[9, 18, 7]}
         intensity={2.35}
-        color={undeadOpponent ? "#e6dcff" : "#fff0c7"}
+        color={hasUndeadTerritory ? "#e6dcff" : "#fff0c7"}
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
         shadow-camera-left={-20}
@@ -133,18 +141,18 @@ export function BattlefieldCanvas({
       <BattleCamera
         resetToken={cameraResetToken}
         shake={latestShakeImpulse(battle)}
-        initialTargetZ={undeadOpponent ? -2.4 : 0}
-        initialZoom={undeadOpponent ? 31 : 32}
+        initialTargetZ={resolvedFactionRaces.crimson === "undead" ? -2.4 : 0}
+        initialZoom={hasUndeadTerritory ? 31 : 32}
         onViewChange={cameraViewStore.publish}
         bridgeRef={bridgeRef}
       />
       <SceneBridge bridgeRef={bridgeRef} />
       {onBenchmarkUpdate && <BenchmarkProbe onUpdate={onBenchmarkUpdate} />}
       <Suspense fallback={<ArenaFallback />}>
-        <BattlefieldTerrain undeadOpponent={undeadOpponent} />
+        <BattlefieldTerrain factionRaces={resolvedFactionRaces} />
       </Suspense>
       <Suspense fallback={null}>
-        <BattleBuildingLayer battle={battle} undeadOpponent={undeadOpponent} />
+        <BattleBuildingLayer battle={battle} factionRaces={resolvedFactionRaces} />
       </Suspense>
       <DeploymentAreaMask coordinates={deploymentMaskCoordinates} />
       <UnitShadowInstances battle={battle} />
@@ -161,7 +169,7 @@ export function BattlefieldCanvas({
               battleTime={battle.elapsed}
               damageTime={damage?.time}
               damageSourcePosition={damage?.sourcePosition}
-              undeadOpponent={undeadOpponent}
+              race={resolvedFactionRaces[unit.faction]}
             />
           </Suspense>
         );

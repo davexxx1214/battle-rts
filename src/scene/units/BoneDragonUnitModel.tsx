@@ -18,6 +18,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 
 import type { BattleUnit, WorldPoint } from "../../game/battle";
+import type { BattleRace } from "../../game/types";
 import { terrainHeightAt } from "../../map/battlefield";
 import {
   sceneColorsForFaction,
@@ -48,7 +49,7 @@ export function BoneDragonUnitModel({
   battleTime,
   damageTime,
   damageSourcePosition,
-  undeadOpponent,
+  race,
 }: {
   readonly unit: BattleUnit;
   readonly selected: boolean;
@@ -57,7 +58,7 @@ export function BoneDragonUnitModel({
   readonly battleTime: number;
   readonly damageTime?: number;
   readonly damageSourcePosition?: WorldPoint;
-  readonly undeadOpponent: boolean;
+  readonly race: BattleRace;
 }) {
   const gltf = useLoader(GLTFLoader, UNDEAD_BONE_DRAGON_ASSET.url);
   const root = useRef<Object3D>(null);
@@ -188,7 +189,7 @@ export function BoneDragonUnitModel({
 
   const healthRatio = MathUtils.clamp(unit.health / Math.max(1, unit.maxHealth), 0, 1);
   const healthWidth = 1.22 * healthRatio;
-  const factionColors = sceneColorsForFaction(unit.faction, undeadOpponent);
+  const factionColors = sceneColorsForFaction(unit.faction, race);
   const ring = unitBaseRingGeometry(unit.role);
   const groundY = terrainHeightAt(unit.position) + 0.06;
   return (

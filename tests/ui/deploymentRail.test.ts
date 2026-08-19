@@ -63,4 +63,22 @@ describe("deployment rail", () => {
     expect(markup).not.toContain("建筑工事");
     expect(markup).not.toContain("剑士");
   });
+
+  it("presents the selected player race's troop identities and squad sizes", () => {
+    const markup = renderToStaticMarkup(createElement(DeploymentRail, {
+      session: {
+        phase: "engaged",
+        battle: createInitialBattle({
+          factionRaces: { verdant: "undead", crimson: "human" },
+        }),
+      },
+      selectedKind: null,
+      onSelect: () => undefined,
+    }));
+
+    expect(markup).toContain("骸骨先锋");
+    expect(markup).toContain("冰霜骨龙");
+    expect(markup).toContain("×3");
+    expect(markup).not.toContain(">长枪兵<");
+  });
 });

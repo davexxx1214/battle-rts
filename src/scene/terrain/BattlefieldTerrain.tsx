@@ -14,6 +14,8 @@ import {
 import type { Material } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { Suspense, useLayoutEffect, useMemo, useRef } from "react";
+import { legacyUndeadOpponentRaces } from "../../game/factions";
+import type { BattleRace, Faction, FactionRaces } from "../../game/types";
 
 import {
   BATTLEFIELD_DECORATIONS,
@@ -37,6 +39,14 @@ import {
   type BattlefieldSceneryKind,
 } from "../../map/battlefieldScenery";
 import { BATTLEFIELD_CASTLE_ROCK_COORDINATES } from "../../map/battlefieldLayout";
+import {
+  coordinateBelongsToFactionModule,
+  fromCrimsonModuleCoordinate,
+  fromCrimsonModuleOffset,
+  fromCrimsonModuleRotation,
+  mapModuleForFaction,
+  toCrimsonModuleCoordinate,
+} from "../../map/factionMapModules";
 import {
   BATTLEFIELD_CLOUD_SCENE_ASSETS,
   SCENERY_SCENE_ASSETS,
@@ -81,18 +91,25 @@ export function undeadStructureRotation(
 }
 
 export function BattlefieldTerrain({
+  factionRaces,
   undeadOpponent = false,
 }: {
+  readonly factionRaces?: FactionRaces;
   readonly undeadOpponent?: boolean;
 }) {
+  const resolvedFactionRaces = factionRaces ?? legacyUndeadOpponentRaces(undeadOpponent);
   return (
     <>
-      <HexArena undeadOpponent={undeadOpponent} />
-      <BattlefieldProps undeadOpponent={undeadOpponent} />
+      <HexArena factionRaces={resolvedFactionRaces} />
+      <BattlefieldProps factionRaces={resolvedFactionRaces} />
       <Suspense fallback={null}>
-        <BattlefieldSceneryLayer undeadOpponent={undeadOpponent} />
+        <BattlefieldSceneryLayer factionRaces={resolvedFactionRaces} />
         <BattlefieldCloudLayer />
-        {undeadOpponent && <UndeadBattlefieldDressing />}
+        {(["verdant", "crimson"] as const).map((faction) => (
+          resolvedFactionRaces[faction] === "undead"
+            ? <UndeadBattlefieldDressing faction={faction} key={faction} />
+            : null
+        ))}
       </Suspense>
     </>
   );
@@ -123,7 +140,7 @@ function BattlefieldCloudAsset({ cloud }: { readonly cloud: BattlefieldCloud }) 
   return <primitive object={model} position={cloud.position} />;
 }
 
-function HexArena({ undeadOpponent }: { readonly undeadOpponent: boolean }) {
+function HexArena({ factionRaces }: { readonly factionRaces: FactionRaces }) {
   const tileGltfs = useLoader(
     GLTFLoader,
     TERRAIN_TILE_ASSET_KEYS.map((key) => TERRAIN_TILE_ASSETS[key].url),
@@ -135,9 +152,7 @@ function HexArena({ undeadOpponent }: { readonly undeadOpponent: boolean }) {
     ]),
   ), [tileGltfs]);
   const tilePlan = useMemo<readonly TerrainTilePresentation[]>(() => [
-    ...createTerrainTilePlan(BATTLEFIELD_MAP).map((tile) => (
-      undeadOpponent ? applyUndeadTerrainTint(tile) : tile
-    )),
+    ...createTerrainTilePlan(BATTLEFIELD_MAP),
     ...createOuterWaterRing(BATTLEFIELD_MAP.radius + 1).map((cell) => ({
       cell,
       assetKey: "water" as const,
@@ -146,30 +161,21 @@ function HexArena({ undeadOpponent }: { readonly undeadOpponent: boolean }) {
       tint: "#caeff8",
       connections: [],
     })),
-  ], [undeadOpponent]);
+  ], []);
+  const undeadFactions = useMemo(() => (
+    (["verdant", "crimson"] as const).filter((faction) => (
+      mapModuleForFaction(factionRaces, faction).race === "undead"
+    ))
+  ), [factionRaces]);
   const tilesByAsset = useMemo(() => new Map(
     TERRAIN_TILE_ASSET_KEYS.map((key) => [
       key,
       tilePlan.filter((tile) => (
         tile.assetKey === key
-        && !(undeadOpponent && undeadTerritoryTile(tile))
+        && !undeadFactions.some((faction) => undeadTerritoryTile(tile, faction))
       )),
     ]),
-  ), [tilePlan, undeadOpponent]);
-  const undeadGroundTilesByAsset = useMemo(() => new Map(
-    TERRAIN_TILE_ASSET_KEYS.map((key) => [
-      key,
-      tilePlan.filter((tile) => (
-        tile.assetKey === key && undeadPlainGroundTile(tile)
-      )),
-    ]),
-  ), [tilePlan]);
-  const undeadRoadTilesByAsset = useMemo(() => new Map(
-    TERRAIN_TILE_ASSET_KEYS.map((key) => [
-      key,
-      tilePlan.filter((tile) => tile.assetKey === key && undeadRoadTile(tile)),
-    ]),
-  ), [tilePlan]);
+  ), [tilePlan, undeadFactions]);
   return (
     <group position={[0, -0.03, 0]}>
       {TERRAIN_TILE_ASSET_KEYS.map((key) => {
@@ -178,28 +184,32 @@ function HexArena({ undeadOpponent }: { readonly undeadOpponent: boolean }) {
           <TileInstances key={key} template={templates.get(key)!} tiles={tiles} />
           );
         })}
-      {undeadOpponent && TERRAIN_TILE_ASSET_KEYS.map((key) => {
-        const tiles = undeadGroundTilesByAsset.get(key) ?? [];
-        return tiles.length > 0 && (
-          <TileInstances
-            key={`undead-ground-${key}`}
-            template={templates.get(key)!}
-            tiles={tiles}
-            untextured
-          />
-        );
-      })}
-      {undeadOpponent && TERRAIN_TILE_ASSET_KEYS.map((key) => {
-        const tiles = undeadRoadTilesByAsset.get(key) ?? [];
-        return tiles.length > 0 && (
-          <TileInstances
-            key={`undead-road-${key}`}
-            template={templates.get(key)!}
-            tiles={tiles}
-            untextured
-          />
-        );
-      })}
+      {undeadFactions.flatMap((faction) => TERRAIN_TILE_ASSET_KEYS.flatMap((key) => {
+        const groundTiles = tilePlan
+          .filter((tile) => tile.assetKey === key && undeadPlainGroundTile(tile, faction))
+          .map((tile) => applyUndeadTerrainTintForFaction(tile, faction));
+        const roadTiles = tilePlan
+          .filter((tile) => tile.assetKey === key && undeadRoadTile(tile, faction))
+          .map((tile) => applyUndeadTerrainTintForFaction(tile, faction));
+        return [
+          groundTiles.length > 0 ? (
+            <TileInstances
+              key={`${faction}-undead-ground-${key}`}
+              template={templates.get(key)!}
+              tiles={groundTiles}
+              untextured
+            />
+          ) : null,
+          roadTiles.length > 0 ? (
+            <TileInstances
+              key={`${faction}-undead-road-${key}`}
+              template={templates.get(key)!}
+              tiles={roadTiles}
+              untextured
+            />
+          ) : null,
+        ];
+      }))}
       <mesh receiveShadow position={[0, -0.95, 0]}>
         <cylinderGeometry args={[22, 23.5, 1.5, 54]} />
         <meshStandardMaterial color="#4b8fa4" roughness={0.62} metalness={0.04} />
@@ -211,8 +221,18 @@ function HexArena({ undeadOpponent }: { readonly undeadOpponent: boolean }) {
 export function applyUndeadTerrainTint(
   tile: TerrainTilePresentation,
 ): TerrainTilePresentation {
-  if (tile.cell.r > -2 || tile.cell.surface === "water") return tile;
-  const depth = MathUtils.clamp((-tile.cell.r - 2) / 7, 0, 1);
+  return applyUndeadTerrainTintForFaction(tile, "crimson");
+}
+
+export function applyUndeadTerrainTintForFaction(
+  tile: TerrainTilePresentation,
+  faction: Faction,
+): TerrainTilePresentation {
+  if (!coordinateBelongsToFactionModule(tile.cell, faction) || tile.cell.surface === "water") {
+    return tile;
+  }
+  const reference = toCrimsonModuleCoordinate(tile.cell, faction);
+  const depth = MathUtils.clamp((-reference.r - 2) / 7, 0, 1);
   const gradient = tile.assetKey.startsWith("road-")
     ? { front: "#d4d6da", rear: "#8c9097" }
     : tile.cell.surface === "camp"
@@ -229,9 +249,9 @@ export function applyUndeadTerrainTint(
 }
 
 function BattlefieldSceneryLayer({
-  undeadOpponent,
+  factionRaces,
 }: {
-  readonly undeadOpponent: boolean;
+  readonly factionRaces: FactionRaces;
 }) {
   return (
     <group>
@@ -240,12 +260,12 @@ function BattlefieldSceneryLayer({
           ? <DetailedSceneryAssets
               kind={kind}
               key={kind}
-              undeadOpponent={undeadOpponent}
+              factionRaces={factionRaces}
             />
             : <SceneryInstances
                 kind={kind}
                 key={kind}
-                undeadOpponent={undeadOpponent}
+                factionRaces={factionRaces}
               />
       ))}
     </group>
@@ -259,14 +279,14 @@ function sceneryAssetUsesFullScene(kind: BattlefieldSceneryKind): boolean {
 
 function DetailedSceneryAssets({
   kind,
-  undeadOpponent,
+  factionRaces,
 }: {
   readonly kind: BattlefieldSceneryKind;
-  readonly undeadOpponent: boolean;
+  readonly factionRaces: FactionRaces;
 }) {
   const items = BATTLEFIELD_SCENERY.filter((item) => (
     item.kind === kind
-    && sceneryVisibleForMode(item, undeadOpponent)
+    && sceneryVisibleForMode(item, factionRaces)
   ));
   return items.map((item) => {
     const asset = scenerySceneAssetFor(kind, item.faction);
@@ -282,7 +302,7 @@ function DetailedSceneryAssets({
         ]}
         scale={asset.scale * item.scale}
         rotationY={item.rotationY}
-        undeadTreatment={undeadOpponent && item.faction === "crimson"}
+        undeadTreatment={item.faction !== undefined && factionRaces[item.faction] === "undead"}
       />
     );
   });
@@ -349,27 +369,29 @@ function TileInstances({
   );
 }
 
-function undeadTerritoryTile(tile: TerrainTilePresentation): boolean {
-  return tile.cell.r <= -2 && tile.cell.surface !== "water";
+function undeadTerritoryTile(tile: TerrainTilePresentation, faction: Faction): boolean {
+  return coordinateBelongsToFactionModule(tile.cell, faction)
+    && tile.cell.surface !== "water";
 }
 
-function undeadPlainGroundTile(tile: TerrainTilePresentation): boolean {
-  return undeadTerritoryTile(tile) && !tile.assetKey.startsWith("road-");
+function undeadPlainGroundTile(tile: TerrainTilePresentation, faction: Faction): boolean {
+  return undeadTerritoryTile(tile, faction) && !tile.assetKey.startsWith("road-");
 }
 
-function undeadRoadTile(tile: TerrainTilePresentation): boolean {
-  return undeadTerritoryTile(tile) && tile.assetKey.startsWith("road-");
+function undeadRoadTile(tile: TerrainTilePresentation, faction: Faction): boolean {
+  return undeadTerritoryTile(tile, faction) && tile.assetKey.startsWith("road-");
 }
 
-function BattlefieldProps({ undeadOpponent }: { readonly undeadOpponent: boolean }) {
+function BattlefieldProps({ factionRaces }: { readonly factionRaces: FactionRaces }) {
   const structuresById = new Map(
     BATTLEFIELD_STRUCTURES.map((structure) => [structure.id, structure] as const),
   );
   return (
     <group>
       {BATTLEFIELD_STATIC_STRUCTURES.map((structure) => {
+        const race = factionRaces[structure.faction];
         const world = axialToWorld(structure.coordinate);
-        const asset = sceneAssetForStructure(structure, undeadOpponent);
+        const asset = sceneAssetForStructure(structure, race);
         const dedicatedUndeadAsset = asset.url.startsWith(
           "/assets/generated/tripo/runtime/undead-",
         )
@@ -381,13 +403,14 @@ function BattlefieldProps({ undeadOpponent }: { readonly undeadOpponent: boolean
             url={asset.url}
             position={[world.x, terrainHeightAt(world) + 0.02, world.z]}
             scale={asset.scale}
-            rotationY={undeadOpponent && structure.faction === "crimson"
-              ? undeadStructureRotation(structure.kind, structure.rotationY)
+            rotationY={race === "undead"
+              ? fromCrimsonModuleRotation(
+                  undeadStructureRotation(structure.kind, structure.rotationY),
+                  structure.faction,
+                )
               : structure.rotationY}
             hiddenNodes={"hiddenNodes" in asset ? asset.hiddenNodes : undefined}
-            undeadTreatment={undeadOpponent
-              && structure.faction === "crimson"
-              && !dedicatedUndeadAsset}
+            undeadTreatment={race === "undead" && !dedicatedUndeadAsset}
           />
         );
       })}
@@ -625,10 +648,15 @@ export const UNDEAD_SHIPWRECK_DRESSING = {
   readonly heightOffset: number;
 };
 
-function UndeadBattlefieldDressing() {
+function UndeadBattlefieldDressing({ faction }: { readonly faction: Faction }) {
   const wreck = UNDEAD_SHIPWRECK_DRESSING;
-  const wreckWorld = axialToWorld(wreck.coordinate);
+  const wreckCoordinate = fromCrimsonModuleCoordinate(wreck.coordinate, faction);
+  const wreckOffset = fromCrimsonModuleOffset(wreck.offset, faction);
+  const wreckWorld = axialToWorld(wreckCoordinate);
   const wreckAsset = UNDEAD_ENVIRONMENT_SCENE_ASSETS[wreck.asset];
+  const modulePosition = (position: readonly [x: number, y: number, z: number]) => (
+    faction === "crimson" ? position : [-position[0], position[1], -position[2]] as const
+  );
   return (
     <group>
       {[
@@ -638,54 +666,56 @@ function UndeadBattlefieldDressing() {
         ...UNDEAD_RIVERBANK_DRESSING,
         ...UNDEAD_MINE_DRESSING,
       ].map((item) => {
-        const world = axialToWorld(item.coordinate);
+        const coordinate = fromCrimsonModuleCoordinate(item.coordinate, faction);
+        const offset = fromCrimsonModuleOffset(item.offset, faction);
+        const world = axialToWorld(coordinate);
         const asset = UNDEAD_ENVIRONMENT_SCENE_ASSETS[item.asset];
         const scale = asset.scale * item.scale;
         return (
           <StaticAsset
-            key={item.id}
+            key={`${faction}-${item.id}`}
             url={asset.url}
             position={[
-              world.x + item.offset[0],
+              world.x + offset[0],
               terrainHeightAt(world) + 0.025,
-              world.z + item.offset[1],
+              world.z + offset[1],
             ]}
             scale={scale}
-            rotationY={item.rotationY}
+            rotationY={fromCrimsonModuleRotation(item.rotationY, faction)}
           />
         );
       })}
       <StaticAsset
-        key={wreck.id}
+        key={`${faction}-${wreck.id}`}
         url={wreckAsset.url}
         position={[
-          wreckWorld.x + wreck.offset[0],
+          wreckWorld.x + wreckOffset[0],
           terrainHeightAt(wreckWorld) + wreck.heightOffset,
-          wreckWorld.z + wreck.offset[1],
+          wreckWorld.z + wreckOffset[1],
         ]}
         scale={wreck.scale}
-        rotationY={wreck.rotationY}
+        rotationY={fromCrimsonModuleRotation(wreck.rotationY, faction)}
       />
       <pointLight
         color="#8cff69"
         intensity={3.8}
         distance={5.5}
         decay={2}
-        position={[6, 2.4, -12.1]}
+        position={modulePosition([6, 2.4, -12.1])}
       />
       <pointLight
         color="#ad7ae0"
         intensity={3.6}
         distance={5.5}
         decay={2}
-        position={[-5, 2.5, -12.1]}
+        position={modulePosition([-5, 2.5, -12.1])}
       />
       <pointLight
         color="#ad7ae0"
         intensity={2.4}
         distance={5}
         decay={2}
-        position={[-1, 3.2, -15.2]}
+        position={modulePosition([-1, 3.2, -15.2])}
       />
     </group>
   );
@@ -693,10 +723,10 @@ function UndeadBattlefieldDressing() {
 
 function SceneryInstances({
   kind,
-  undeadOpponent,
+  factionRaces,
 }: {
   readonly kind: BattlefieldSceneryKind;
-  readonly undeadOpponent: boolean;
+  readonly factionRaces: FactionRaces;
 }) {
   const asset = SCENERY_SCENE_ASSETS[kind];
   const gltf = useLoader(GLTFLoader, asset.url);
@@ -704,9 +734,9 @@ function SceneryInstances({
   const items = useMemo(
     () => BATTLEFIELD_SCENERY.filter((item) => (
       item.kind === kind
-      && sceneryVisibleForMode(item, undeadOpponent)
+      && sceneryVisibleForMode(item, factionRaces)
     )),
-    [kind, undeadOpponent],
+    [factionRaces, kind],
   );
   const instances = useRef<InstancedMesh>(null);
   useLayoutEffect(() => {
@@ -756,14 +786,25 @@ function undeadHumanSceneryKind(kind: BattlefieldSceneryKind): boolean {
 
 export function sceneryVisibleForMode(
   item: BattlefieldScenery,
-  undeadOpponent: boolean,
+  factionRacesOrLegacyUndeadOpponent: FactionRaces | boolean,
 ): boolean {
-  if (!undeadOpponent) return true;
-  if (item.kind === "bay-ship" && item.faction === "crimson") return false;
-  if (item.kind === "castle-rock" && item.coordinate.r < 0) return false;
-  if (item.coordinate.r < 0 && undeadFoliageKind(item.kind)) return false;
-  if (item.coordinate.r <= -2 && item.coordinate.q <= 1) return false;
-  if (item.coordinate.r <= -2 && undeadHumanSceneryKind(item.kind)) return false;
+  const factionRaces = typeof factionRacesOrLegacyUndeadOpponent === "boolean"
+    ? legacyUndeadOpponentRaces(factionRacesOrLegacyUndeadOpponent)
+    : factionRacesOrLegacyUndeadOpponent;
+  const undeadFaction = (["verdant", "crimson"] as const).find((faction) => (
+    factionRaces[faction] === "undead"
+    && (
+      item.faction === faction
+      || coordinateBelongsToFactionModule(item.coordinate, faction)
+    )
+  ));
+  if (!undeadFaction) return true;
+  const reference = toCrimsonModuleCoordinate(item.coordinate, undeadFaction);
+  if (item.kind === "bay-ship" && item.faction === undeadFaction) return false;
+  if (item.kind === "castle-rock") return false;
+  if (undeadFoliageKind(item.kind)) return false;
+  if (reference.r <= -2 && reference.q <= 1) return false;
+  if (undeadHumanSceneryKind(item.kind)) return false;
   return true;
 }
 
@@ -941,19 +982,19 @@ function prepareAtmosphereModel(
 
 function sceneAssetForStructure(
   structure: BattlefieldStructure,
-  undeadOpponent: boolean,
+  race: BattleRace,
 ) {
   if (
     structure.kind === "wall-straight"
     || structure.kind === "wall-corner"
     || structure.kind === "wall-gate"
   ) {
-    if (undeadOpponent && structure.faction === "crimson") {
+    if (race === "undead") {
       return UNDEAD_FORTIFICATION_SCENE_ASSETS[structure.kind];
     }
     return STRUCTURE_SCENE_ASSETS.neutral[structure.kind];
   }
-  return structureSceneAssetFor(structure.faction, structure.kind, undeadOpponent);
+  return structureSceneAssetFor(structure.faction, structure.kind, race);
 }
 
 function extractMeshTemplate(source: Object3D): TileTemplate {

@@ -30,7 +30,18 @@ import {
   getBattlefieldCell,
   worldToAxial,
 } from "../map/battlefield";
-import type { Faction, UnitCombatProfile, UnitRole, WorldPoint } from "./types";
+import type {
+  Faction,
+  FactionRaces,
+  UnitCombatProfile,
+  UnitRole,
+  WorldPoint,
+} from "./types";
+import {
+  createFactionRaces,
+  legacyUndeadOpponentRaces,
+  resolveBattleRace,
+} from "./factions";
 import { BattleSpatialIndex } from "./spatialIndex";
 import { unitSpecFor } from "./rules";
 import {
@@ -69,7 +80,7 @@ import {
 } from "./castleCombat";
 import { advanceArrowTowerAttacks } from "./arrowTowerCombat";
 
-export type { Faction, UnitRole, WorldPoint } from "./types";
+export type { BattleRace, Faction, FactionRaces, UnitRole, WorldPoint } from "./types";
 export { UNIT_SPECS } from "./rules";
 export type { UnitSpec } from "./rules";
 export type UnitStatus = "idle" | "moving" | "attacking" | "dead";
@@ -113,6 +124,8 @@ export interface BattleState {
   readonly winner: Faction | "draw" | null;
   readonly resolvedAt: number | null;
   readonly revision: number;
+  readonly factionRaces: FactionRaces;
+  /** @deprecated Read factionRaces instead. Retained for saved-state compatibility. */
   readonly undeadOpponent: boolean;
 }
 
@@ -126,6 +139,7 @@ export interface CreateBattleUnitInput {
 }
 
 export interface CreateBattleStateOptions {
+  readonly factionRaces?: Partial<FactionRaces>;
   readonly undeadOpponent?: boolean;
 }
 
@@ -168,6 +182,9 @@ export function createBattleState(
   options: CreateBattleStateOptions = {},
 ): BattleState {
   const clonedUnits = units.map(cloneUnit);
+  const factionRaces = options.factionRaces
+    ? createFactionRaces(options.factionRaces)
+    : legacyUndeadOpponentRaces(options.undeadOpponent);
   return {
     units: clonedUnits,
     squads: buildSquads(clonedUnits),
@@ -184,7 +201,8 @@ export function createBattleState(
     winner: null,
     resolvedAt: null,
     revision: 0,
-    undeadOpponent: options.undeadOpponent ?? false,
+    factionRaces,
+    undeadOpponent: factionRaces.crimson === "undead",
   };
 }
 
@@ -452,9 +470,11 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     id: spawn.unitId,
     faction: spawn.faction,
     role: spawn.role,
-    combatProfile: state.undeadOpponent && spawn.faction === "crimson"
-      ? "undead"
-      : "human",
+    combatProfile: resolveBattleRace(
+      state.factionRaces,
+      spawn.faction,
+      state.undeadOpponent,
+    ),
     squadId: `${spawn.buildingId}-spawned`,
     position: spawn.position,
   }));
@@ -488,6 +508,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     winner,
     resolvedAt: state.resolvedAt ?? (winner ? elapsed : null),
     revision: state.revision + 1,
+    factionRaces: state.factionRaces,
     undeadOpponent: state.undeadOpponent,
   };
 }

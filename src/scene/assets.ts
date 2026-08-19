@@ -1,7 +1,7 @@
 import type { BattlefieldSceneryKind } from "../map/battlefieldScenery";
 import type { BattlefieldCloudKind } from "../map/battlefieldAtmosphere";
 import type { BattleBuildingKind } from "../game/buildings";
-import type { Faction } from "../game/types";
+import type { BattleRace, Faction } from "../game/types";
 
 export interface BattleBuildingDetailAsset {
   readonly id: string;
@@ -75,10 +75,21 @@ export const UNDEAD_SCENE_COLORS = {
   tint: "#76529a",
 } as const;
 
-export function sceneColorsForFaction(faction: Faction, undeadOpponent = false) {
-  return undeadOpponent && faction === "crimson"
+export function sceneColorsForFaction(
+  faction: Faction,
+  raceOrLegacyUndeadOpponent: BattleRace | boolean = false,
+) {
+  return presentationRace(faction, raceOrLegacyUndeadOpponent) === "undead"
     ? UNDEAD_SCENE_COLORS
     : FACTION_SCENE_COLORS[faction];
+}
+
+function presentationRace(
+  faction: Faction,
+  raceOrLegacyUndeadOpponent: BattleRace | boolean,
+): BattleRace {
+  if (typeof raceOrLegacyUndeadOpponent === "string") return raceOrLegacyUndeadOpponent;
+  return raceOrLegacyUndeadOpponent && faction === "crimson" ? "undead" : "human";
 }
 
 const HALLOWEEN_ASSET_ROOT = "/assets/kaykit/halloween";
@@ -440,9 +451,9 @@ export const UNDEAD_STRUCTURE_SCENE_ASSETS = {
 export function structureSceneAssetFor(
   faction: Faction,
   kind: keyof typeof STRUCTURE_SCENE_ASSETS.crimson,
-  undeadOpponent = false,
+  raceOrLegacyUndeadOpponent: BattleRace | boolean = false,
 ) {
-  return undeadOpponent && faction === "crimson"
+  return presentationRace(faction, raceOrLegacyUndeadOpponent) === "undead"
     ? UNDEAD_STRUCTURE_SCENE_ASSETS[kind]
     : STRUCTURE_SCENE_ASSETS[faction][kind];
 }
@@ -484,9 +495,9 @@ export const BATTLE_BUILDING_DETAIL_URLS = [
 export function battleBuildingDetailAssets(
   faction: Faction,
   kind: BattleBuildingKind,
-  undeadOpponent = false,
+  raceOrLegacyUndeadOpponent: BattleRace | boolean = false,
 ): readonly BattleBuildingDetailAsset[] {
-  if (undeadOpponent && faction === "crimson") {
+  if (presentationRace(faction, raceOrLegacyUndeadOpponent) === "undead") {
     return UNDEAD_BATTLE_BUILDING_DETAILS[kind];
   }
   return BATTLE_BUILDING_DETAILS[faction][kind];

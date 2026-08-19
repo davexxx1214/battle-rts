@@ -51,7 +51,6 @@
 }
 
 .appShell[data-battle-theme="undead"] {
-  --crimson: #81df6a;
   --amber: #b18add;
   background:
     radial-gradient(circle at 72% 30%, rgb(92 46 124 / 19%), transparent 34%),
@@ -60,13 +59,17 @@
     #0c0a10;
 }
 
-.appShell[data-battle-theme="undead"] .enemyRail {
+.appShell[data-enemy-race="undead"] {
+  --crimson: #81df6a;
+}
+
+.appShell[data-enemy-race="undead"] .enemyRail {
   border-right-color: rgb(129 223 106 / 64%);
   background: rgb(17 13 22 / 91%);
   box-shadow: -12px 14px 38px rgb(34 11 47 / 35%);
 }
 
-.appShell[data-battle-theme="undead"] .forceMeter i {
+.appShell[data-enemy-race="undead"] .forceMeter i {
   background: linear-gradient(#a8ef73, #493061);
 }
 

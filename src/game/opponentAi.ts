@@ -14,6 +14,7 @@ import {
   type OpponentAiStrategy,
   type TroopKind,
 } from "./rules";
+import { resolveBattleRace } from "./factions";
 import type { WorldPoint } from "./types";
 import {
   BATTLEFIELD_MAP,
@@ -118,7 +119,11 @@ function selectTroopKind(
   strategy: OpponentAiStrategy,
   difficulty: AiDifficulty,
 ): TroopKind {
-  const troopCycle = session.battle.undeadOpponent
+  const troopCycle = resolveBattleRace(
+    session.battle.factionRaces,
+    OPPONENT_FACTION,
+    session.battle.undeadOpponent,
+  ) === "undead"
     ? UNDEAD_AI_TROOP_CYCLES[difficulty]
     : strategy.troopCycle;
   const deployedTroops = troopCycle.reduce((total, kind) => (
