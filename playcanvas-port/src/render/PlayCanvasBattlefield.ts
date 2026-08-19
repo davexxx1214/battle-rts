@@ -37,6 +37,7 @@ import {
   CHARACTER_SCENE_ASSETS,
   characterAnimationForState,
   characterAnimationLoops,
+  characterObjectNames,
   characterTintStrength,
   type CharacterRole,
 } from "../../../src/scene/units/characterPresentation";
@@ -802,7 +803,9 @@ export class PlayCanvasBattlefield {
           equipmentUrl,
           { castShadows: false, receiveShadows: true },
         );
-        const bone = model.findByName(piece.boneName) as pc.Entity | null;
+        const bone = characterObjectNames(piece.boneName)
+          .map((name) => model.findByName(name) as pc.Entity | undefined)
+          .find((candidate) => candidate !== undefined) ?? null;
         if (bone) {
           equipment.setLocalScale(piece.scale, piece.scale, piece.scale);
           equipment.setLocalPosition(...piece.position);

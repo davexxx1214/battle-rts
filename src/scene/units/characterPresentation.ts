@@ -229,6 +229,14 @@ function undeadCharacterAnimationForState({
   return "Skeletons_Idle";
 }
 
+export function sanitizeCharacterNodeName(name: string): string {
+  return name.replace(/\s/g, "_").replace(/[[\].:/]/g, "");
+}
+
+export function characterObjectNames(name: string): readonly string[] {
+  return [...new Set([name, sanitizeCharacterNodeName(name), name.replaceAll(".", "_")])];
+}
+
 export function characterEquipmentFor(
   asset: CharacterSceneAsset,
   faction: Faction,

@@ -6,8 +6,10 @@ import {
   UNDEAD_CHARACTER_SCENE_ASSETS,
   characterAnimationForState,
   characterHiddenObjectNames,
+  characterObjectNames,
   characterSceneAssetFor,
   characterTintStrength,
+  sanitizeCharacterNodeName,
 } from "../../src/scene/units/characterPresentation";
 
 describe("character presentation", () => {
@@ -94,6 +96,16 @@ describe("character presentation", () => {
         position: [0, 0, 0],
         rotation: [0, 0, 0],
       },
+    ]);
+  });
+
+  it("sanitizes dotted KayKit bone names so Three.js animation tracks can bind", () => {
+    expect(sanitizeCharacterNodeName("handslot.r")).toBe("handslotr");
+    expect(sanitizeCharacterNodeName("upperarm.l")).toBe("upperarml");
+    expect(characterObjectNames("handslot.r")).toEqual([
+      "handslot.r",
+      "handslotr",
+      "handslot_r",
     ]);
   });
 

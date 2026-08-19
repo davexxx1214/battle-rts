@@ -29,8 +29,10 @@ import {
   characterAnimationForState,
   characterEquipmentFor,
   characterHiddenObjectNames,
+  characterObjectNames,
   characterSceneAssetFor,
   characterTintStrength,
+  sanitizeCharacterNodeName,
   type CharacterEquipment,
   type CharacterRole,
   type CharacterSceneAsset,
@@ -335,8 +337,9 @@ function prepareCharacterModel(
   equipment: readonly (CharacterEquipment & { readonly source: Object3D })[],
 ): Object3D {
   const model = cloneSkeleton(source);
+  sanitizeCharacterGraph(model);
   for (const [index, piece] of equipment.entries()) {
-    const handSlot = model.getObjectByName(piece.boneName);
+    const handSlot = findCharacterObject(model, piece.boneName);
     if (!handSlot) continue;
     const attached = piece.source.clone(true);
     attached.name = `${role}-equipment-${index}`;
@@ -346,7 +349,9 @@ function prepareCharacterModel(
     handSlot.add(attached);
   }
   const isUndead = race === "undead";
-  const hiddenObjects = new Set(characterHiddenObjectNames(role, isUndead));
+  const hiddenObjects = new Set(
+    characterHiddenObjectNames(role, isUndead).flatMap((name) => characterObjectNames(name)),
+  );
   const tint = new Color(sceneColorsForFaction(faction, race).tint);
   model.scale.setScalar(CHARACTER_SCALE * visualScale);
   model.updateMatrixWorld(true);
@@ -403,6 +408,20 @@ function normalizedDirection(origin: WorldPoint, destination: WorldPoint): World
   const z = destination.z - origin.z;
   const length = Math.hypot(x, z);
   return length > 0.001 ? { x: x / length, z: z / length } : { x: 0, z: 0 };
+}
+
+function sanitizeCharacterGraph(root: Object3D): void {
+  root.traverse((object) => {
+    if (object.name) object.name = sanitizeCharacterNodeName(object.name);
+  });
+}
+
+function findCharacterObject(root: Object3D, name: string): Object3D | undefined {
+  for (const candidate of characterObjectNames(name)) {
+    const found = root.getObjectByName(candidate);
+    if (found) return found;
+  }
+  return undefined;
 }
 
 function dampAngle(current: number, target: number, lambda: number, delta: number): number {
