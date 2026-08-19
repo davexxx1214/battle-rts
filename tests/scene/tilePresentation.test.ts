@@ -4,6 +4,7 @@ import { MeshStandardMaterial } from "three";
 import { BATTLEFIELD_MAP, coordinateKey } from "../../src/map/battlefield";
 import {
   BATTLEFIELD_CASTLE_ROCK_COORDINATES,
+  BATTLEFIELD_CRIMSON_FOREST_REFERENCE_COORDINATE,
   BATTLEFIELD_LEFT_FARM_COORDINATES,
   BATTLEFIELD_LEFT_FARM_PASSAGE_COORDINATE,
 } from "../../src/map/battlefieldLayout";
@@ -18,6 +19,7 @@ import {
   CEMETERY_GATE_ROTATION,
   CEMETERY_ROAD_GATE_COORDINATE,
   UNDEAD_CASTLE_COURTYARD_DRESSING,
+  UNDEAD_CASTLE_EDGE_DRESSING,
   UNDEAD_CASTLE_TERRAIN_REPLACEMENTS,
   UNDEAD_CEMETERY_DRESSING,
   UNDEAD_HALF_OPEN_GATE_NODE_ROTATIONS,
@@ -193,15 +195,21 @@ describe("terrain tile presentation", () => {
 
     expect(new Set(cemeteryTiles.map(({ tint }) => tint)).size).toBeGreaterThan(6);
     expect(dressedFarmKeys).toEqual(farmKeys);
-    expect(UNDEAD_CEMETERY_DRESSING.some(({ asset }) => asset === "crypt")).toBe(true);
-    expect(UNDEAD_CEMETERY_DRESSING).toContainEqual(expect.objectContaining({
-      id: "cemetery-waterside-coffin",
-      asset: "coffinDecorated",
-      coordinate: { q: -3, r: -2 },
-      offset: [0, 0.14],
-      scale: 0.68,
-    }));
+    expect(UNDEAD_CEMETERY_DRESSING.some(({ id }) => id === "cemetery-crypt")).toBe(false);
+    expect(UNDEAD_CEMETERY_DRESSING.some(({ asset }) => asset === "shrine")).toBe(true);
     expect(UNDEAD_CEMETERY_DRESSING.some(({ asset }) => asset === "gravePit")).toBe(true);
+    expect(UNDEAD_CEMETERY_DRESSING).toContainEqual(expect.objectContaining({
+      id: "cemetery-plot-minus2-6-open-grave",
+      asset: "gravePit",
+      coordinate: { q: -2, r: -6 },
+      offset: [0, 0],
+      scale: 0.52,
+    }));
+    expect(UNDEAD_CEMETERY_DRESSING.some(({ id }) => (
+      id === "cemetery-plot-minus2-6"
+      || id === "cemetery-plot-minus2-6-pad"
+      || id === "cemetery-plot-minus2-6-lantern"
+    ))).toBe(false);
     expect(UNDEAD_CEMETERY_DRESSING.some(({ asset }) => asset === "coffinDecorated"))
       .toBe(true);
     expect(UNDEAD_CEMETERY_DRESSING.some(({ asset }) => asset === "treeDeadLargeDecorated"))
@@ -243,12 +251,22 @@ describe("terrain tile presentation", () => {
     expect(undeadFortificationRotation("wall-gate")).toBe(0);
     expect(undeadFortificationRotation("wall-corner")).toBe(0);
     expect(undeadFortificationRotation("wall-straight")).toBeCloseTo(Math.PI / 2);
-    expect(undeadStructureRotation("blacksmith", Math.PI + Math.PI / 3)).toBe(0);
+    expect(undeadStructureRotation("blacksmith", Math.PI + Math.PI / 3))
+      .toBeCloseTo(Math.PI / 6);
     expect(UNDEAD_CASTLE_COURTYARD_DRESSING.every(({ asset, coordinate }) => (
       asset === "fencePillar"
       && coordinate.q >= 2
       && coordinate.r <= -7
     ))).toBe(true);
+    expect(UNDEAD_CASTLE_EDGE_DRESSING).toEqual([
+      expect.objectContaining({
+        id: "undead-castle-edge-orange-pine",
+        asset: "treePineOrangeLarge",
+        coordinate: BATTLEFIELD_CRIMSON_FOREST_REFERENCE_COORDINATE,
+        offset: [0, 0],
+        scale: 1.04,
+      }),
+    ]);
     expect(UNDEAD_CASTLE_TERRAIN_REPLACEMENTS).toHaveLength(2);
     expect(UNDEAD_CASTLE_TERRAIN_REPLACEMENTS.every(({ asset, scale }) => (
       asset === "shrine" && scale === 1.18

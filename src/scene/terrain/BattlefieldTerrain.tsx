@@ -37,7 +37,10 @@ import {
   type BattlefieldScenery,
   type BattlefieldSceneryKind,
 } from "../../map/battlefieldScenery";
-import { BATTLEFIELD_CASTLE_ROCK_COORDINATES } from "../../map/battlefieldLayout";
+import {
+  BATTLEFIELD_CASTLE_ROCK_COORDINATES,
+  BATTLEFIELD_CRIMSON_FOREST_REFERENCE_COORDINATE,
+} from "../../map/battlefieldLayout";
 import {
   coordinateBelongsToFactionModule,
   fromCrimsonModuleCoordinate,
@@ -85,7 +88,7 @@ export function undeadStructureRotation(
   fallbackRotationY: number,
 ): number {
   if (kind.startsWith("wall-")) return undeadFortificationRotation(kind);
-  if (kind === "blacksmith") return 0;
+  if (kind === "blacksmith") return Math.PI / 6;
   return fallbackRotationY;
 }
 
@@ -485,7 +488,6 @@ function rotateYawOffset(
 }
 
 export const UNDEAD_CEMETERY_DRESSING: readonly UndeadCemeteryDressingItem[] = [
-  cemeteryItem("cemetery-crypt", "crypt", 0, -7, [0, 0], 0.32, CEMETERY_MIRROR_TURN - Math.PI / 6),
   cemeteryItem("cemetery-crypt-lantern", "postLantern", 0, -7, [0.62, -0.42], 1.05, CEMETERY_MIRROR_TURN),
   cemeteryItem("cemetery-crypt-bench", "benchDecorated", 0, -7, [-0.58, 0.48], 0.72, CEMETERY_MIRROR_TURN + 0.4),
   cemeteryItem("cemetery-hearse", "coffinDecorated", 1, -7, [-0.04, 0.02], 0.48, CEMETERY_MIRROR_TURN + Math.PI / 3),
@@ -497,15 +499,7 @@ export const UNDEAD_CEMETERY_DRESSING: readonly UndeadCemeteryDressingItem[] = [
   cemeteryItem("cemetery-yew-marker", "graveMarkerA", -2, -5, [-0.46, 0.38], 0.92),
   cemeteryItem("cemetery-chapel-shrine", "shrineCandles", -3, -4, [0.06, 0.02], 1.12, CEMETERY_MIRROR_TURN + Math.PI / 3),
   cemeteryItem("cemetery-chapel-skull", "postSkull", -3, -4, [-0.52, 0.4], 1, CEMETERY_MIRROR_TURN),
-  cemeteryItem(
-    "cemetery-waterside-coffin",
-    "coffinDecorated",
-    -3,
-    -2,
-    [0, 0.14],
-    0.68,
-    CEMETERY_MIRROR_TURN + Math.PI / 6,
-  ),
+  cemeteryItem("cemetery-waterside-shrine", "shrine", -3, -2, [0, 0.22], 1.18, CEMETERY_MIRROR_TURN),
   cemeteryItem("cemetery-waterfront-pine", "treePineOrangeLarge", -4, -2, [-0.04, 0.08], 1.04, CEMETERY_MIRROR_TURN + Math.PI / 6),
   cemeteryItem("cemetery-plot-1-8-pad", "floorDirtSmall", 1, -8, [0, 0], 0.92),
   cemeteryItem("cemetery-plot-1-8", "graveStone", 1, -8, [0.06, 0.04], 0.7),
@@ -519,9 +513,15 @@ export const UNDEAD_CEMETERY_DRESSING: readonly UndeadCemeteryDressingItem[] = [
   cemeteryItem("cemetery-plot-minus1-7-pad", "floorDirtSmall", -1, -7, [0, 0], 0.9),
   cemeteryItem("cemetery-plot-minus1-7", "graveA", -1, -7, [0, 0.02], 0.46),
   cemeteryItem("cemetery-plot-minus1-7-bone", "boneA", -1, -7, [0.4, 0.3], 0.95, 1.1),
-  cemeteryItem("cemetery-plot-minus2-6-pad", "floorDirtSmall", -2, -6, [0, 0], 0.9),
-  cemeteryItem("cemetery-plot-minus2-6", "graveB", -2, -6, [0, 0.02], 0.46),
-  cemeteryItem("cemetery-plot-minus2-6-lantern", "lanternStanding", -2, -6, [0.46, -0.34], 0.88, 0.3),
+  cemeteryItem(
+    "cemetery-plot-minus2-6-open-grave",
+    "gravePit",
+    -2,
+    -6,
+    [0, 0],
+    0.52,
+    CEMETERY_MIRROR_TURN + Math.PI / 3,
+  ),
   cemeteryItem("cemetery-plot-minus3-5-pad", "floorDirtSmall", -3, -5, [0, 0], 0.9),
   cemeteryItem("cemetery-plot-minus3-5", "graveStone", -3, -5, [0, 0], 0.66),
   cemeteryItem("cemetery-plot-minus3-5-marker", "graveMarkerB", -3, -5, [0.38, -0.4], 0.84),
@@ -652,6 +652,18 @@ export const UNDEAD_CASTLE_COURTYARD_DRESSING: readonly UndeadCemeteryDressingIt
   cemeteryItem("keep-pillar-rear-east", "fencePillar", 5, -8, [-0.08, -0.92], 1.08, 0),
 ];
 
+export const UNDEAD_CASTLE_EDGE_DRESSING: readonly UndeadCemeteryDressingItem[] = [
+  cemeteryItem(
+    "undead-castle-edge-orange-pine",
+    "treePineOrangeLarge",
+    BATTLEFIELD_CRIMSON_FOREST_REFERENCE_COORDINATE.q,
+    BATTLEFIELD_CRIMSON_FOREST_REFERENCE_COORDINATE.r,
+    [0, 0],
+    1.04,
+    CEMETERY_MIRROR_TURN + 0.18,
+  ),
+];
+
 export const UNDEAD_CASTLE_TERRAIN_REPLACEMENTS: readonly UndeadCemeteryDressingItem[] =
   BATTLEFIELD_CASTLE_ROCK_COORDINATES
     .filter(({ r }) => r < 0)
@@ -710,6 +722,7 @@ function UndeadBattlefieldDressing({ faction }: { readonly faction: Faction }) {
       {[
         ...UNDEAD_CEMETERY_DRESSING,
         ...UNDEAD_CASTLE_COURTYARD_DRESSING,
+        ...UNDEAD_CASTLE_EDGE_DRESSING,
         ...UNDEAD_CASTLE_TERRAIN_REPLACEMENTS,
         ...UNDEAD_RIVERBANK_DRESSING,
         ...UNDEAD_MINE_DRESSING,

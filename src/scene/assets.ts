@@ -436,7 +436,10 @@ export const UNDEAD_STRUCTURE_SCENE_ASSETS = {
     url: UNDEAD_HALLOWEEN_ASSETS.crypt.url,
     scale: 0.3,
   },
-  blacksmith: UNDEAD_HALLOWEEN_ASSETS.shrine,
+  blacksmith: {
+    ...UNDEAD_HALLOWEEN_ASSETS.coffinDecorated,
+    scale: 0.74,
+  },
   barracks: {
     ...UNDEAD_DUNGEON_PACK_ASSETS.stoneAltar,
     scale: 1,

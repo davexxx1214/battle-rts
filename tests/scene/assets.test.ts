@@ -152,8 +152,10 @@ describe("scene asset presentation", () => {
     expect(UNDEAD_STRUCTURE_SCENE_ASSETS.barracks.url)
       .toBe(UNDEAD_DUNGEON_PACK_ASSETS.stoneAltar.url);
     expect(UNDEAD_STRUCTURE_SCENE_ASSETS.barracks.scale).toBe(1);
-    expect(UNDEAD_STRUCTURE_SCENE_ASSETS.blacksmith)
-      .toEqual(UNDEAD_HALLOWEEN_ASSETS.shrine);
+    expect(UNDEAD_STRUCTURE_SCENE_ASSETS.blacksmith).toEqual({
+      ...UNDEAD_HALLOWEEN_ASSETS.coffinDecorated,
+      scale: 0.74,
+    });
     expect(UNDEAD_STRUCTURE_SCENE_ASSETS["arrow-tower"])
       .toEqual(UNDEAD_DUNGEON_PACK_ASSETS.skullCandelabra);
     expect(UNDEAD_STRUCTURE_SCENE_ASSETS.mine)
