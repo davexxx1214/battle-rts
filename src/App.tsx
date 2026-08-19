@@ -126,16 +126,17 @@ export function App() {
   const frostPreview = useMemo(() => (
     isFrostBreathPreviewRequest(window.location.search)
   ), []);
-  const initialMode = frostPreview ? "undead" : DEFAULT_GAME_MODE;
+  const initialMode = DEFAULT_GAME_MODE;
+  const initialFactionRaces = frostPreview
+    ? createFactionRaces({ crimson: "undead" })
+    : factionRacesForGameMode(initialMode);
   const [mode, setMode] = useState<GameMode>(initialMode);
-  const [factionRaces, setFactionRaces] = useState<FactionRaces>(() => (
-    factionRacesForGameMode(initialMode)
-  ));
+  const [factionRaces, setFactionRaces] = useState<FactionRaces>(initialFactionRaces);
   const [difficulty, setDifficulty] = useState<AiDifficulty>(DEFAULT_AI_DIFFICULTY);
   const [campaignProgress, setCampaignProgress] = useState(loadCampaignProgress);
   const [activeCampaignMissionId, setActiveCampaignMissionId] = useState<string | null>(null);
   const [app, setApp] = useState<AppState>(() => (
-    createAppState(benchmarkMode, initialMode, null, frostPreview, factionRacesForGameMode(initialMode))
+    createAppState(benchmarkMode, initialMode, null, frostPreview, initialFactionRaces)
   ));
   const { battle, phase: battlePhase } = app.session;
   const undeadOpponent = factionRaces.crimson === "undead";
@@ -276,12 +277,10 @@ export function App() {
   const changeFactionRace = useCallback((faction: Faction, race: BattleRace) => {
     if (battlePhase !== "briefing" || factionRaces[faction] === race) return;
     const nextFactionRaces = createFactionRaces({ ...factionRaces, [faction]: race });
-    const nextMode = mode === "undead" ? "normal" : mode;
-    if (nextMode !== mode) setMode(nextMode);
     setFactionRaces(nextFactionRaces);
     setApp(createAppState(
       benchmarkMode,
-      nextMode,
+      mode,
       activeCampaignMission,
       false,
       nextFactionRaces,

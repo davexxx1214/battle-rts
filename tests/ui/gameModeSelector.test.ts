@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_GAME_MODE,
-  hasUndeadOpponent,
+  factionRacesForGameMode,
   requiresSceneAssetReload,
 } from "../../src/app/gameMode";
 import { GameModeSelector } from "../../src/ui/GameModeSelector";
@@ -22,18 +22,28 @@ describe("game mode selector", () => {
 
     expect(markup).toContain("战役模式");
     expect(markup).toContain("自由对战");
-    expect(markup).toContain("人类对亡灵");
     expect(markup).toContain("竞技场模式");
+    expect(markup).not.toContain("人类对亡灵");
+    expect(markup.match(/<button/g)).toHaveLength(3);
     expect(markup).toContain('aria-label="游戏模式"');
     expect(markup).toContain('aria-pressed="true"');
     expect(markup).toMatch(/自由对战<\/button>/);
     expect(markup.indexOf("战役模式")).toBeLessThan(markup.indexOf("自由对战"));
   });
 
-  it("exposes a dedicated human-versus-undead battlefield option", () => {
-    expect(hasUndeadOpponent("undead")).toBe(true);
-    expect(hasUndeadOpponent("normal")).toBe(false);
-    expect(hasUndeadOpponent("campaign")).toBe(false);
+  it("leaves race pairing to the independent faction selectors", () => {
+    expect(factionRacesForGameMode("campaign")).toEqual({
+      verdant: "human",
+      crimson: "human",
+    });
+    expect(factionRacesForGameMode("normal")).toEqual({
+      verdant: "human",
+      crimson: "human",
+    });
+    expect(factionRacesForGameMode("arena")).toEqual({
+      verdant: "human",
+      crimson: "human",
+    });
   });
 
   it("only reloads scene assets when entering a newly mounted battlefield", () => {
