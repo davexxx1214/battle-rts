@@ -16,6 +16,56 @@ let provenanceDirty = false;
 
 const sounds = [
   {
+    id: "undead_spearman_attack_01",
+    duration: 1,
+    prompt: "Single fast undead skeleton minion attacking with a bone blade, dry bone clatter, short rusty blade swish and crisp light strike, compact stylized dark fantasy RTS game effect, immediate transient and fast decay, no gore, no voice, no ambience, no music",
+  },
+  {
+    id: "undead_spearman_attack_02",
+    duration: 1,
+    prompt: "One quick skeletal infantry slash, sharp bone-joint rattle, thin cursed blade whoosh and snappy contact hit, short isolated isometric strategy game sound, no gore, no voice, no ambience, no music",
+  },
+  {
+    id: "undead_knight_attack_01",
+    duration: 1,
+    prompt: "Single heavy undead crypt guard axe cleave, weighty spectral weapon whoosh, thick bone armor clack and brutal low impact, compact dark fantasy RTS attack sound with fast decay, no gore, no voice, no ambience, no music",
+  },
+  {
+    id: "undead_knight_attack_02",
+    duration: 1,
+    prompt: "One massive skeleton warrior swinging a heavy cursed axe, broad air cut, dense bony plate rattle and hard crushing strike, powerful short isolated game effect, no gore, no voice, no ambience, no music",
+  },
+  {
+    id: "undead_ranger_attack_01",
+    duration: 1,
+    prompt: "Single undead skeleton crossbow firing, tight mechanical trigger click, dry bowstring snap, wooden stock recoil and brief bolt hiss, compact isolated dark fantasy RTS release sound, no impact, no voice, no ambience, no music",
+  },
+  {
+    id: "undead_ranger_attack_02",
+    duration: 1,
+    prompt: "One cursed skeletal crossbow shot, sharp latch release, taut string twang, bone fingers and old wood clack, fast bolt cutting air, short dry game effect, no impact, no voice, no ambience, no music",
+  },
+  {
+    id: "undead_mage_lightning_01",
+    duration: 2,
+    prompt: "Single supernatural violet lightning bolt striking from the sky, instant electrical crack, magical energy snap and compact dark thunder impact, aggressive bright transient with a very short tail, isolated fantasy RTS spell effect, no voice, no ambience, no music",
+  },
+  {
+    id: "undead_mage_lightning_02",
+    duration: 2,
+    prompt: "One necromantic lightning strike hitting the ground, piercing arc flash, layered purple electricity crackle and deep concise thunder snap, short powerful isometric game spell sound, no voice, no ambience, no music",
+  },
+  {
+    id: "undead_bone_dragon_breath_01",
+    duration: 2,
+    prompt: "Single frost bone dragon breath attack, forceful icy wind jet erupting through a skeletal jaw, crystalline freezing crackle and ghostly cold energy rush, compact dark fantasy RTS cone attack, no roar, no voice, no ambience, no music",
+  },
+  {
+    id: "undead_bone_dragon_breath_02",
+    duration: 2,
+    prompt: "One undead dragon exhaling a concentrated freezing blast, sudden hollow breath burst, dense arctic spray, ice crystals snapping and spectral frost hiss, short isolated game attack effect, no roar, no voice, no ambience, no music",
+  },
+  {
     id: "catapult_launch_01",
     duration: 1,
     prompt: "Isolated medieval torsion catapult firing one heavy stone, sudden wooden frame strain, rope snap and forceful low launch thump, dry close game sound, no impact, no voice, no ambience, no music",

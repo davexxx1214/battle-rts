@@ -14,8 +14,8 @@ import {
 import { stampBattleEvent } from "../../src/game/events";
 
 describe("battle audio", () => {
-  it("enables audio by default and keeps the shared mix restrained", () => {
-    expect(DEFAULT_AUDIO_ENABLED).toBe(true);
+  it("keeps audio off by default and keeps the shared mix restrained", () => {
+    expect(DEFAULT_AUDIO_ENABLED).toBe(false);
     expect(scaleAudioGain(1)).toBe(0.5);
     expect(scaleAudioGain(0.72)).toBe(0.36);
   });
@@ -82,13 +82,26 @@ describe("battle audio", () => {
     expect(UI_AUDIO_CUES["place-unit"].gain).toBe(1);
   });
 
-  it("keeps only bow release and catapult combat cues", () => {
+  it("keeps human ranged cues and two variants for every undead attack", () => {
     expect(Object.keys(COMBAT_AUDIO_CUES)).toEqual([
       "ranger.attack",
       "catapult.attack",
       "catapult.impact",
+      "undead.spearman.attack",
+      "undead.knight.attack",
+      "undead.ranger.attack",
+      "undead.mage.lightning",
+      "undead.bone-dragon.breath",
     ]);
     expect(COMBAT_AUDIO_CUES["ranger.attack"].variants).toEqual(["draw-bow.wav"]);
+    for (const cue of Object.keys(COMBAT_AUDIO_CUES).filter((cue) => (
+      cue.startsWith("undead.")
+    )) as (keyof typeof COMBAT_AUDIO_CUES)[]) {
+      expect(COMBAT_AUDIO_CUES[cue].variants).toHaveLength(2);
+      expect(COMBAT_AUDIO_CUES[cue].variants.every((variant) => (
+        variant.startsWith("undead_") && variant.endsWith(".wav")
+      ))).toBe(true);
+    }
     const variants = Object.values(COMBAT_AUDIO_CUES).flatMap((cue) => cue.variants);
     expect(variants.every((variant) => !/ambient|command|horn/.test(variant))).toBe(true);
   });
@@ -237,6 +250,102 @@ describe("battle audio", () => {
     expect(router.consume(events)).toEqual([]);
     router.reset();
     expect(router.consume([events[0]!])).toEqual([]);
+  });
+
+  it("routes every undead attack and synchronizes lightning to projectile impact", () => {
+    const router = new CombatAudioEventRouter();
+    const point = { x: 0, z: 0 };
+    const attacks = [
+      stampBattleEvent({
+        type: "attack-started",
+        attackerId: "undead-spearman",
+        targetId: "target",
+        targetType: "unit",
+        role: "spearman",
+        origin: point,
+        targetPosition: point,
+      }, 30, 1),
+      stampBattleEvent({
+        type: "attack-started",
+        attackerId: "undead-knight",
+        targetId: "target",
+        targetType: "unit",
+        role: "knight",
+        origin: point,
+        targetPosition: point,
+      }, 31, 1),
+      stampBattleEvent({
+        type: "attack-started",
+        attackerId: "undead-ranger",
+        targetId: "target",
+        targetType: "unit",
+        role: "ranger",
+        origin: point,
+        targetPosition: point,
+      }, 32, 1),
+      stampBattleEvent({
+        type: "attack-started",
+        attackerId: "undead-mage",
+        targetId: "target",
+        targetType: "unit",
+        role: "mage",
+        origin: point,
+        targetPosition: point,
+      }, 33, 1),
+      stampBattleEvent({
+        type: "projectile-hit",
+        projectileId: "undead-lightning",
+        attackerId: "undead-mage",
+        targetId: "target",
+        targetType: "unit",
+        role: "mage",
+        position: point,
+        splashRadius: 3,
+      }, 34, 1),
+      stampBattleEvent({
+        type: "attack-started",
+        attackerId: "undead-bone-dragon",
+        targetId: "target",
+        targetType: "unit",
+        role: "bone-dragon",
+        origin: point,
+        targetPosition: point,
+      }, 35, 1),
+    ];
+    const sources = [
+      "undead-spearman",
+      "undead-knight",
+      "undead-ranger",
+      "undead-mage",
+      "undead-bone-dragon",
+    ].map((id) => ({ id, combatProfile: "undead" as const }));
+
+    expect(router.consume(attacks, sources)).toEqual([
+      { cue: "undead.spearman.attack", sequence: 30 },
+      { cue: "undead.knight.attack", sequence: 31 },
+      { cue: "undead.ranger.attack", sequence: 32 },
+      { cue: "undead.mage.lightning", sequence: 34 },
+      { cue: "undead.bone-dragon.breath", sequence: 35 },
+    ]);
+  });
+
+  it("keeps delayed undead projectile audio after its attacker leaves the battlefield", () => {
+    const router = new CombatAudioEventRouter();
+    const point = { x: 0, z: 0 };
+    router.consume([], [{ id: "departed-mage", combatProfile: "undead" }]);
+
+    const requests = router.consume([stampBattleEvent({
+      type: "projectile-hit",
+      projectileId: "delayed-lightning",
+      attackerId: "departed-mage",
+      targetId: "target",
+      targetType: "unit",
+      role: "mage",
+      position: point,
+      splashRadius: 3.1,
+    }, 40, 2)], []);
+
+    expect(requests).toEqual([{ cue: "undead.mage.lightning", sequence: 40 }]);
   });
 
   it("routes only successful player deployments to distinct placement sounds", () => {

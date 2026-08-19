@@ -3,6 +3,7 @@ import {
   BattleMusicPlayer,
   COMBAT_AUDIO_BUS_CAPACITIES,
   CombatAudioEventRouter,
+  DEFAULT_AUDIO_ENABLED,
   DeploymentAudioEventRouter,
   ReusableAudioPool,
   UI_AUDIO_CUES,
@@ -18,7 +19,7 @@ export class PlayCanvasBattleAudio {
   private readonly combatPools: Readonly<Record<CombatAudioBus, ReusableAudioPool>>;
   private readonly uiPool = new ReusableAudioPool(4, createVoice, scaleAudioGain);
   private readonly music = new BattleMusicPlayer(createVoice);
-  private enabled = true;
+  private enabled = DEFAULT_AUDIO_ENABLED;
   private sceneRevision = 0;
 
   constructor() {
@@ -33,8 +34,13 @@ export class PlayCanvasBattleAudio {
         createVoice,
         scaleAudioGain,
       ),
+      undead: new ReusableAudioPool(
+        COMBAT_AUDIO_BUS_CAPACITIES.undead,
+        createVoice,
+        scaleAudioGain,
+      ),
     };
-    this.music.setEnabled(true);
+    this.music.setEnabled(DEFAULT_AUDIO_ENABLED);
   }
 
   setEnabled(enabled: boolean): void {
@@ -57,7 +63,7 @@ export class PlayCanvasBattleAudio {
   }
 
   sync(battle: BattleState): void {
-    const combat = this.combatRouter.consume(battle.events);
+    const combat = this.combatRouter.consume(battle.events, battle.units);
     const deployment = this.deploymentRouter.consume(battle.events);
     if (this.enabled) {
       for (const request of combat) {

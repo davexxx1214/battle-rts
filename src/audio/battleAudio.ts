@@ -1,4 +1,5 @@
 import type { BattleEvent } from "../game/events";
+import type { UnitCombatProfile } from "../game/types";
 
 export interface AudioVoice {
   src: string;
@@ -16,9 +17,19 @@ export type UiAudioCue = "select" | "place-unit" | "place-building";
 export type CombatAudioCue =
   | "ranger.attack"
   | "catapult.attack"
-  | "catapult.impact";
+  | "catapult.impact"
+  | "undead.spearman.attack"
+  | "undead.knight.attack"
+  | "undead.ranger.attack"
+  | "undead.mage.lightning"
+  | "undead.bone-dragon.breath";
 
-export type CombatAudioBus = "projectiles" | "siege";
+export type CombatAudioBus = "projectiles" | "siege" | "undead";
+
+export interface CombatAudioSource {
+  readonly id: string;
+  readonly combatProfile: UnitCombatProfile;
+}
 
 export interface CombatAudioCueRequest {
   readonly cue: CombatAudioCue;
@@ -41,7 +52,7 @@ export interface CombatAudioPlayback {
 
 export type BattleMusicScene = "victory" | "defeat";
 
-export const DEFAULT_AUDIO_ENABLED = true;
+export const DEFAULT_AUDIO_ENABLED = false;
 
 const MASTER_VOLUME_MULTIPLIER = 0.5;
 
@@ -65,6 +76,7 @@ export const UI_AUDIO_CUES: Readonly<
 export const COMBAT_AUDIO_BUS_CAPACITIES: Readonly<Record<CombatAudioBus, number>> = {
   projectiles: 4,
   siege: 3,
+  undead: 6,
 };
 
 export const COMBAT_AUDIO_CUES: Readonly<Record<CombatAudioCue, CombatAudioCueSettings>> = {
@@ -84,6 +96,39 @@ export const COMBAT_AUDIO_CUES: Readonly<Record<CombatAudioCue, CombatAudioCueSe
     bus: "siege",
     variants: ["catapult_impact_01.wav", "catapult_impact_02.wav"],
     gain: [0.82, 0.98],
+    pitch: [0.96, 1.02],
+  },
+  "undead.spearman.attack": {
+    bus: "undead",
+    variants: ["undead_spearman_attack_01.wav", "undead_spearman_attack_02.wav"],
+    gain: [0.42, 0.56],
+    pitch: [0.96, 1.07],
+  },
+  "undead.knight.attack": {
+    bus: "undead",
+    variants: ["undead_knight_attack_01.wav", "undead_knight_attack_02.wav"],
+    gain: [0.65, 0.82],
+    pitch: [0.94, 1.02],
+  },
+  "undead.ranger.attack": {
+    bus: "undead",
+    variants: ["undead_ranger_attack_01.wav", "undead_ranger_attack_02.wav"],
+    gain: [0.55, 0.7],
+    pitch: [0.96, 1.04],
+  },
+  "undead.mage.lightning": {
+    bus: "undead",
+    variants: ["undead_mage_lightning_01.wav", "undead_mage_lightning_02.wav"],
+    gain: [0.66, 0.82],
+    pitch: [0.97, 1.03],
+  },
+  "undead.bone-dragon.breath": {
+    bus: "undead",
+    variants: [
+      "undead_bone_dragon_breath_01.wav",
+      "undead_bone_dragon_breath_02.wav",
+    ],
+    gain: [0.68, 0.86],
     pitch: [0.96, 1.02],
   },
 };
@@ -193,13 +238,23 @@ export class ReusableAudioPool {
 
 export class CombatAudioEventRouter {
   #lastSequence = -1;
+  readonly #combatProfileBySourceId = new Map<string, UnitCombatProfile>();
 
-  consume(events: readonly BattleEvent[]): CombatAudioCueRequest[] {
+  consume(
+    events: readonly BattleEvent[],
+    sources: readonly CombatAudioSource[] = [],
+  ): CombatAudioCueRequest[] {
     const requests: CombatAudioCueRequest[] = [];
+    for (const { id, combatProfile } of sources) {
+      this.#combatProfileBySourceId.set(id, combatProfile);
+    }
     for (const event of [...events].sort((first, second) => first.sequence - second.sequence)) {
       if (event.sequence <= this.#lastSequence) continue;
       this.#lastSequence = event.sequence;
-      for (const cue of combatEventCues(event)) {
+      const combatProfile = "attackerId" in event
+        ? this.#combatProfileBySourceId.get(event.attackerId)
+        : undefined;
+      for (const cue of combatEventCues(event, combatProfile)) {
         requests.push({ cue, sequence: event.sequence });
       }
     }
@@ -208,6 +263,7 @@ export class CombatAudioEventRouter {
 
   reset(): void {
     this.#lastSequence = -1;
+    this.#combatProfileBySourceId.clear();
   }
 }
 
@@ -228,8 +284,18 @@ export function resolveCombatAudioPlayback(
   };
 }
 
-function combatEventCues(event: BattleEvent): CombatAudioCue[] {
+function combatEventCues(
+  event: BattleEvent,
+  combatProfile: UnitCombatProfile | undefined,
+): CombatAudioCue[] {
   if (event.type === "attack-started") {
+    if (combatProfile === "undead") {
+      if (event.role === "spearman") return ["undead.spearman.attack"];
+      if (event.role === "knight") return ["undead.knight.attack"];
+      if (event.role === "ranger") return ["undead.ranger.attack"];
+      if (event.role === "bone-dragon") return ["undead.bone-dragon.breath"];
+      if (event.role === "mage") return [];
+    }
     if (event.role === "ranger" || event.role === "castle" || event.role === "arrow-tower") {
       return ["ranger.attack"];
     }
@@ -239,6 +305,9 @@ function combatEventCues(event: BattleEvent): CombatAudioCue[] {
     return [];
   }
   if (event.type === "projectile-hit") {
+    if (combatProfile === "undead" && event.role === "mage") {
+      return ["undead.mage.lightning"];
+    }
     if (event.role === "catapult" || event.role === "bone-dragon") {
       return ["catapult.impact"];
     }

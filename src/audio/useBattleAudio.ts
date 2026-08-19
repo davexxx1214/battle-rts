@@ -50,8 +50,8 @@ export function useBattleAudio({
   }, [resetToken]);
 
   useEffect(() => {
-    system.current?.process(battle.events);
-  }, [battle.events]);
+    system.current?.process(battle.events, battle.units);
+  }, [battle.events, battle.units]);
 
   useEffect(() => {
     system.current?.setScene(musicSceneForWinner(battle.winner), resetToken);
@@ -105,9 +105,9 @@ class BrowserBattleAudioSystem {
     this.#music.setScene(scene, revision);
   }
 
-  process(events: BattleState["events"]): void {
+  process(events: BattleState["events"], units: BattleState["units"]): void {
     for (const cue of this.#deploymentRouter.consume(events)) this.playUiCue(cue);
-    for (const request of this.#combatRouter.consume(events)) this.#playCombatCue(request);
+    for (const request of this.#combatRouter.consume(events, units)) this.#playCombatCue(request);
   }
 
   playUiCue(cue: UiAudioCue): void {

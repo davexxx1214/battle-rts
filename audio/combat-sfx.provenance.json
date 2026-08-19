@@ -1,10 +1,100 @@
 {
   "version": 1,
   "model": "sonilo/v1.1/text-to-sound-effects",
-  "updatedAt": "2026-08-16T11:52:24.087Z",
+  "updatedAt": "2026-08-19T04:37:57.066Z",
   "format": "wav",
   "maximumDurationSeconds": 2,
   "entries": [
+    {
+      "id": "undead_spearman_attack_01",
+      "duration": 1,
+      "prompt": "Single fast undead skeleton minion attacking with a bone blade, dry bone clatter, short rusty blade swish and crisp light strike, compact stylized dark fantasy RTS game effect, immediate transient and fast decay, no gore, no voice, no ambience, no music",
+      "file": "undead_spearman_attack_01.wav",
+      "requestId": "01a0184f-6c50-7091-b19d-114e4faa296b",
+      "specHash": "096a322573924e8d599c7f5cac0c783d7896816e0709583c3ce684850a0cebbc",
+      "sha256": "5afd3d13f3d2ab70119f223dec5081f182694a6023e3c6cd07e67f4b852e169e"
+    },
+    {
+      "id": "undead_spearman_attack_02",
+      "duration": 1,
+      "prompt": "One quick skeletal infantry slash, sharp bone-joint rattle, thin cursed blade whoosh and snappy contact hit, short isolated isometric strategy game sound, no gore, no voice, no ambience, no music",
+      "file": "undead_spearman_attack_02.wav",
+      "requestId": "01a0184f-680f-7453-b39f-df99a54c0ee8",
+      "specHash": "31e5b51f2c60a9f2ce194118dbe2169baaad18135a7f3baca9b4ba2191912911",
+      "sha256": "e971ee1a9fcb4058a57ee107d88e9a8e47730903889050e2eed0254ee7d0be9c"
+    },
+    {
+      "id": "undead_knight_attack_01",
+      "duration": 1,
+      "prompt": "Single heavy undead crypt guard axe cleave, weighty spectral weapon whoosh, thick bone armor clack and brutal low impact, compact dark fantasy RTS attack sound with fast decay, no gore, no voice, no ambience, no music",
+      "file": "undead_knight_attack_01.wav",
+      "requestId": "01a0184f-6583-7732-a4f6-9996926696e2",
+      "specHash": "bc5115c4b6898d0a8636b311db60d63afad05679de6d5c88a20be7fee5f71a6f",
+      "sha256": "1e174f9dff2bb6775ef5ad751a3ea684fc2a3c4d41aa1af0ace95b15b12f75a1"
+    },
+    {
+      "id": "undead_knight_attack_02",
+      "duration": 1,
+      "prompt": "One massive skeleton warrior swinging a heavy cursed axe, broad air cut, dense bony plate rattle and hard crushing strike, powerful short isolated game effect, no gore, no voice, no ambience, no music",
+      "file": "undead_knight_attack_02.wav",
+      "requestId": "01a0184f-7b4e-75f1-b5d3-c6787aa89f2e",
+      "specHash": "185bde1ee62c6f4d07584762c5dfe03e954f30d6a4aeb11dbd52e8bd96a018e5",
+      "sha256": "9b62ed799e1e871585e65ec35b9170fb38cb422616b3c465f3cdc90f4c85f97e"
+    },
+    {
+      "id": "undead_ranger_attack_01",
+      "duration": 1,
+      "prompt": "Single undead skeleton crossbow firing, tight mechanical trigger click, dry bowstring snap, wooden stock recoil and brief bolt hiss, compact isolated dark fantasy RTS release sound, no impact, no voice, no ambience, no music",
+      "file": "undead_ranger_attack_01.wav",
+      "requestId": "01a0184f-801d-75c1-b6ed-40ccc70f70e6",
+      "specHash": "f36e2467fd89f535330291c4e2950f1692767b1309b793c1be3f743fc27bee15",
+      "sha256": "91b48648244bb51a98129235d102f09b45fe207e5c904ee5cd9fde55b74839b4"
+    },
+    {
+      "id": "undead_ranger_attack_02",
+      "duration": 1,
+      "prompt": "One cursed skeletal crossbow shot, sharp latch release, taut string twang, bone fingers and old wood clack, fast bolt cutting air, short dry game effect, no impact, no voice, no ambience, no music",
+      "file": "undead_ranger_attack_02.wav",
+      "requestId": "01a0184f-972e-7351-85cf-814b0fd292ef",
+      "specHash": "aac07ad91c48b7020d60a1142906e35bbdcb85436ae4a76b7199146c33a2febf",
+      "sha256": "7f1a73e0266a91128bbbee87d47193be1adc843146093212c65aae2cc9e950f5"
+    },
+    {
+      "id": "undead_mage_lightning_01",
+      "duration": 2,
+      "prompt": "Single supernatural violet lightning bolt striking from the sky, instant electrical crack, magical energy snap and compact dark thunder impact, aggressive bright transient with a very short tail, isolated fantasy RTS spell effect, no voice, no ambience, no music",
+      "file": "undead_mage_lightning_01.wav",
+      "requestId": "01a0184f-9743-7f92-927c-ab1655d628f3",
+      "specHash": "8317621a7c386906f51e1eaed636808dfb7f80c3a741549b01f9217b46c1599c",
+      "sha256": "0acb6457fffed1cc0aa539f8e65c9a584e8c4e55b1029a03bcfd5c200ddd1dbf"
+    },
+    {
+      "id": "undead_mage_lightning_02",
+      "duration": 2,
+      "prompt": "One necromantic lightning strike hitting the ground, piercing arc flash, layered purple electricity crackle and deep concise thunder snap, short powerful isometric game spell sound, no voice, no ambience, no music",
+      "file": "undead_mage_lightning_02.wav",
+      "requestId": "01a0184f-9bee-7e31-ada9-20323cd641a4",
+      "specHash": "ae806357374e844fedcea361edcc70cf6809cd748d21170b4b49c916dc9b56df",
+      "sha256": "0a62ba1d4c713f1a8e80d79293b7eb21aa464d3ee2305e233b2553cd41967ac4"
+    },
+    {
+      "id": "undead_bone_dragon_breath_01",
+      "duration": 2,
+      "prompt": "Single frost bone dragon breath attack, forceful icy wind jet erupting through a skeletal jaw, crystalline freezing crackle and ghostly cold energy rush, compact dark fantasy RTS cone attack, no roar, no voice, no ambience, no music",
+      "file": "undead_bone_dragon_breath_01.wav",
+      "requestId": "01a0184f-a7e2-7593-a049-f350c08d5e8a",
+      "specHash": "9ddcbcadc00745ff5f9853ed28f857caa7eafb6c65383e0fb1fee3ff4630aa0e",
+      "sha256": "8bc6e9bf193ab9b69c4cd25bbf8f111d7359eb9783daf06503d16ba744ff2492"
+    },
+    {
+      "id": "undead_bone_dragon_breath_02",
+      "duration": 2,
+      "prompt": "One undead dragon exhaling a concentrated freezing blast, sudden hollow breath burst, dense arctic spray, ice crystals snapping and spectral frost hiss, short isolated game attack effect, no roar, no voice, no ambience, no music",
+      "file": "undead_bone_dragon_breath_02.wav",
+      "requestId": "01a0184f-af61-7320-b0bc-4ac5abad2d88",
+      "specHash": "f39a7da801963742d81ec78c949eb966de5131f6140e5dc131ce5afac1ff7c3f",
+      "sha256": "c6a9deb3cb978e2d8bb9221e8a7f38270dea7fae28fe5a6b671d232041045ecd"
+    },
     {
       "id": "catapult_launch_01",
       "duration": 1,
