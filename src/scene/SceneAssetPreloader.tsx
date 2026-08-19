@@ -233,8 +233,8 @@ function collectSingleGltfUrls(): readonly string[] {
 
 function addCharacterAssetUrls(urls: Set<string>, asset: CharacterSceneAsset): void {
   urls.add(asset.modelUrl);
-  if (asset.equipment) {
-    for (const equipmentUrl of Object.values(asset.equipment.modelUrls)) {
+  for (const piece of asset.equipment ?? []) {
+    for (const equipmentUrl of Object.values(piece.modelUrls)) {
       if (equipmentUrl) urls.add(equipmentUrl);
     }
   }

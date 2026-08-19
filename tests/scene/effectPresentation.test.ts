@@ -6,8 +6,16 @@ import {
   FROST_BREATH_PARTICLES,
   FROST_BREATH_DURATION_SECONDS,
   FROST_BREATH_MOUTH_OFFSET,
-  frostBreathLayout,
+  LIGHTNING_STRIKE_COLORS,
+  LIGHTNING_STRIKE_DURATION_SECONDS,
+  LIGHTNING_STRIKE_HEIGHT,
+  LIGHTNING_STRIKE_PARTICLES,
+  combatProfileForAttacker,
   effectFrameIndex,
+  frostBreathLayout,
+  lightningBoltCenterOffset,
+  lightningStrikePose,
+  mageAttackUsesSkyLightning,
   projectileImpactLifetime,
   projectileArcOffset,
   projectileArcSlope,
@@ -41,11 +49,57 @@ describe("battle effect presentation", () => {
       "/assets/fx/kenney-particles/circle_05.png",
     ]);
     expect(BATTLE_FX_URLS).toEqual(expect.arrayContaining(Object.values(FROST_BREATH_PARTICLES)));
-    expect(BATTLE_FX_URLS).toHaveLength(19);
+    expect(BATTLE_FX_URLS).toHaveLength(23);
+  });
+
+  it("uses Kenney lightning bolts for undead mage sky strikes", () => {
+    expect(LIGHTNING_STRIKE_DURATION_SECONDS).toBe(0.4);
+    expect(LIGHTNING_STRIKE_PARTICLES.bolt).toBe("/assets/fx/kenney-particles/spark_05.png");
+    expect(LIGHTNING_STRIKE_PARTICLES.boltAlt).toBe("/assets/fx/kenney-particles/spark_06.png");
+    expect(Object.values(LIGHTNING_STRIKE_PARTICLES)).toEqual([
+      "/assets/fx/kenney-particles/spark_05.png",
+      "/assets/fx/kenney-particles/spark_06.png",
+      "/assets/fx/kenney-particles/trace_04.png",
+      "/assets/fx/kenney-particles/spark_01.png",
+      "/assets/fx/kenney-particles/flare_01.png",
+      "/assets/fx/kenney-particles/circle_05.png",
+    ]);
+    expect(BATTLE_FX_URLS).toEqual(expect.arrayContaining([
+      LIGHTNING_STRIKE_PARTICLES.bolt,
+      LIGHTNING_STRIKE_PARTICLES.boltAlt,
+      LIGHTNING_STRIKE_PARTICLES.glow,
+      LIGHTNING_STRIKE_PARTICLES.burst,
+    ]));
+    expect(LIGHTNING_STRIKE_COLORS.bolt).toBe("#c084ff");
+    expect(LIGHTNING_STRIKE_COLORS.impact).toBe("#9aff6e");
+    expect(mageAttackUsesSkyLightning("mage", "undead")).toBe(true);
+    expect(mageAttackUsesSkyLightning("mage", "human")).toBe(false);
+    expect(mageAttackUsesSkyLightning("ranger", "undead")).toBe(false);
+    expect(combatProfileForAttacker([
+      { id: "crimson-mage-1", combatProfile: "undead" },
+    ], "crimson-mage-1")).toBe("undead");
+  });
+
+  it("drops the lightning bolt from the sky before it flashes on the ground", () => {
+    const start = lightningStrikePose(0, 3);
+    const falling = lightningStrikePose(0.08, 3);
+    const landed = lightningStrikePose(0.22, 3);
+    const fading = lightningStrikePose(0.9, 3);
+    expect(start.drop).toBeCloseTo(0);
+    expect(falling.drop).toBeGreaterThan(0.4);
+    expect(falling.drop).toBeLessThan(1);
+    expect(landed.drop).toBeCloseTo(1);
+    expect(landed.boltOpacity).toBeGreaterThan(start.boltOpacity);
+    expect(fading.boltOpacity).toBeLessThan(0.4);
+    expect(lightningBoltCenterOffset(0.04)).toBeGreaterThan(lightningBoltCenterOffset(1));
+    expect(lightningBoltCenterOffset(1)).toBeCloseTo(LIGHTNING_STRIKE_HEIGHT / 2);
+    expect(lightningStrikePose(0.2, 2).yaw).toBe(lightningStrikePose(0.8, 2).yaw);
+    expect(lightningStrikePose(1, 0).boltOpacity).toBeCloseTo(0);
   });
 
   it("aims the frost jet from the dragon mouth along the attack ray", () => {
     const layout = frostBreathLayout({ x: 0, z: 0 }, { x: 8, z: 0 }, 6.8);
+    expect(FROST_BREATH_MOUTH_OFFSET).toBe(1.65);
     expect(layout.directionX).toBeCloseTo(1);
     expect(layout.directionZ).toBeCloseTo(0);
     expect(layout.yaw).toBeCloseTo(0);

@@ -36,6 +36,7 @@ import {
   CATAPULT_OPERATOR_ANIMATION_URLS,
   CHARACTER_SCENE_ASSETS,
   characterAnimationForState,
+  characterAnimationLoops,
   characterTintStrength,
   type CharacterRole,
 } from "../../../src/scene/units/characterPresentation";
@@ -442,7 +443,11 @@ export class PlayCanvasBattlefield {
     for (const asset of Object.values(CHARACTER_SCENE_ASSETS)) {
       urls.add(asset.modelUrl);
       if ("equipment" in asset && asset.equipment) {
-        for (const url of Object.values(asset.equipment.modelUrls)) urls.add(url);
+        for (const piece of asset.equipment) {
+          for (const url of Object.values(piece.modelUrls)) {
+            if (url) urls.add(url);
+          }
+        }
       }
     }
     for (const url of Object.values(SCENE_MODEL_URLS)) urls.add(url);
@@ -790,26 +795,26 @@ export class PlayCanvasBattlefield {
     });
     this.assetLibrary.ground(model);
     if ("equipment" in asset && asset.equipment) {
-      const equipment = await this.assetLibrary.instantiate(
-        asset.equipment.modelUrls[unit.faction],
-        { castShadows: false, receiveShadows: true },
-      );
-      const bone = model.findByName(asset.equipment.boneName) as pc.Entity | null;
-      if (bone) {
-        equipment.setLocalScale(
-          asset.equipment.scale,
-          asset.equipment.scale,
-          asset.equipment.scale,
+      for (const piece of asset.equipment) {
+        const equipmentUrl = piece.modelUrls[unit.faction];
+        if (!equipmentUrl) continue;
+        const equipment = await this.assetLibrary.instantiate(
+          equipmentUrl,
+          { castShadows: false, receiveShadows: true },
         );
-        equipment.setLocalPosition(...asset.equipment.position);
-        equipment.setLocalEulerAngles(
-          asset.equipment.rotation[0] * pc.math.RAD_TO_DEG,
-          asset.equipment.rotation[1] * pc.math.RAD_TO_DEG,
-          asset.equipment.rotation[2] * pc.math.RAD_TO_DEG,
-        );
-        bone.addChild(equipment);
-      } else {
-        equipment.destroy();
+        const bone = model.findByName(piece.boneName) as pc.Entity | null;
+        if (bone) {
+          equipment.setLocalScale(piece.scale, piece.scale, piece.scale);
+          equipment.setLocalPosition(...piece.position);
+          equipment.setLocalEulerAngles(
+            piece.rotation[0] * pc.math.RAD_TO_DEG,
+            piece.rotation[1] * pc.math.RAD_TO_DEG,
+            piece.rotation[2] * pc.math.RAD_TO_DEG,
+          );
+          bone.addChild(equipment);
+        } else {
+          equipment.destroy();
+        }
       }
     }
     visual.root.addChild(model);
@@ -887,7 +892,7 @@ export class PlayCanvasBattlefield {
           ...stateNames.map((name) => ({
             name,
             speed: 1,
-            loop: !name.startsWith("Death_") && !name.startsWith("Hit_"),
+            loop: characterAnimationLoops(name),
             defaultState: name === defaultState,
           })),
         ],
@@ -902,7 +907,7 @@ export class PlayCanvasBattlefield {
         track,
         undefined,
         1,
-        !name.startsWith("Death_") && !name.startsWith("Hit_"),
+        characterAnimationLoops(name),
       );
     }
   }
@@ -921,6 +926,7 @@ export class PlayCanvasBattlefield {
           attackSequence: visual.attackStartedAt === null
             ? 0
             : Math.round(visual.attackStartedAt * 20),
+          race: unit.combatProfile,
         });
     if (!force && visual.animationName === animationName) return;
     const animated = unit.role === "catapult" ? visual.operator : visual.model;

@@ -27,8 +27,11 @@ import { BoneDragonUnitModel } from "./BoneDragonUnitModel";
 import {
   CHARACTER_ANIMATION_URLS,
   characterAnimationForState,
+  characterEquipmentFor,
+  characterHiddenObjectNames,
   characterSceneAssetFor,
   characterTintStrength,
+  type CharacterEquipment,
   type CharacterRole,
   type CharacterSceneAsset,
 } from "./characterPresentation";
@@ -91,11 +94,11 @@ function CharacterUnitModel({
     unit.faction,
     race,
   );
-  const equipment = asset.equipment;
-  const equipmentUrl = equipment?.modelUrls[unit.faction];
+  const visualScale = asset.visualScale ?? 1;
+  const equipment = characterEquipmentFor(asset, unit.faction);
   const characterGltfs = useLoader(
     GLTFLoader,
-    equipmentUrl ? [asset.modelUrl, equipmentUrl] : [asset.modelUrl],
+    [asset.modelUrl, ...equipment.map((piece) => piece.url)],
   );
   const gltf = characterGltfs[0]!;
   const animationGltfs = useLoader(GLTFLoader, [...CHARACTER_ANIMATION_URLS]);
@@ -110,11 +113,13 @@ function CharacterUnitModel({
       unit.faction,
       role,
       race,
-      equipment && characterGltfs[1]
-        ? { ...equipment, source: characterGltfs[1].scene }
-        : null,
+      visualScale,
+      equipment.map((piece, index) => ({
+        ...piece,
+        source: characterGltfs[index + 1]!.scene,
+      })),
     ),
-    [characterGltfs, equipment, gltf.scene, race, role, unit.faction],
+    [characterGltfs, equipment, gltf.scene, race, role, unit.faction, visualScale],
   );
   const clips = useMemo(
     () => animationGltfs.flatMap((animation) => animation.animations),
@@ -130,6 +135,7 @@ function CharacterUnitModel({
     status: unit.status,
     attackSequence,
     damaged: damageAge < 0.2,
+    race,
   });
 
   useEffect(() => {
@@ -218,7 +224,7 @@ function CharacterUnitModel({
   const healthRatio = MathUtils.clamp(unit.health / Math.max(1, unit.maxHealth), 0, 1);
   const factionColors = sceneColorsForFaction(unit.faction, race);
   const baseRing = unitBaseRingGeometry(unit.role);
-  const healthWidth = 0.76 * healthRatio;
+  const healthWidth = 0.76 * visualScale * healthRatio;
   return (
     <group
       ref={root}
@@ -229,7 +235,11 @@ function CharacterUnitModel({
       {unit.health > 0 && (
         <mesh position={[0, 0.035, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry
-            args={[baseRing.innerRadius, baseRing.outerRadius, baseRing.segments]}
+            args={[
+              baseRing.innerRadius * visualScale,
+              baseRing.outerRadius * visualScale,
+              baseRing.segments,
+            ]}
           />
           <meshBasicMaterial
             color={factionColors.accent}
@@ -241,20 +251,23 @@ function CharacterUnitModel({
       )}
       {selected && unit.health > 0 && (
         <mesh position={[0, 0.055, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.49, 0.61, 32]} />
+          <ringGeometry args={[0.49 * visualScale, 0.61 * visualScale, 32]} />
           <meshBasicMaterial color="#f1cf6a" transparent opacity={0.95} depthWrite={false} />
         </mesh>
       )}
       {attackSequence !== undefined && unit.health > 0 && (
-        <AttackPulse role={unit.role} key={attackSequence} />
+        <AttackPulse role={unit.role} race={race} visualScale={visualScale} key={attackSequence} />
       )}
       {shouldShowUnitHealthBar(unit.health, unit.maxHealth) && (
-        <group ref={healthRoot} position={[0, 2.02, 0]}>
+        <group ref={healthRoot} position={[0, 2.02 * visualScale, 0]}>
           <mesh renderOrder={140}>
-            <planeGeometry args={[0.86, 0.1]} />
+            <planeGeometry args={[0.86 * visualScale, 0.1]} />
             <meshBasicMaterial color="#18140f" depthTest={false} depthWrite={false} />
           </mesh>
-          <mesh position={[-(0.76 - healthWidth) / 2, 0, 0.006]} renderOrder={141}>
+          <mesh
+            position={[-(0.76 * visualScale - healthWidth) / 2, 0, 0.006]}
+            renderOrder={141}
+          >
             <planeGeometry args={[healthWidth, 0.064]} />
             <meshBasicMaterial
               color={factionColors.accent}
@@ -268,7 +281,15 @@ function CharacterUnitModel({
   );
 }
 
-function AttackPulse({ role }: { readonly role: UnitRole }) {
+function AttackPulse({
+  role,
+  race,
+  visualScale,
+}: {
+  readonly role: UnitRole;
+  readonly race: BattleRace;
+  readonly visualScale: number;
+}) {
   const root = useRef<Mesh>(null);
   const material = useRef<MeshBasicMaterial>(null);
   const bornAt = useRef<number | null>(null);
@@ -283,10 +304,12 @@ function AttackPulse({ role }: { readonly role: UnitRole }) {
   });
   return (
     <mesh ref={root} position={[0, 0.12, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-      <ringGeometry args={[0.42, 0.49, 24]} />
+      <ringGeometry args={[0.42 * visualScale, 0.49 * visualScale, 24]} />
       <meshBasicMaterial
         ref={material}
-        color={role === "mage" ? "#75cfff" : "#ffd178"}
+        color={role === "mage"
+          ? race === "undead" ? "#c084ff" : "#75cfff"
+          : "#ffd178"}
         transparent
         depthWrite={false}
       />
@@ -299,29 +322,29 @@ function prepareCharacterModel(
   faction: BattleUnit["faction"],
   role: CharacterRole,
   race: BattleRace,
-  equipment: (NonNullable<CharacterSceneAsset["equipment"]> & {
-    readonly source: Object3D;
-  }) | null,
+  visualScale: number,
+  equipment: readonly (CharacterEquipment & { readonly source: Object3D })[],
 ): Object3D {
   const model = cloneSkeleton(source);
-  if (equipment) {
-    const handSlot = model.getObjectByName(equipment.boneName);
-    if (handSlot) {
-      const attached = equipment.source.clone(true);
-      attached.name = `${role}-equipment`;
-      attached.position.set(...equipment.position);
-      attached.rotation.set(...equipment.rotation);
-      attached.scale.setScalar(equipment.scale);
-      handSlot.add(attached);
-    }
+  for (const [index, piece] of equipment.entries()) {
+    const handSlot = model.getObjectByName(piece.boneName);
+    if (!handSlot) continue;
+    const attached = piece.source.clone(true);
+    attached.name = `${role}-equipment-${index}`;
+    attached.position.set(...piece.position);
+    attached.rotation.set(...piece.rotation);
+    attached.scale.setScalar(piece.scale);
+    handSlot.add(attached);
   }
   const isUndead = race === "undead";
+  const hiddenObjects = new Set(characterHiddenObjectNames(role, isUndead));
   const tint = new Color(sceneColorsForFaction(faction, race).tint);
-  model.scale.setScalar(CHARACTER_SCALE);
+  model.scale.setScalar(CHARACTER_SCALE * visualScale);
   model.updateMatrixWorld(true);
   const bounds = new Box3().setFromObject(model);
   if (Number.isFinite(bounds.min.y)) model.position.y -= bounds.min.y;
   model.traverse((object) => {
+    if (hiddenObjects.has(object.name)) object.visible = false;
     if (!(object instanceof Mesh)) return;
     object.castShadow = false;
     object.receiveShadow = true;

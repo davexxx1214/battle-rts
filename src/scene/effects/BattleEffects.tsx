@@ -30,8 +30,18 @@ import {
   FROST_BREATH_DURATION_SECONDS,
   FROST_BREATH_MOUTH_HEIGHT,
   FROST_BREATH_PARTICLES,
+  LIGHTNING_STRIKE_COLORS,
+  LIGHTNING_STRIKE_DURATION_SECONDS,
+  LIGHTNING_STRIKE_GROUND_OFFSET,
+  LIGHTNING_STRIKE_HEIGHT,
+  LIGHTNING_STRIKE_PARTICLES,
+  LIGHTNING_STRIKE_WIDTH,
+  combatProfileForAttacker,
   effectFrameIndex,
   frostBreathLayout,
+  lightningBoltCenterOffset,
+  lightningStrikePose,
+  mageAttackUsesSkyLightning,
   projectileArcSlope,
   projectileFlightHeight,
   projectileImpactLifetime,
@@ -43,6 +53,7 @@ const MAGIC_FLIGHT_DURATION_SECONDS = 0.36;
 
 type BattleFxTextures = Readonly<Record<BattleFxSequenceName, readonly Texture[]>> & {
   readonly frost: Readonly<Record<keyof typeof FROST_BREATH_PARTICLES, Texture>>;
+  readonly lightning: Readonly<Record<keyof typeof LIGHTNING_STRIKE_PARTICLES, Texture>>;
 };
 
 const FROST_PUFF_SLOTS = [
@@ -84,9 +95,35 @@ export function BattleEffects({ battle }: { readonly battle: BattleState }) {
     && event.role === "bone-dragon"
     && battle.elapsed - event.time <= FROST_BREATH_DURATION_SECONDS
   ));
+  const visibleProjectiles = battle.projectiles.filter((projectile) => (
+    !mageAttackUsesSkyLightning(
+      projectile.role,
+      combatProfileForAttacker(battle.units, projectile.attackerId),
+    )
+  ));
+  const recentLightning = battle.events.filter((event) => (
+    event.type === "projectile-hit"
+    && mageAttackUsesSkyLightning(
+      event.role,
+      combatProfileForAttacker(battle.units, event.attackerId),
+    )
+    && battle.elapsed - event.time <= LIGHTNING_STRIKE_DURATION_SECONDS
+  ));
   return (
     <group>
-      <ProjectilePool projectiles={battle.projectiles} fxTextures={fxTextures} />
+      <ProjectilePool projectiles={visibleProjectiles} fxTextures={fxTextures} />
+      {recentLightning.map((event) => {
+        if (event.type !== "projectile-hit") return null;
+        return (
+          <LightningStrike
+            position={event.position}
+            age={battle.elapsed - event.time}
+            sequence={event.sequence}
+            textures={fxTextures.lightning}
+            key={`lightning-${event.sequence}`}
+          />
+        );
+      })}
       {recentBreaths.map((event) => {
         if (event.type !== "attack-started" || event.role !== "bone-dragon") return null;
         return (
@@ -442,8 +479,240 @@ function useBattleFxTextures(): BattleFxTextures {
         sparkle: byUrl.get(FROST_BREATH_PARTICLES.sparkle)!,
         impact: byUrl.get(FROST_BREATH_PARTICLES.impact)!,
       },
+      lightning: {
+        bolt: byUrl.get(LIGHTNING_STRIKE_PARTICLES.bolt)!,
+        boltAlt: byUrl.get(LIGHTNING_STRIKE_PARTICLES.boltAlt)!,
+        glow: byUrl.get(LIGHTNING_STRIKE_PARTICLES.glow)!,
+        burst: byUrl.get(LIGHTNING_STRIKE_PARTICLES.burst)!,
+        flare: byUrl.get(LIGHTNING_STRIKE_PARTICLES.flare)!,
+        impact: byUrl.get(LIGHTNING_STRIKE_PARTICLES.impact)!,
+      },
     };
   }, [loaded]);
+}
+
+function LightningStrike({
+  position,
+  age,
+  sequence,
+  textures,
+}: {
+  readonly position: WorldPoint;
+  readonly age: number;
+  readonly sequence: number;
+  readonly textures: BattleFxTextures["lightning"];
+}) {
+  const boltA = useRef<Mesh>(null);
+  const boltB = useRef<Mesh>(null);
+  const glowA = useRef<Mesh>(null);
+  const glowB = useRef<Mesh>(null);
+  const impact = useRef<Mesh>(null);
+  const flare = useRef<Sprite>(null);
+  const burst = useRef<Sprite>(null);
+  const boltMaterial = useRef<MeshBasicMaterial>(null);
+  const boltCoreMaterial = useRef<MeshBasicMaterial>(null);
+  const glowMaterial = useRef<MeshBasicMaterial>(null);
+  const glowCoreMaterial = useRef<MeshBasicMaterial>(null);
+  const impactMaterial = useRef<MeshBasicMaterial>(null);
+  const flareMaterial = useRef<SpriteMaterial>(null);
+  const burstMaterial = useRef<SpriteMaterial>(null);
+  const bornAt = useRef<number | null>(null);
+  const groundY = terrainHeightAt(position) + LIGHTNING_STRIKE_GROUND_OFFSET;
+  useFrame(({ clock }) => {
+    bornAt.current ??= clock.elapsedTime - age;
+    const progress = MathUtils.clamp(
+      (clock.elapsedTime - bornAt.current) / LIGHTNING_STRIKE_DURATION_SECONDS,
+      0,
+      1,
+    );
+    const pose = lightningStrikePose(progress, sequence);
+    const visible = progress < 1;
+    const boltY = groundY + lightningBoltCenterOffset(pose.drop);
+    const boltHeight = LIGHTNING_STRIKE_HEIGHT * Math.max(pose.drop, 0.04);
+    const boltTexture = pose.flicker === 0 ? textures.bolt : textures.boltAlt;
+    for (const bolt of [boltA.current, boltB.current]) {
+      if (!bolt) continue;
+      bolt.position.set(position.x, boltY, position.z);
+      bolt.scale.set(pose.boltWidth / LIGHTNING_STRIKE_WIDTH, boltHeight / LIGHTNING_STRIKE_HEIGHT, 1);
+      bolt.visible = visible;
+    }
+    for (const material of [boltMaterial.current, boltCoreMaterial.current]) {
+      if (!material) continue;
+      if (material.map !== boltTexture) {
+        material.map = boltTexture;
+        material.needsUpdate = true;
+      }
+      material.opacity = pose.boltOpacity;
+    }
+    for (const glow of [glowA.current, glowB.current]) {
+      if (!glow) continue;
+      glow.position.set(position.x, boltY, position.z);
+      glow.scale.set(
+        (pose.boltWidth * 1.18) / LIGHTNING_STRIKE_WIDTH,
+        boltHeight / LIGHTNING_STRIKE_HEIGHT,
+        1,
+      );
+      glow.visible = visible;
+    }
+    if (glowMaterial.current) glowMaterial.current.opacity = pose.glowOpacity;
+    if (glowCoreMaterial.current) glowCoreMaterial.current.opacity = pose.glowOpacity;
+    if (impact.current && impactMaterial.current) {
+      const bloom = 0.85 + pose.drop * 1.35;
+      impact.current.scale.setScalar(bloom);
+      impact.current.visible = visible;
+      impactMaterial.current.opacity = pose.impactOpacity;
+    }
+    if (flare.current && flareMaterial.current) {
+      flare.current.scale.setScalar(1.05 + pose.drop * 1.55);
+      flare.current.visible = visible;
+      flareMaterial.current.opacity = pose.flareOpacity;
+    }
+    if (burst.current && burstMaterial.current) {
+      burst.current.scale.setScalar(1.4 + pose.drop * 1.8);
+      burst.current.visible = visible;
+      burstMaterial.current.opacity = pose.burstOpacity;
+    }
+  });
+  return (
+    <group>
+      <mesh
+        ref={glowA}
+        position={[position.x, groundY + LIGHTNING_STRIKE_HEIGHT * 0.5, position.z]}
+        rotation={[0, lightningStrikePose(0, sequence).yaw, 0]}
+        renderOrder={39}
+      >
+        <planeGeometry args={[LIGHTNING_STRIKE_WIDTH, LIGHTNING_STRIKE_HEIGHT]} />
+        <meshBasicMaterial
+          ref={glowMaterial}
+          map={textures.glow}
+          color={LIGHTNING_STRIKE_COLORS.glow}
+          transparent
+          opacity={0}
+          depthTest={false}
+          depthWrite={false}
+          toneMapped={false}
+          side={DoubleSide}
+          blending={AdditiveBlending}
+        />
+      </mesh>
+      <mesh
+        ref={glowB}
+        position={[position.x, groundY + LIGHTNING_STRIKE_HEIGHT * 0.5, position.z]}
+        rotation={[0, lightningStrikePose(0, sequence).yaw + Math.PI / 2, 0]}
+        renderOrder={39}
+      >
+        <planeGeometry args={[LIGHTNING_STRIKE_WIDTH, LIGHTNING_STRIKE_HEIGHT]} />
+        <meshBasicMaterial
+          ref={glowCoreMaterial}
+          map={textures.glow}
+          color={LIGHTNING_STRIKE_COLORS.glow}
+          transparent
+          opacity={0}
+          depthTest={false}
+          depthWrite={false}
+          toneMapped={false}
+          side={DoubleSide}
+          blending={AdditiveBlending}
+        />
+      </mesh>
+      <mesh
+        ref={boltA}
+        position={[position.x, groundY + LIGHTNING_STRIKE_HEIGHT * 0.5, position.z]}
+        rotation={[0, lightningStrikePose(0, sequence).yaw, 0]}
+        renderOrder={41}
+      >
+        <planeGeometry args={[LIGHTNING_STRIKE_WIDTH, LIGHTNING_STRIKE_HEIGHT]} />
+        <meshBasicMaterial
+          ref={boltMaterial}
+          map={textures.bolt}
+          color={LIGHTNING_STRIKE_COLORS.bolt}
+          transparent
+          opacity={0}
+          depthTest={false}
+          depthWrite={false}
+          toneMapped={false}
+          side={DoubleSide}
+          blending={AdditiveBlending}
+        />
+      </mesh>
+      <mesh
+        ref={boltB}
+        position={[position.x, groundY + LIGHTNING_STRIKE_HEIGHT * 0.5, position.z]}
+        rotation={[0, lightningStrikePose(0, sequence).yaw + Math.PI / 2, 0]}
+        renderOrder={41}
+      >
+        <planeGeometry args={[LIGHTNING_STRIKE_WIDTH, LIGHTNING_STRIKE_HEIGHT]} />
+        <meshBasicMaterial
+          ref={boltCoreMaterial}
+          map={textures.bolt}
+          color={LIGHTNING_STRIKE_COLORS.core}
+          transparent
+          opacity={0}
+          depthTest={false}
+          depthWrite={false}
+          toneMapped={false}
+          side={DoubleSide}
+          blending={AdditiveBlending}
+        />
+      </mesh>
+      <mesh
+        ref={impact}
+        position={[position.x, groundY + 0.04, position.z]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        renderOrder={38}
+      >
+        <planeGeometry args={[2.1, 2.1]} />
+        <meshBasicMaterial
+          ref={impactMaterial}
+          map={textures.impact}
+          color={LIGHTNING_STRIKE_COLORS.impact}
+          transparent
+          opacity={0}
+          depthTest={false}
+          depthWrite={false}
+          toneMapped={false}
+          side={DoubleSide}
+          blending={AdditiveBlending}
+        />
+      </mesh>
+      <sprite
+        ref={burst}
+        position={[position.x, groundY + 0.72, position.z]}
+        scale={1.6}
+        renderOrder={40}
+      >
+        <spriteMaterial
+          ref={burstMaterial}
+          map={textures.burst}
+          color={LIGHTNING_STRIKE_COLORS.spark}
+          transparent
+          opacity={0}
+          depthTest={false}
+          depthWrite={false}
+          toneMapped={false}
+          blending={AdditiveBlending}
+        />
+      </sprite>
+      <sprite
+        ref={flare}
+        position={[position.x, groundY + 0.38, position.z]}
+        scale={1.2}
+        renderOrder={42}
+      >
+        <spriteMaterial
+          ref={flareMaterial}
+          map={textures.flare}
+          color={LIGHTNING_STRIKE_COLORS.core}
+          transparent
+          opacity={0}
+          depthTest={false}
+          depthWrite={false}
+          toneMapped={false}
+          blending={AdditiveBlending}
+        />
+      </sprite>
+    </group>
+  );
 }
 
 function ProjectilePool({
