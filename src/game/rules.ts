@@ -195,7 +195,7 @@ export const UNIT_SPECS = {
     attackMode: "cone",
     movementMode: "ground",
     coneAngleDegrees: 52,
-    maxHealth: 620,
+    maxHealth: 280,
     damage: 34,
     damageReduction: 0.2,
     attackRange: 6.8,
@@ -211,7 +211,7 @@ export const UNDEAD_UNIT_SPECS = {
   spearman: {
     attackMode: "melee",
     movementMode: "ground",
-    maxHealth: 95,
+    maxHealth: 22,
     damage: 4,
     damageReduction: 0,
     attackRange: 1.35,
@@ -224,8 +224,8 @@ export const UNDEAD_UNIT_SPECS = {
   knight: {
     attackMode: "melee",
     movementMode: "ground",
-    maxHealth: 300,
-    damage: 8,
+    maxHealth: 540,
+    damage: 16,
     damageReduction: 0.18,
     attackRange: 1.18,
     attackCooldown: 1.55,
@@ -314,12 +314,34 @@ export const UNDEAD_TROOP_ROLE_BY_DEPLOYABLE = {
 } as const satisfies Readonly<Record<TroopKind, UnitRole>>;
 
 export const UNDEAD_TROOP_COUNTS = {
-  spearman: 3,
-  swordsman: 2,
+  spearman: 5,
+  swordsman: 1,
   archer: 2,
   mage: 2,
   catapult: 1,
 } as const satisfies Readonly<Record<TroopKind, number>>;
+
+export interface BarracksRaceRules {
+  readonly cost: number;
+  readonly firstSpawnSeconds: number;
+  readonly spawnIntervalSeconds: number;
+  readonly spawnCount: number;
+}
+
+export const BARRACKS_RULES_BY_RACE = {
+  human: {
+    cost: 500,
+    firstSpawnSeconds: 5,
+    spawnIntervalSeconds: 8,
+    spawnCount: 4,
+  },
+  undead: {
+    cost: 700,
+    firstSpawnSeconds: 6,
+    spawnIntervalSeconds: 12,
+    spawnCount: 2,
+  },
+} as const satisfies Readonly<Record<BattleRace, BarracksRaceRules>>;
 
 export const UNDEAD_TROOP_DESIGNS = {
   spearman: {
@@ -447,6 +469,19 @@ export function barracksDesignForRace(race: BattleRace) {
   return RACE_DEPLOYMENT_CATALOG[race].barracks;
 }
 
+export function barracksRulesForRace(race: BattleRace): BarracksRaceRules {
+  return BARRACKS_RULES_BY_RACE[race];
+}
+
+export function deploymentCostForRace(
+  kind: DeployableKind,
+  race: BattleRace,
+): number {
+  return kind === "barracks"
+    ? barracksRulesForRace(race).cost
+    : GAME_RULES.deployment.costs[kind];
+}
+
 export function aiTroopCycleForRace(
   race: BattleRace,
   difficulty: AiDifficulty,
@@ -455,7 +490,7 @@ export function aiTroopCycleForRace(
 }
 
 const GOLD_MINE_COST = 700;
-const BARRACKS_COST = 500;
+const BARRACKS_COST = BARRACKS_RULES_BY_RACE.human.cost;
 const GUARD_TOWER_COST = 300;
 const CASTLE_MAX_HEALTH = 2000;
 
@@ -550,9 +585,9 @@ export const GAME_RULES = {
       cost: BARRACKS_COST,
       maxHealth: 1200,
       lifetimeSeconds: 30,
-      firstSpawnSeconds: 5,
-      spawnIntervalSeconds: 8,
-      spawnCount: 4,
+      firstSpawnSeconds: BARRACKS_RULES_BY_RACE.human.firstSpawnSeconds,
+      spawnIntervalSeconds: BARRACKS_RULES_BY_RACE.human.spawnIntervalSeconds,
+      spawnCount: BARRACKS_RULES_BY_RACE.human.spawnCount,
       maximumActivePerFaction: 2,
     },
   },

@@ -3,13 +3,16 @@ import type { BattleSessionState } from "./battleSessionState";
 import { deployBattleSessionEntity } from "./deployTransaction";
 import { getPassiveRecoveryWaitSeconds } from "./economy";
 import {
+  deploymentCostForRace,
   GAME_RULES,
   TROOP_KINDS,
-  TROOP_ROLE_BY_DEPLOYABLE,
-  UNIT_SPECS,
+  troopCountForRace,
+  unitRoleForRace,
+  unitSpecFor,
   type TroopKind,
 } from "./rules";
-import type { Faction } from "./types";
+import { createFactionRaces } from "./factions";
+import type { BattleRace, Faction, FactionRaces } from "./types";
 import { BATTLEFIELD_MAP, axialToWorld } from "../map/battlefield";
 
 export type ArenaLane = "west" | "east" | "alternating";
@@ -21,6 +24,7 @@ export interface BalanceArenaMatchConfig {
   readonly durationSeconds?: number;
   readonly deploymentIntervalSeconds?: number;
   readonly lane?: ArenaLane;
+  readonly factionRaces?: Partial<FactionRaces>;
 }
 
 export interface FactionArenaTotals {
@@ -58,6 +62,7 @@ export interface ArenaTroopSummary {
 }
 
 export interface TroopBalanceProfile {
+  readonly race: BattleRace;
   readonly kind: TroopKind;
   readonly cost: number;
   readonly squadSize: number;
@@ -89,6 +94,7 @@ export function runBalanceArenaMatch(
   );
   const initialGold = validateInitialGold(config.initialGold ?? GAME_RULES.economy.maximumGold);
   const strategies = { verdant: config.verdant, crimson: config.crimson } as const;
+  const factionRaces = createFactionRaces(config.factionRaces);
   const lane = config.lane ?? "alternating";
   const spentGold = mutableTotals();
   const deployments = mutableTotals();
@@ -96,7 +102,7 @@ export function runBalanceArenaMatch(
   const castleDamage = mutableTotals();
   let session: BattleSessionState = {
     phase: "engaged",
-    battle: withInitialGold(createInitialBattle(), initialGold),
+    battle: withInitialGold(createInitialBattle({ factionRaces }), initialGold),
   };
   let nextDeploymentAt = 0;
   let lastEventSequence = -1;
@@ -115,7 +121,7 @@ export function runBalanceArenaMatch(
         });
         if (!result.ok) continue;
         session = result.state;
-        spentGold[faction] += GAME_RULES.deployment.costs[kind];
+        spentGold[faction] += deploymentCostForRace(kind, factionRaces[faction]);
         deployments[faction] += 1;
       }
       nextDeploymentAt += deploymentIntervalSeconds;
@@ -133,7 +139,7 @@ export function runBalanceArenaMatch(
 
     for (const event of session.battle.events) {
       if (event.sequence <= lastEventSequence || event.type !== "damage-applied") continue;
-      if (event.sourceRole === "castle") continue;
+      if (event.sourceRole === "castle" || event.targetType !== "unit") continue;
       const source = session.battle.units.find((unit) => unit.id === event.sourceId);
       if (source) troopDamage[source.faction] += event.amount;
     }
@@ -213,18 +219,21 @@ export function summarizeBalanceArena(
   });
 }
 
-export function getTroopBalanceProfiles(): readonly TroopBalanceProfile[] {
+export function getTroopBalanceProfiles(
+  race: BattleRace = "human",
+): readonly TroopBalanceProfile[] {
   const cheapestTroopCost = Math.min(
-    ...TROOP_KINDS.map((kind) => GAME_RULES.deployment.costs[kind]),
+    ...TROOP_KINDS.map((kind) => deploymentCostForRace(kind, race)),
   );
-  return troopKindsByCost().map((kind) => {
-    const role = TROOP_ROLE_BY_DEPLOYABLE[kind];
-    const spec = UNIT_SPECS[role];
-    const cost = GAME_RULES.deployment.costs[kind];
-    const squadSize = GAME_RULES.deployment.troopCounts[kind];
+  return troopKindsByCost(race).map((kind) => {
+    const role = unitRoleForRace(kind, race);
+    const spec = unitSpecFor(role, race);
+    const cost = deploymentCostForRace(kind, race);
+    const squadSize = troopCountForRace(kind, race);
     const per100Gold = 100 / cost;
     const totalHealth = spec.maxHealth * squadSize;
     return {
+      race,
       kind,
       cost,
       squadSize,
@@ -342,9 +351,9 @@ function positiveArenaParameter(
   return value;
 }
 
-function troopKindsByCost(): readonly TroopKind[] {
+function troopKindsByCost(race: BattleRace = "human"): readonly TroopKind[] {
   return [...TROOP_KINDS].sort((first, second) => (
-    GAME_RULES.deployment.costs[first] - GAME_RULES.deployment.costs[second]
+    deploymentCostForRace(first, race) - deploymentCostForRace(second, race)
     || first.localeCompare(second)
   ));
 }

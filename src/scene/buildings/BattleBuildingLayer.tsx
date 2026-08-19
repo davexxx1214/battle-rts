@@ -75,7 +75,7 @@ function BattleBuildingVisual({
   readonly race: BattleRace;
 }) {
   const root = useRef<Object3D>(null);
-  const presentation = buildingPresentation(building, battle.elapsed);
+  const presentation = buildingPresentation(building, battle.elapsed, race);
   const signal = latestBuildingSignal(building, battle.elapsed, battle.events);
   const hasBuildingDetails = battleBuildingDetailAssets(
     building.faction,

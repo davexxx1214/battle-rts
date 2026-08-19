@@ -20,6 +20,7 @@ import { trySpendGold } from "./economy";
 import { stampBattleEvent } from "./events";
 import {
   BUILDING_ACTIVE_LIMITS,
+  deploymentCostForRace,
   GAME_RULES,
   isBuildingDeployable,
   troopCountForRace,
@@ -113,7 +114,8 @@ export function getDeployableAvailability(
   if (state.winner !== null || state.matchElapsed >= GAME_RULES.match.durationSeconds) {
     return { enabled: false, reason: "match-over" };
   }
-  if (state.economy.accounts[faction].gold < GAME_RULES.deployment.costs[kind]) {
+  const race = resolveBattleRace(state.factionRaces, faction, state.undeadOpponent);
+  if (state.economy.accounts[faction].gold < deploymentCostForRace(kind, race)) {
     return { enabled: false, reason: "insufficient-gold" };
   }
   if (isBuildingDeployable(kind)) {
@@ -232,10 +234,15 @@ export function deployBattleSessionEntity(
 
   const sequence = state.nextDeploymentSequence + 1;
   const deploymentId = deploymentEntityId(request.faction, request.kind, sequence);
+  const race = resolveBattleRace(
+    state.factionRaces,
+    request.faction,
+    state.undeadOpponent,
+  );
   const spend = trySpendGold(
     state.economy,
     request.faction,
-    GAME_RULES.deployment.costs[request.kind],
+    deploymentCostForRace(request.kind, race),
   );
   // previewDeployment already checked this. Keeping the guard here makes the
   // transaction fail closed if economy validation ever becomes stricter.
@@ -280,7 +287,7 @@ export function deployBattleSessionEntity(
       request.faction,
       request.kind,
       preview.unitPositions,
-      resolveBattleRace(state.factionRaces, request.faction, state.undeadOpponent),
+      race,
     );
     units = [...units, ...deployedUnits];
     squads = appendUnitsToSquads(squads, deployedUnits);

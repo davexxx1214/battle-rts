@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   aiTroopCycleForRace,
   barracksDesignForRace,
+  barracksRulesForRace,
+  BARRACKS_RULES_BY_RACE,
+  deploymentCostForRace,
   GAME_RULES,
   TROOP_KINDS,
   TROOP_ROLE_BY_DEPLOYABLE,
@@ -26,7 +29,11 @@ describe("central game rules", () => {
   });
 
   it("keeps every deployment cost within the agreed 100-gold steps", () => {
-    for (const cost of Object.values(GAME_RULES.deployment.costs)) {
+    const costs = [
+      ...Object.values(GAME_RULES.deployment.costs),
+      ...Object.values(BARRACKS_RULES_BY_RACE).map(({ cost }) => cost),
+    ];
+    for (const cost of costs) {
       expect(cost).toBeGreaterThanOrEqual(100);
       expect(cost).toBeLessThanOrEqual(1000);
       expect(cost % 100).toBe(0);
@@ -130,8 +137,8 @@ describe("central game rules", () => {
       catapult: "bone-dragon",
     });
     expect(UNDEAD_TROOP_COUNTS).toEqual({
-      spearman: 3,
-      swordsman: 2,
+      spearman: 5,
+      swordsman: 1,
       archer: 2,
       mage: 2,
       catapult: 1,
@@ -145,7 +152,7 @@ describe("central game rules", () => {
     ]);
     expect(unitRoleForDeployment("catapult", "crimson", true)).toBe("bone-dragon");
     expect(unitRoleForDeployment("catapult", "verdant", true)).toBe("catapult");
-    expect(troopCountForDeployment("spearman", "crimson", true)).toBe(3);
+    expect(troopCountForDeployment("spearman", "crimson", true)).toBe(5);
     expect(troopCountForDeployment("spearman", "verdant", true)).toBe(2);
   });
 
@@ -154,6 +161,10 @@ describe("central game rules", () => {
     expect(UNDEAD_UNIT_SPECS.spearman.attackCooldown)
       .toBeLessThan(UNIT_SPECS.spearman.attackCooldown);
     expect(UNDEAD_UNIT_SPECS.knight.maxHealth).toBeGreaterThan(UNIT_SPECS.knight.maxHealth);
+    expect(UNDEAD_UNIT_SPECS.knight).toMatchObject({
+      maxHealth: 540,
+      damage: 16,
+    });
     expect(UNDEAD_UNIT_SPECS.knight.damageReduction)
       .toBeGreaterThan(UNIT_SPECS.knight.damageReduction);
     expect(UNDEAD_UNIT_SPECS.ranger.attackRange).toBeGreaterThan(UNIT_SPECS.ranger.attackRange);
@@ -164,7 +175,7 @@ describe("central game rules", () => {
       movementMode: "ground",
       attackMode: "cone",
       coneAngleDegrees: 52,
-      maxHealth: 620,
+      maxHealth: 280,
       splashRadius: 0,
     });
     expect(unitSpecFor("bone-dragon", "undead").attackRange)
@@ -209,6 +220,24 @@ describe("central game rules", () => {
       productionVerb: "召唤",
       spawnedUnit: "swordsman",
     });
+    expect(barracksRulesForRace("human")).toEqual({
+      cost: 500,
+      firstSpawnSeconds: 5,
+      spawnIntervalSeconds: 8,
+      spawnCount: 4,
+    });
+    expect(barracksRulesForRace("undead")).toEqual({
+      cost: 700,
+      firstSpawnSeconds: 6,
+      spawnIntervalSeconds: 12,
+      spawnCount: 2,
+    });
+    expect(deploymentCostForRace("barracks", "human")).toBe(500);
+    expect(deploymentCostForRace("barracks", "undead")).toBe(700);
+    expect(
+      GAME_RULES.deployment.costs.swordsman
+        / (barracksRulesForRace("undead").cost / barracksRulesForRace("undead").spawnCount),
+    ).toBeCloseTo(8 / 7);
     expect(aiTroopCycleForRace("human", "hard")[0]).toBe("spearman");
     expect(aiTroopCycleForRace("undead", "hard")[0]).toBe("catapult");
   });

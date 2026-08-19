@@ -222,12 +222,12 @@ describe("atomic battle deployment", () => {
     expect(dragons[0]).toMatchObject({
       role: "bone-dragon",
       combatProfile: "undead",
-      maxHealth: 620,
-      health: 620,
+      maxHealth: 280,
+      health: 280,
     });
   });
 
-  it("deploys undead spearmen as a three-unit fast swarm", () => {
+  it("deploys undead spearmen as a five-unit fragile swarm", () => {
     const result = deployBattleSessionEntity(undeadOpponentSession(500), {
       faction: "crimson",
       kind: "spearman",
@@ -239,12 +239,53 @@ describe("atomic battle deployment", () => {
     const swarm = result.state.battle.units.filter((unit) => (
       unit.squadId === "crimson-spearman-1-squad"
     ));
-    expect(swarm).toHaveLength(3);
+    expect(swarm).toHaveLength(5);
     expect(swarm.every((unit) => (
       unit.role === "spearman"
       && unit.combatProfile === "undead"
-      && unit.maxHealth === 95
+      && unit.maxHealth === 22
     ))).toBe(true);
+  });
+
+  it("deploys one high-health crypt guard per undead squad", () => {
+    const result = deployBattleSessionEntity(undeadOpponentSession(400), {
+      faction: "crimson",
+      kind: "swordsman",
+      worldPosition: axialToWorld(CRIMSON_TROOP_CELL),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    const guards = result.state.battle.units.filter((unit) => (
+      unit.squadId === "crimson-swordsman-1-squad"
+    ));
+    expect(guards).toHaveLength(1);
+    expect(guards[0]).toMatchObject({
+      combatProfile: "undead",
+      role: "knight",
+      maxHealth: 540,
+      health: 540,
+    });
+  });
+
+  it("charges the undead player 700 gold for a crypt barracks", () => {
+    const base = unresolvedSession(700);
+    const session = {
+      ...base,
+      battle: {
+        ...base.battle,
+        factionRaces: { verdant: "undead", crimson: "human" } as const,
+      },
+    };
+    const result = deployBattleSessionEntity(session, {
+      faction: "verdant",
+      kind: "barracks",
+      worldPosition: axialToWorld(VERDANT_BUILDING_CELL),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.state.battle.economy.accounts.verdant.gold).toBe(0);
   });
 
   it("deploys two long-reach spearmen for 200 gold", () => {

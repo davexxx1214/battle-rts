@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createBattleState, createBattleUnit } from "../../src/game/battle";
 import type { BattleSessionState } from "../../src/game/battleSession";
 import { advanceOpponentAi } from "../../src/game/opponentAi";
-import { GAME_RULES } from "../../src/game/rules";
+import { deploymentCostForRace, GAME_RULES } from "../../src/game/rules";
 import {
   BATTLEFIELD_MAP,
   axialToWorld,
@@ -172,7 +172,10 @@ describe("deterministic opponent deployment AI", () => {
       battle: { ...initial.battle, undeadOpponent: true },
     };
     session = advanceHard(session);
-    session = advanceHard(fundCrimson(session, GAME_RULES.deployment.costs.barracks));
+    session = advanceHard(fundCrimson(
+      session,
+      deploymentCostForRace("barracks", "undead"),
+    ));
     session = advanceHard(fundCrimson(
       session,
       GAME_RULES.deployment.costs["guard-tower"],
@@ -184,7 +187,7 @@ describe("deterministic opponent deployment AI", () => {
       faction: "crimson",
       role: "bone-dragon",
       combatProfile: "undead",
-      maxHealth: 620,
+      maxHealth: 280,
     }));
   });
 

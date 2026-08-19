@@ -41,7 +41,7 @@ describe("independent faction races", () => {
     const enemySquad = enemyResult.state.battle.units.filter((unit) => (
       unit.squadId === enemyResult.squadId
     ));
-    expect(playerSquad).toHaveLength(3);
+    expect(playerSquad).toHaveLength(5);
     expect(playerSquad.every((unit) => unit.combatProfile === "undead")).toBe(true);
     expect(enemySquad).toHaveLength(2);
     expect(enemySquad.every((unit) => unit.combatProfile === "human")).toBe(true);

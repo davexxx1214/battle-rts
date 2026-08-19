@@ -1,6 +1,7 @@
 import type { BattleBuilding } from "../../game/buildings";
 import type { BattleEvent } from "../../game/events";
-import { GAME_RULES } from "../../game/rules";
+import { barracksRulesForRace, GAME_RULES } from "../../game/rules";
+import type { BattleRace } from "../../game/types";
 
 export type BuildingHealthTone = "healthy" | "warning" | "critical";
 export type BuildingLifecyclePresentation = "active" | "destroying";
@@ -59,6 +60,7 @@ export const BUILDING_HEALTH_BAR_LAYERS = {
 export function buildingPresentation(
   building: BattleBuilding,
   elapsed: number,
+  race: BattleRace = "human",
 ): BuildingPresentation {
   const healthRatio = clamp01(building.health / building.maxHealth);
   return {
@@ -68,7 +70,7 @@ export function buildingPresentation(
       : healthRatio > 0.3 ? "warning" : "critical",
     lifecycle: building.status === "destroyed" ? "destroying" : "active",
     destructionProgress: destructionProgress(building, elapsed),
-    productionProgress: productionProgress(building, elapsed),
+    productionProgress: productionProgress(building, elapsed, race),
     kingVisible: building.kind === "castle"
       && building.castleCombat?.activatedAt !== null,
   };
@@ -93,13 +95,18 @@ export function latestBuildingSignal(
   return null;
 }
 
-function productionProgress(building: BattleBuilding, elapsed: number): number | null {
+function productionProgress(
+  building: BattleBuilding,
+  elapsed: number,
+  race: BattleRace,
+): number | null {
   if (
     building.kind === "castle"
     || building.kind === "arrow-tower"
     || building.kind === "guard-tower"
     || building.status !== "active"
   ) return null;
+  const barracksRules = barracksRulesForRace(race);
   const config = building.kind === "gold-mine"
     ? {
         first: GAME_RULES.buildings.goldMine.firstProductionSeconds,
@@ -107,9 +114,9 @@ function productionProgress(building: BattleBuilding, elapsed: number): number |
         maximum: Number.POSITIVE_INFINITY,
       }
     : {
-        first: GAME_RULES.buildings.barracks.firstSpawnSeconds,
-        interval: GAME_RULES.buildings.barracks.spawnIntervalSeconds,
-        maximum: GAME_RULES.buildings.barracks.spawnCount,
+        first: barracksRules.firstSpawnSeconds,
+        interval: barracksRules.spawnIntervalSeconds,
+        maximum: barracksRules.spawnCount,
       };
   if (building.productionSequence >= config.maximum) return null;
   const nextAt = building.createdAt

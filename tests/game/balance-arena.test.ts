@@ -60,6 +60,30 @@ describe("headless balance arena", () => {
     ))).toBe(true);
   });
 
+  it("uses each faction's race for squad sizes and per-100-gold profiles", () => {
+    const result = runBalanceArenaMatch({
+      verdant: "swordsman",
+      crimson: "swordsman",
+      factionRaces: { verdant: "undead", crimson: "human" },
+      initialGold: 1000,
+      durationSeconds: 0.1,
+      deploymentIntervalSeconds: 1,
+      lane: "west",
+    });
+    const undeadGuard = getTroopBalanceProfiles("undead")
+      .find(({ kind }) => kind === "swordsman");
+
+    expect(result.spentGold).toEqual({ verdant: 400, crimson: 400 });
+    expect(result.spawnedUnits).toEqual({ verdant: 1, crimson: 3 });
+    expect(undeadGuard).toMatchObject({
+      race: "undead",
+      squadSize: 1,
+      totalHealthPer100Gold: 135,
+      effectiveHealthPer100Gold: 164.634,
+      singleTargetDpsPer100Gold: 2.581,
+    });
+  });
+
   it("fails fast on invalid arena parameters instead of silently changing the experiment", () => {
     expect(() => runBalanceArenaMatch({
       verdant: "swordsman",

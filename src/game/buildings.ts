@@ -14,6 +14,7 @@ import type { CombatDamageIntent, CombatTarget } from "./combat";
 import { grantGold, type EconomyState } from "./economy";
 import {
   barracksDesignForRace,
+  barracksRulesForRace,
   GAME_RULES,
   unitRoleForRace,
   type BuildingKind,
@@ -151,6 +152,8 @@ export interface SettleBuildingHealthInput {
   readonly elapsedSeconds: number;
   readonly deltaSeconds: number;
   readonly damageIntents: readonly CombatDamageIntent[];
+  readonly factionRaces?: FactionRaces;
+  readonly undeadOpponent?: boolean;
 }
 
 export interface BuildingHealthSettlement {
@@ -261,6 +264,8 @@ export function advanceBuildings(
     elapsedSeconds: input.elapsedSeconds,
     deltaSeconds: input.deltaSeconds,
     damageIntents: input.damageIntents,
+    factionRaces: input.factionRaces,
+    undeadOpponent: input.undeadOpponent,
   });
   return advanceBuildingProduction({
     settlement,
@@ -286,12 +291,20 @@ export function settleBuildingHealth(
   const end = input.elapsedSeconds + input.deltaSeconds;
   if (!Number.isFinite(end)) return unchangedHealthSettlement(input);
   const damageByBuildingId = collectDamage(input.damageIntents);
-  const settlements = input.buildings.map((building) => settleBuilding(
-    building,
-    input.elapsedSeconds,
-    end,
-    damageByBuildingId.get(building.id) ?? 0,
-  ));
+  const settlements = input.buildings.map((building) => {
+    const race = resolveBattleRace(
+      input.factionRaces,
+      building.faction,
+      input.undeadOpponent,
+    );
+    return settleBuilding(
+      building,
+      input.elapsedSeconds,
+      end,
+      damageByBuildingId.get(building.id) ?? 0,
+      race,
+    );
+  });
   const actions = settlements
     .flatMap((settlement) => settlement.actions)
     .sort(compareActions);
@@ -430,6 +443,7 @@ function settleBuilding(
   start: number,
   end: number,
   directDamage: number,
+  race: BattleRace,
 ): BuildingSettlement {
   if (building.status === "destroyed" || building.health <= 0 || end <= building.createdAt) {
     return { building, actions: [] };
@@ -442,7 +456,7 @@ function settleBuilding(
     ? activeStart + building.health / naturalDamageRate
     : Number.POSITIVE_INFINITY;
   const productionCutoff = Math.min(end, naturalDeathAt);
-  const production = collectProductionActions(building, productionCutoff);
+  const production = collectProductionActions(building, productionCutoff, race);
   const activeEnd = Math.min(end, naturalDeathAt);
   const naturalDamage = naturalDamageRate * Math.max(0, activeEnd - activeStart);
   const healthAfterNatural = Math.max(0, building.health - naturalDamage);
@@ -480,12 +494,14 @@ function settleBuilding(
 function collectProductionActions(
   building: BattleBuilding,
   cutoff: number,
+  race: BattleRace,
 ): readonly BuildingProductionAction[] {
   if (
     building.kind === "castle"
     || building.kind === "arrow-tower"
     || building.kind === "guard-tower"
   ) return [];
+  const barracksRules = barracksRulesForRace(race);
   const config = building.kind === "gold-mine"
     ? {
         first: GAME_RULES.buildings.goldMine.firstProductionSeconds,
@@ -494,9 +510,9 @@ function collectProductionActions(
         type: "produce-gold" as const,
       }
     : {
-        first: GAME_RULES.buildings.barracks.firstSpawnSeconds,
-        interval: GAME_RULES.buildings.barracks.spawnIntervalSeconds,
-        maximum: GAME_RULES.buildings.barracks.spawnCount,
+        first: barracksRules.firstSpawnSeconds,
+        interval: barracksRules.spawnIntervalSeconds,
+        maximum: barracksRules.spawnCount,
         type: "spawn-unit" as const,
       };
   const actions: BuildingProductionAction[] = [];

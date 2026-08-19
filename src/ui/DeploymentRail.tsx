@@ -7,7 +7,9 @@ import { getMatchClock } from "../game/economy";
 import { resolveBattleRace } from "../game/factions";
 import {
   barracksDesignForRace,
+  barracksRulesForRace,
   DEPLOYABLE_CATEGORIES,
+  deploymentCostForRace,
   GAME_RULES,
   TROOP_KINDS,
   troopCountForRace,
@@ -64,6 +66,7 @@ const DEPLOYABLE_ICON_SOURCES = {
 
 const HUMAN_BARRACKS = barracksDesignForRace("human");
 const HUMAN_BARRACKS_UNIT = troopDesignForRace(HUMAN_BARRACKS.spawnedUnit, "human");
+const HUMAN_BARRACKS_RULES = barracksRulesForRace("human");
 
 const BUILDING_PRESENTATION = {
   "guard-tower": {
@@ -79,7 +82,7 @@ const BUILDING_PRESENTATION = {
   barracks: {
     iconSrc: DEPLOYABLE_ICON_SOURCES.human.barracks,
     name: HUMAN_BARRACKS.name,
-    detail: `每 ${GAME_RULES.buildings.barracks.spawnIntervalSeconds} 秒${HUMAN_BARRACKS.productionVerb} ${HUMAN_BARRACKS_UNIT.name}`,
+    detail: `每 ${HUMAN_BARRACKS_RULES.spawnIntervalSeconds} 秒${HUMAN_BARRACKS.productionVerb} ${HUMAN_BARRACKS_UNIT.name}`,
   },
 } as const satisfies Readonly<Record<BuildingKind, PresentationMetadata>>;
 
@@ -247,7 +250,7 @@ function DeployableGroup({
                 <small>{presentation.detail}</small>
               </span>
               <span className={styles.price}>
-                <b>{GAME_RULES.deployment.costs[item.kind]}</b>
+                <b>{deploymentCostForRace(item.kind, playerRace)}</b>
                 <small id={`${item.kind}-deployment-status`}>{status}</small>
               </span>
             </button>
@@ -281,11 +284,12 @@ function buildingPresentationForRace(
     };
   }
   const barracks = barracksDesignForRace(race);
+  const rules = barracksRulesForRace(race);
   const spawnedUnit = troopDesignForRace(barracks.spawnedUnit, race);
   return {
     iconSrc: DEPLOYABLE_ICON_SOURCES[race].barracks,
     name: barracks.name,
-    detail: `每 ${GAME_RULES.buildings.barracks.spawnIntervalSeconds} 秒${barracks.productionVerb} ${spawnedUnit.name}`,
+    detail: `每 ${rules.spawnIntervalSeconds} 秒${barracks.productionVerb} ${spawnedUnit.name}`,
   };
 }
 

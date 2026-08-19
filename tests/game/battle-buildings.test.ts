@@ -87,14 +87,14 @@ describe("battle building integration", () => {
     };
     let state = withBuilding(battle, barracks);
 
-    state = advance(state, 50);
+    state = advance(state, 70);
 
     expect(state.units).toContainEqual(expect.objectContaining({
       id: `${barracks.id}-swordsman-1`,
       faction: "verdant",
       role: "knight",
       combatProfile: "undead",
-      maxHealth: 300,
+      maxHealth: 540,
     }));
   });
 

@@ -7,7 +7,7 @@ import {
 } from "../../src/game/buildings";
 import type { BuildingOccupancy } from "../../src/game/deployment";
 import { createEconomyState } from "../../src/game/economy";
-import { GAME_RULES } from "../../src/game/rules";
+import { barracksRulesForRace, GAME_RULES } from "../../src/game/rules";
 import {
   BATTLEFIELD_MAP,
   axialToWorld,
@@ -161,7 +161,7 @@ describe("building simulation", () => {
     expect(new Set(first.unitSpawns.map((spawn) => JSON.stringify(spawn.position))).size).toBe(4);
   });
 
-  it("uses the owning faction's race when a barracks produces units", () => {
+  it("uses the owning faction's slower two-guard undead barracks schedule", () => {
     const barracks = createBattleBuilding({
       id: "undead-barracks-1",
       kind: "barracks",
@@ -176,17 +176,19 @@ describe("building simulation", () => {
       map: BATTLEFIELD_MAP,
       units: [],
       elapsedSeconds: 0,
-      deltaSeconds: GAME_RULES.buildings.barracks.firstSpawnSeconds,
+      deltaSeconds: GAME_RULES.buildings.barracks.lifetimeSeconds,
       damageIntents: [],
       factionRaces: { verdant: "undead", crimson: "human" },
     });
 
-    expect(result.unitSpawns).toHaveLength(1);
-    expect(result.unitSpawns[0]).toMatchObject({
-      faction: "verdant",
-      race: "undead",
-      role: "knight",
-    });
+    expect(result.unitSpawns).toHaveLength(2);
+    expect(result.unitSpawns.map(({ scheduledAt }) => scheduledAt)).toEqual([6, 18]);
+    expect(result.unitSpawns.every((spawn) => (
+      spawn.faction === "verdant"
+      && spawn.race === "undead"
+      && spawn.role === "knight"
+    ))).toBe(true);
+    expect(result.unitSpawns).toHaveLength(barracksRulesForRace("undead").spawnCount);
     expect(result.events).toContainEqual(expect.objectContaining({
       type: "building-unit-spawned",
       race: "undead",

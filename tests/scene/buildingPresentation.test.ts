@@ -44,6 +44,19 @@ describe("building presentation state", () => {
     });
   });
 
+  it("uses the slower undead barracks cadence for production progress", () => {
+    const barracks = createBattleBuilding({
+      id: "undead-barracks-1",
+      kind: "barracks",
+      faction: "verdant",
+      coordinate: { q: 0, r: 3 },
+      createdAt: 0,
+    });
+
+    expect(buildingPresentation(barracks, 3, "undead").productionProgress).toBe(0.5);
+    expect(buildingPresentation(barracks, 3, "human").productionProgress).toBe(0.6);
+  });
+
   it("marks destroyed buildings and activated castles without UI-owned timers", () => {
     const castle = createBattleBuilding({
       id: "verdant-castle",

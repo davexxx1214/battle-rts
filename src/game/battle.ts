@@ -353,6 +353,8 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
         elapsedSeconds: state.matchElapsed,
         deltaSeconds: activeMatchDeltaSeconds,
         damageIntents: damage,
+        factionRaces: state.factionRaces,
+        undeadOpponent: state.undeadOpponent,
       })
     : {
         buildings: castleActivationStep.buildings,
