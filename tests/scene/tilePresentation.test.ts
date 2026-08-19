@@ -244,6 +244,11 @@ describe("terrain tile presentation", () => {
       "pumpkinOrangeSmall",
       "pumpkinYellowSmall",
     ]);
+    expect(UNDEAD_RIVERBANK_DRESSING.map(({ scale }) => scale)).toEqual([
+      0.13,
+      0.2,
+      0.175,
+    ]);
     expect(UNDEAD_SHIPWRECK_DRESSING).toMatchObject({
       asset: "shipwreck",
       coordinate: { q: -5, r: 0 },

@@ -589,10 +589,36 @@ export const UNDEAD_CEMETERY_DRESSING: readonly UndeadCemeteryDressingItem[] = [
   cemeteryItem("cemetery-fence-shrine-edge", "fenceSeparate", -3, -2, [0, 0.72], 1, 0),
 ];
 
+const RIVERBANK_PUMPKIN_SCALE = 0.25;
+
 export const UNDEAD_RIVERBANK_DRESSING: readonly UndeadCemeteryDressingItem[] = [
-  cemeteryItem("undead-riverbank-pumpkin-main", "pumpkinYellowJack", 3, -2, [0.02, 0.04], 0.52, 0.68),
-  cemeteryItem("undead-riverbank-pumpkin-orange", "pumpkinOrangeSmall", 3, -2, [-0.48, 0.18], 0.8, 0.34),
-  cemeteryItem("undead-riverbank-pumpkin-small", "pumpkinYellowSmall", 3, -2, [0.38, 0.3], 0.7, -0.42),
+  cemeteryItem(
+    "undead-riverbank-pumpkin-main",
+    "pumpkinYellowJack",
+    3,
+    -2,
+    [0.02, 0.04],
+    0.52 * RIVERBANK_PUMPKIN_SCALE,
+    0.68,
+  ),
+  cemeteryItem(
+    "undead-riverbank-pumpkin-orange",
+    "pumpkinOrangeSmall",
+    3,
+    -2,
+    [-0.48, 0.18],
+    0.8 * RIVERBANK_PUMPKIN_SCALE,
+    0.34,
+  ),
+  cemeteryItem(
+    "undead-riverbank-pumpkin-small",
+    "pumpkinYellowSmall",
+    3,
+    -2,
+    [0.38, 0.3],
+    0.7 * RIVERBANK_PUMPKIN_SCALE,
+    -0.42,
+  ),
 ];
 
 export const UNDEAD_CASTLE_COURTYARD_DRESSING: readonly UndeadCemeteryDressingItem[] = [
