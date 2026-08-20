@@ -28,8 +28,10 @@ describe("unit status effects", () => {
     expect(slowed).toHaveLength(1);
     expect(combined.map(({ kind }) => kind)).toEqual(["frost-slow", "burning"]);
     expect(refreshed).toHaveLength(2);
+    expect(refreshed.map(({ kind }) => kind)).toEqual(["burning", "frost-slow"]);
     expect(refreshed.find(({ kind }) => kind === "frost-slow")).toMatchObject({
       appliedAt: 0,
+      lastAppliedAt: 0.5,
       expiresAt: 1.5,
       sourceId: "dragon-2",
     });

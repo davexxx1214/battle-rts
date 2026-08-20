@@ -30,6 +30,8 @@ interface UnitStatusEffectBase {
   readonly sourceId: string;
   readonly sourceType: CombatTargetType;
   readonly appliedAt: number;
+  /** Most recent application time, used for presentation priority after refreshes. */
+  readonly lastAppliedAt: number;
   readonly expiresAt: number;
   readonly dispelCategory: UnitStatusDispelCategory;
 }
@@ -106,6 +108,7 @@ export function applyUnitStatusEffect(
     sourceId: source.id,
     sourceType: source.targetType,
     appliedAt: originalAppliedAt,
+    lastAppliedAt: appliedAt,
     expiresAt: appliedAt + application.durationSeconds,
     dispelCategory: application.dispelCategory,
   } as const;
@@ -123,7 +126,10 @@ export function applyUnitStatusEffect(
         damagePerTick: application.damagePerTick,
       };
   if (existingIndex < 0) return [...active, next];
-  return active.map((effect, index) => index === existingIndex ? next : effect);
+  return [
+    ...active.filter((_, index) => index !== existingIndex),
+    next,
+  ];
 }
 
 export function pruneUnitStatusEffects(

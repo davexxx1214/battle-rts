@@ -22,6 +22,7 @@ import type { BattleUnit, UnitRole, WorldPoint } from "../../game/battle";
 import type { BattleRace } from "../../game/types";
 import { terrainHeightAt } from "../../map/battlefield";
 import { sceneColorsForFaction } from "../assets";
+import { unitStatusModelTint } from "../effects/statusEffectPresentation";
 import { CatapultUnitModel } from "./CatapultUnitModel";
 import { BoneDragonUnitModel } from "./BoneDragonUnitModel";
 import {
@@ -140,9 +141,16 @@ function CharacterUnitModel({
   animationGltfsRef.current = animationGltfs;
   const mixer = useMemo(() => new AnimationMixer(model), [model]);
   const modelMaterials = useMemo(() => collectModelMaterials(model), [model]);
+  const baseMaterialColors = useMemo(() => new Map(
+    modelMaterials.map((material) => [material, material.color.clone()] as const),
+  ), [modelMaterials]);
+  const statusTintColor = useMemo(() => new Color(), []);
   const isGhost = ghostValid !== undefined;
   const animationAccumulator = useRef(0);
   const damageAge = damageTime === undefined ? Number.POSITIVE_INFINITY : battleTime - damageTime;
+  const statusTint = ghostValid === undefined && unit.health > 0
+    ? unitStatusModelTint(unit.statusEffects, battleTime)
+    : null;
   const animationName = characterAnimationForState({
     id: unit.id,
     role,
@@ -205,11 +213,24 @@ function CharacterUnitModel({
       ? 1
       : 1 - MathUtils.clamp((deathAge - 6) / 0.85, 0, 1);
     const ghostColor = ghostValid === false ? "#ff625e" : "#67dc9b";
+    if (statusTint) statusTintColor.set(statusTint.color);
     for (const material of modelMaterials) {
-      material.emissive.set(ghostValid === undefined ? "#ffffff" : ghostColor);
-      material.emissiveIntensity = ghostValid === undefined
-        ? damageAge < 0.2 ? (1 - damageProgress) * 1.45 : 0
-        : 0.52;
+      const baseColor = baseMaterialColors.get(material);
+      if (baseColor) material.color.copy(baseColor);
+      if (statusTint) material.color.lerp(statusTintColor, statusTint.colorMix);
+      if (ghostValid !== undefined) {
+        material.emissive.set(ghostColor);
+        material.emissiveIntensity = 0.52;
+      } else if (damageAge < 0.2) {
+        material.emissive.set("#ffffff");
+        material.emissiveIntensity = (1 - damageProgress) * 1.45;
+      } else if (statusTint) {
+        material.emissive.copy(statusTintColor);
+        material.emissiveIntensity = statusTint.emissiveIntensity;
+      } else {
+        material.emissive.set("#ffffff");
+        material.emissiveIntensity = 0;
+      }
       material.opacity = ghostValid === undefined ? corpseOpacity : 0.42;
       if (ghostValid !== undefined) material.depthWrite = false;
     }

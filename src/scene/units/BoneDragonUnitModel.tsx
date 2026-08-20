@@ -4,6 +4,7 @@ import {
   type AnimationAction,
   AnimationMixer,
   Box3,
+  Color,
   LoopOnce,
   LoopRepeat,
   MathUtils,
@@ -26,6 +27,7 @@ import {
   UNDEAD_BONE_DRAGON_ASSET,
 } from "../assets";
 import { boneDragonTerrainSupportHeight } from "../boneDragonPresentation";
+import { unitStatusModelTint } from "../effects/statusEffectPresentation";
 import { unitBaseRingGeometry } from "./unitRingPresentation";
 import {
   faceHealthBarToCamera,
@@ -76,6 +78,10 @@ export function BoneDragonUnitModel({
   const dragon = useMemo(() => prepareBoneDragonModel(gltf.scene), [gltf.scene]);
   const mixer = useMemo(() => new AnimationMixer(dragon.model), [dragon.model]);
   const modelMaterials = useMemo(() => collectMaterials(dragon.model), [dragon.model]);
+  const baseMaterialColors = useMemo(() => new Map(
+    modelMaterials.map((material) => [material, material.color.clone()] as const),
+  ), [modelMaterials]);
+  const statusTintColor = useMemo(() => new Color(), []);
   const isGhost = ghostValid !== undefined;
   const damageAge = damageTime === undefined
     ? Number.POSITIVE_INFINITY
@@ -83,6 +89,9 @@ export function BoneDragonUnitModel({
   const attackAge = attackTime === undefined
     ? Number.POSITIVE_INFINITY
     : battleTime - attackTime;
+  const statusTint = ghostValid === undefined && unit.health > 0
+    ? unitStatusModelTint(unit.statusEffects, battleTime)
+    : null;
   const supportHeight = boneDragonTerrainSupportHeight(unit.position, unit.facing);
   const animationName = unit.status === "moving"
     ? "Walk"
@@ -161,13 +170,24 @@ export function BoneDragonUnitModel({
       ? normalizedDirection(damageSourcePosition, unit.position)
       : { x: 0, z: 0 };
     const ghostColor = ghostValid === false ? "#ff625e" : "#67dc9b";
+    if (statusTint) statusTintColor.set(statusTint.color);
     for (const material of modelMaterials) {
-      material.emissive.set(ghostValid === undefined
-        ? damageAge < 0.2 ? "#eaffff" : "#77dfff"
-        : ghostColor);
-      material.emissiveIntensity = ghostValid === undefined
-        ? damageAge < 0.2 ? (1 - damageProgress) * 1.65 : 0.12
-        : 0.52;
+      const baseColor = baseMaterialColors.get(material);
+      if (baseColor) material.color.copy(baseColor);
+      if (statusTint) material.color.lerp(statusTintColor, statusTint.colorMix);
+      if (ghostValid !== undefined) {
+        material.emissive.set(ghostColor);
+        material.emissiveIntensity = 0.52;
+      } else if (damageAge < 0.2) {
+        material.emissive.set("#eaffff");
+        material.emissiveIntensity = (1 - damageProgress) * 1.65;
+      } else if (statusTint) {
+        material.emissive.copy(statusTintColor);
+        material.emissiveIntensity = 0.12 + statusTint.emissiveIntensity;
+      } else {
+        material.emissive.set("#77dfff");
+        material.emissiveIntensity = 0.12;
+      }
       material.opacity = ghostValid === undefined ? fade : 0.42;
       if (ghostValid !== undefined) material.depthWrite = false;
     }

@@ -25,6 +25,7 @@ import {
   UNIT_BASE_RING_GEOMETRY,
   sceneColorsForFaction,
 } from "../assets";
+import { unitStatusModelTint } from "../effects/statusEffectPresentation";
 import {
   catapultMotionPose,
   operatorAnimationForStatus,
@@ -104,8 +105,15 @@ export function CatapultUnitModel({
     () => [...collectMaterials(catapult.model), ...collectMaterials(operator)],
     [catapult, operator],
   );
+  const baseMaterialColors = useMemo(() => new Map(
+    materials.map((material) => [material, material.color.clone()] as const),
+  ), [materials]);
+  const statusTintColor = useMemo(() => new Color(), []);
   const isGhost = ghostValid !== undefined;
   const damageAge = damageTime === undefined ? Number.POSITIVE_INFINITY : battleTime - damageTime;
+  const statusTint = ghostValid === undefined && unit.health > 0
+    ? unitStatusModelTint(unit.statusEffects, battleTime)
+    : null;
 
   useEffect(() => {
     const clip = operatorClips.find((candidate) => candidate.name === operatorAnimation)
@@ -176,11 +184,24 @@ export function CatapultUnitModel({
     const deathAge = unit.diedAt === null ? 0 : battleTime - unit.diedAt;
     const opacity = unit.diedAt === null ? 1 : 1 - MathUtils.clamp((deathAge - 6) / 0.85, 0, 1);
     const ghostColor = ghostValid === false ? "#ff625e" : "#67dc9b";
+    if (statusTint) statusTintColor.set(statusTint.color);
     for (const material of materials) {
-      material.emissive.set(ghostValid === undefined ? "#fff3d2" : ghostColor);
-      material.emissiveIntensity = ghostValid === undefined
-        ? damageAge < 0.2 ? (1 - damageProgress) * 1.2 : 0
-        : 0.52;
+      const baseColor = baseMaterialColors.get(material);
+      if (baseColor) material.color.copy(baseColor);
+      if (statusTint) material.color.lerp(statusTintColor, statusTint.colorMix);
+      if (ghostValid !== undefined) {
+        material.emissive.set(ghostColor);
+        material.emissiveIntensity = 0.52;
+      } else if (damageAge < 0.2) {
+        material.emissive.set("#fff3d2");
+        material.emissiveIntensity = (1 - damageProgress) * 1.2;
+      } else if (statusTint) {
+        material.emissive.copy(statusTintColor);
+        material.emissiveIntensity = statusTint.emissiveIntensity;
+      } else {
+        material.emissive.set("#fff3d2");
+        material.emissiveIntensity = 0;
+      }
       material.opacity = ghostValid === undefined ? opacity : 0.42;
       if (ghostValid !== undefined) material.depthWrite = false;
     }

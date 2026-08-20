@@ -23,6 +23,26 @@ export const BURNING_STATUS_COLORS = {
   ring: "#ff9b2f",
 } as const;
 
+export const STATUS_EFFECT_MODEL_TINTS = {
+  "frost-slow": {
+    color: FROST_SLOW_STATUS_COLORS.outer,
+    colorMix: 0.62,
+    emissiveIntensity: 0.42,
+  },
+  burning: {
+    color: BURNING_STATUS_COLORS.core,
+    colorMix: 0.7,
+    emissiveIntensity: 0.62,
+  },
+} as const;
+
+export interface UnitStatusModelTint {
+  readonly kind: UnitStatusEffect["kind"];
+  readonly color: string;
+  readonly colorMix: number;
+  readonly emissiveIntensity: number;
+}
+
 export function visibleUnitStatusEffects(
   effects: readonly UnitStatusEffect[],
   elapsed: number,
@@ -32,6 +52,26 @@ export function visibleUnitStatusEffects(
 
 export function unitStatusEffectVisualRadius(role: UnitRole): number {
   return unitBaseRingGeometry(role).outerRadius * 1.08;
+}
+
+export function unitStatusModelTint(
+  effects: readonly UnitStatusEffect[],
+  elapsed: number,
+): UnitStatusModelTint | null {
+  const active = visibleUnitStatusEffects(effects, elapsed);
+  const effect = active.reduce<UnitStatusEffect | null>((latest, candidate) => (
+    !latest || candidate.lastAppliedAt >= latest.lastAppliedAt ? candidate : latest
+  ), null);
+  if (!effect) return null;
+  const opacity = unitStatusEffectOpacity(effect, elapsed);
+  if (opacity <= 0) return null;
+  const presentation = STATUS_EFFECT_MODEL_TINTS[effect.kind];
+  return {
+    kind: effect.kind,
+    color: presentation.color,
+    colorMix: presentation.colorMix * opacity,
+    emissiveIntensity: presentation.emissiveIntensity * opacity,
+  };
 }
 
 export function unitStatusEffectPhase(id: string): number {

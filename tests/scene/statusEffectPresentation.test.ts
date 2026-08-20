@@ -7,10 +7,12 @@ import {
 } from "../../src/game/unitStatusEffects";
 import {
   BURNING_STATUS_FADE_OUT_SECONDS,
+  STATUS_EFFECT_MODEL_TINTS,
   STATUS_EFFECT_FADE_OUT_SECONDS,
   unitStatusEffectOpacity,
   unitStatusEffectPhase,
   unitStatusEffectVisualRadius,
+  unitStatusModelTint,
   visibleUnitStatusEffects,
 } from "../../src/scene/effects/statusEffectPresentation";
 
@@ -73,5 +75,40 @@ describe("unit status-effect presentation", () => {
       burning.expiresAt - BURNING_STATUS_FADE_OUT_SECONDS / 2,
     )).toBeCloseTo(0.5);
     expect(unitStatusEffectOpacity(burning, burning.expiresAt)).toBe(0);
+  });
+
+  it("uses the most recently applied status for the model tint", () => {
+    const slowed = applyUnitStatusEffect(
+      [],
+      BONE_DRAGON_FROST_SLOW,
+      { id: "dragon", targetType: "unit" },
+      0,
+    );
+    const combined = applyUnitStatusEffect(
+      slowed,
+      HUMAN_MAGE_BURNING,
+      { id: "mage", targetType: "unit" },
+      0.1,
+    );
+    const slowedLast = applyUnitStatusEffect(
+      combined,
+      BONE_DRAGON_FROST_SLOW,
+      { id: "dragon-2", targetType: "unit" },
+      0.3,
+    );
+
+    expect(unitStatusModelTint(slowed, 0.25)).toMatchObject({
+      kind: "frost-slow",
+      color: STATUS_EFFECT_MODEL_TINTS["frost-slow"].color,
+    });
+    expect(unitStatusModelTint(combined, 0.25)).toMatchObject({
+      kind: "burning",
+      color: STATUS_EFFECT_MODEL_TINTS.burning.color,
+    });
+    expect(unitStatusModelTint(slowedLast, 0.35)).toMatchObject({
+      kind: "frost-slow",
+      color: STATUS_EFFECT_MODEL_TINTS["frost-slow"].color,
+    });
+    expect(unitStatusModelTint(slowedLast, 1.3)).toBeNull();
   });
 });
