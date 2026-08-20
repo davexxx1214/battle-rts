@@ -27,6 +27,10 @@ describe("campaign map", () => {
     expect(markup).toContain("未解锁");
     expect(markup).toContain("开始任务");
     expect(markup).toContain('aria-label="开始任务：初临战线"');
+    expect(markup).toContain('aria-label="选择战役阵营"');
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).toContain('aria-controls="campaign-mission-briefing"');
+    expect(markup).toContain('aria-label="手机端战役进度"');
   });
 
   it("reports completed stars and newly unlocked equipment", () => {

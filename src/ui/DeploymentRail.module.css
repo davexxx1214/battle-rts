@@ -456,7 +456,7 @@
 }
 
 @media (orientation: landscape) and (max-height: 520px),
-  (orientation: portrait) and (max-width: 520px) {
+  (orientation: portrait) {
   .rail {
     inset: 0;
     width: auto;
@@ -632,6 +632,14 @@
 
   .card[data-selected="true"] {
     transform: translateY(-2px);
+  }
+}
+
+@media (orientation: portrait) {
+  .deployablesDock {
+    justify-content: flex-start;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
   }
 }
 

@@ -878,7 +878,7 @@
 }
 
 @media (orientation: landscape) and (max-height: 520px),
-  (orientation: portrait) and (max-width: 520px) {
+  (orientation: portrait) {
   .commandBar {
     z-index: 40;
     height: 48px;
@@ -1070,7 +1070,7 @@
 }
 
 @media (orientation: landscape) and (max-height: 520px),
-  (orientation: portrait) and (max-width: 520px) {
+  (orientation: portrait) {
   .mobileMatchSetupButton {
     min-width: 54px;
     min-height: 44px;
@@ -1129,18 +1129,213 @@
 
 @media (orientation: portrait) {
   .appShell {
-    --game-safe-top: env(safe-area-inset-right);
-    --game-safe-right: env(safe-area-inset-bottom);
-    --game-safe-bottom: env(safe-area-inset-left);
-    --game-safe-left: env(safe-area-inset-top);
-    width: 100vh;
-    width: 100dvh;
-    height: 100vw;
-    height: 100dvw;
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    position: relative;
+    inset: auto;
+    transform: none;
+  }
+}
+
+@media (orientation: portrait) {
+  .appShell[data-view="battle"] .commandBar {
+    height: calc(102px + var(--game-safe-top));
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 50px 44px;
+    align-content: end;
+    gap: 4px;
+    padding:
+      var(--game-safe-top)
+      max(6px, var(--game-safe-right))
+      4px
+      max(6px, var(--game-safe-left));
+  }
+
+  .appShell[data-view="battle"] .commandCenter {
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px;
+    justify-self: stretch;
+  }
+
+  .appShell[data-view="battle"] .commandCenter > nav {
+    min-width: 0;
+  }
+
+  .appShell[data-view="battle"] .headerActions {
+    width: 100%;
+    min-width: 0;
+    justify-self: stretch;
+    justify-content: flex-end;
+    padding-left: 78px;
+  }
+
+  .appShell[data-view="battle"] .battlePulse {
     position: absolute;
-    inset: 0 auto auto 0;
-    transform: rotate(90deg) translateY(-100%);
-    transform-origin: top left;
+    bottom: 8px;
+    left: max(6px, var(--game-safe-left));
+    width: 68px;
+    min-width: 68px;
+    height: 36px;
+    display: flex;
+    gap: 0;
+    padding: 5px;
+    border: 1px solid var(--line);
+    background: rgb(9 10 8 / 76%);
+  }
+
+  .appShell[data-view="battle"] .battlePulse::before,
+  .appShell[data-view="battle"] .battlePulse span {
+    display: none;
+  }
+
+  .appShell[data-view="battle"] .battlePulse strong {
+    width: 100%;
+    font-size: 14px;
+    text-align: center;
+  }
+
+  .appShell[data-view="battle"] .commandBar[data-phase="engaged"] .battlePulse {
+    width: 140px;
+    gap: 6px;
+    padding-inline: 8px;
+  }
+
+  .appShell[data-view="battle"] .commandBar[data-phase="engaged"] .battlePulse span {
+    min-width: 0;
+    display: block;
+    overflow: hidden;
+    font-size: 6px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .appShell[data-view="battle"] .commandBar[data-phase="engaged"] .battlePulse strong {
+    width: auto;
+    margin-left: auto;
+  }
+
+  .appShell[data-view="battle"] .commandBar[data-phase="engaged"] .headerActions {
+    padding-left: 148px;
+  }
+
+  .appShell[data-view="battle"] .restartButton {
+    width: auto;
+    min-width: 48px;
+    padding-inline: 7px;
+    font-size: 7px;
+  }
+
+  .appShell[data-view="battle"] .engagementOrder {
+    width: auto;
+    min-width: 58px;
+    flex: 1 1 auto;
+  }
+
+  .appShell[data-view="battle"] .warTable {
+    height: calc(100% - 102px - var(--game-safe-top));
+  }
+
+  .appShell[data-view="battle"] .matchSetupControls {
+    right: max(6px, var(--game-safe-right));
+    left: max(6px, var(--game-safe-left));
+    width: auto;
+    max-width: none;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .appShell[data-view="battle"] .objectiveFlag {
+    top: 48px;
+    right: auto;
+    left: max(6px, var(--game-safe-left));
+    width: 136px;
+    max-width: none;
+    min-height: 39px;
+    padding: 6px 7px;
+    border: 1px solid var(--line);
+    border-top: 2px solid var(--amber);
+    text-align: left;
+    transform: none;
+  }
+
+  .appShell[data-view="battle"] .objectiveFlag strong {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 8px;
+    line-height: 1.35;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .appShell[data-view="battle"] .objectiveFlag[data-tone="error"] {
+    border: 1px solid var(--line);
+    border-top: 2px solid var(--crimson);
+  }
+
+  .appShell[data-view="battle"] .objectiveFlag[data-tone="success"] {
+    border: 1px solid var(--line);
+    border-top: 2px solid var(--verdant);
+  }
+
+  .appShell[data-view="battle"] .enemyRail {
+    top: 6px;
+    right: max(6px, var(--game-safe-right));
+    left: auto;
+    width: 80px;
+    height: 39px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: 1fr auto;
+    gap: 1px 6px;
+    padding: 4px 6px;
+    border: 1px solid var(--line-strong);
+    border-right: 2px solid rgb(224 88 86 / 54%);
+    background: rgb(18 19 16 / 89%);
+    box-shadow: -6px 8px 22px rgb(0 0 0 / 24%);
+  }
+
+  .appShell[data-view="battle"] .enemyRail > span,
+  .appShell[data-view="battle"] .enemyRail > small {
+    display: none;
+  }
+
+  .appShell[data-view="battle"] .enemyRail > strong {
+    grid-row: 1 / -1;
+    align-self: center;
+    margin: 0;
+    font-size: 17px;
+  }
+
+  .appShell[data-view="battle"] .forceMeter {
+    width: 38px;
+    height: 5px;
+    align-self: end;
+    margin: 0 0 2px;
+  }
+
+  .appShell[data-view="battle"] .zoomControls {
+    right: max(6px, var(--game-safe-right));
+    bottom: calc(64px + max(4px, var(--game-safe-bottom)));
+    grid-template-columns: 44px;
+  }
+
+  .appShell[data-view="battle"] .zoomButton span {
+    color: #fff4d2;
+    font-weight: 900;
+  }
+
+  .appShell[data-view="battle"] .loadingPanel {
+    width: calc(100% - 24px);
+    padding-inline: 18px;
+  }
+
+  .appShell[data-view="battle"] .benchmarkPanel {
+    top: 54px;
+    width: calc(100% - 16px);
+    min-width: 0;
   }
 }
 

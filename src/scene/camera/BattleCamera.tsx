@@ -2,19 +2,30 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { MathUtils, OrthographicCamera, Vector3 } from "three";
 import { useEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
-import { BATTLEFIELD_WORLD_BOUNDS } from "../../map/battlefield";
+import {
+  axialToWorld,
+  BATTLEFIELD_MAP,
+  BATTLEFIELD_WORLD_BOUNDS,
+} from "../../map/battlefield";
 import type { CameraViewSnapshot } from "./cameraViewStore";
 import { clampCameraTarget, screenPanWorldDelta } from "./cameraPan";
 import {
   CAMERA_MAXIMUM_ZOOM,
   cameraZoomBounds,
-  COMPACT_CAMERA_INITIAL_ZOOM,
-  isCompactCameraViewport,
+  initialCameraZoom,
+  isPortraitCameraViewport,
 } from "./cameraZoom";
 import type { SceneInteractionBridge } from "../sceneInteractionBridge";
 
 const CAMERA_HEIGHT = 18;
 const CAMERA_GROUND_DISTANCE = 25;
+const VERDANT_CASTLE_POSITION = axialToWorld(BATTLEFIELD_MAP.castles.verdant);
+
+export const DESKTOP_CAMERA_YAW = 0.68;
+export const PORTRAIT_CAMERA_YAW = Math.atan2(
+  VERDANT_CASTLE_POSITION.x,
+  VERDANT_CASTLE_POSITION.z,
+);
 
 export interface CameraShakeImpulse {
   readonly sequence: number;
@@ -37,11 +48,12 @@ export function BattleCamera({
   readonly bridgeRef: MutableRefObject<SceneInteractionBridge>;
 }) {
   const { camera, size } = useThree();
-  const compactViewport = isCompactCameraViewport(size);
+  const portraitViewport = isPortraitCameraViewport(size);
+  const startingZoom = initialCameraZoom(size, initialZoom);
   const zoomBounds = cameraZoomBounds(size, initialZoom);
   const target = useRef(new Vector3(0, 0, 0));
   const keys = useRef(new Set<string>());
-  const yaw = useRef(0.68);
+  const yaw = useRef(DESKTOP_CAMERA_YAW);
   const orbiting = useRef(false);
   const lastPointerX = useRef(0);
   const shakeEnergy = useRef(0);
@@ -50,16 +62,16 @@ export function BattleCamera({
   const lastViewSignature = useRef("");
 
   useEffect(() => {
-    target.current.set(0, 0, initialTargetZ);
-    yaw.current = 0.68;
+    target.current.set(0, 0, portraitViewport ? 0 : initialTargetZ);
+    yaw.current = portraitViewport ? PORTRAIT_CAMERA_YAW : DESKTOP_CAMERA_YAW;
     shakeEnergy.current = 0;
     if (camera instanceof OrthographicCamera) {
-      camera.zoom = compactViewport ? COMPACT_CAMERA_INITIAL_ZOOM : initialZoom;
+      camera.zoom = startingZoom;
       camera.updateProjectionMatrix();
     }
     viewReportDelay.current = 0.1;
     lastViewSignature.current = "";
-  }, [camera, compactViewport, initialTargetZ, initialZoom, resetToken]);
+  }, [camera, initialTargetZ, portraitViewport, resetToken, startingZoom]);
 
   useEffect(() => {
     if (!shake) return;

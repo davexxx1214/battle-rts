@@ -584,7 +584,7 @@ export function App() {
 
   if (!benchmarkMode && mode === "campaign" && !activeCampaignMission) {
     return (
-      <main className={styles.appShell}>
+      <main className={styles.appShell} data-view="campaign-map">
         <CampaignMap
           mode={mode}
           progress={campaignProgress}
@@ -600,12 +600,14 @@ export function App() {
   return (
     <main
       className={styles.appShell}
+      data-view="battle"
       data-battle-theme={hasUndeadTerritory ? "undead" : "human"}
       data-enemy-race={factionRaces.crimson}
       aria-busy={!assetsReady}
     >
       <header
         className={styles.commandBar}
+        data-phase={battlePhase}
         inert={!assetsReady}
         aria-hidden={!assetsReady}
       >
@@ -1010,7 +1012,7 @@ function localPointer(
       width: event.currentTarget.clientWidth,
       height: event.currentTarget.clientHeight,
     },
-    window.matchMedia("(orientation: portrait)").matches,
+    false,
   );
 }
 

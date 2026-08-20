@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { axialToWorld, BATTLEFIELD_MAP, BATTLEFIELD_WORLD_BOUNDS } from "../../src/map/battlefield";
-import { normalizedPanProgress } from "../../src/scene/camera/BattleCamera";
+import {
+  normalizedPanProgress,
+  PORTRAIT_CAMERA_YAW,
+} from "../../src/scene/camera/BattleCamera";
 import {
   cameraGroundAxes,
   clampCameraTarget,
@@ -56,6 +59,17 @@ describe("mobile camera pan range", () => {
 
     expect(clamped.x).toBeCloseTo(enemyCastle.x, 8);
     expect(clamped.z).toBeCloseTo(enemyCastle.z, 8);
+  });
+
+  it("places both castles on the portrait screen's vertical center line", () => {
+    const axes = cameraGroundAxes(PORTRAIT_CAMERA_YAW);
+    const playerCastle = axialToWorld(BATTLEFIELD_MAP.castles.verdant);
+    const enemyCastle = axialToWorld(BATTLEFIELD_MAP.castles.crimson);
+
+    expect(dot(playerCastle, axes.right)).toBeCloseTo(0, 8);
+    expect(dot(enemyCastle, axes.right)).toBeCloseTo(0, 8);
+    expect(dot(playerCastle, axes.up)).toBeLessThan(0);
+    expect(dot(enemyCastle, axes.up)).toBeGreaterThan(0);
   });
 });
 

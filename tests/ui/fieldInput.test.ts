@@ -39,6 +39,15 @@ describe("battlefield pointer input", () => {
     expect(rotatedPortrait).toEqual(landscape);
   });
 
+  it("maps native portrait input without rotating its axes", () => {
+    expect(fieldPointerCoordinates(
+      { x: 195, y: 472 },
+      { left: 0, right: 390, top: 96, width: 390, height: 748 },
+      { width: 390, height: 748 },
+      false,
+    )).toEqual({ x: 195, y: 376 });
+  });
+
   it("converts pinch distance changes into bounded zoom factors", () => {
     expect(fieldPointerDistance({ x: 0, y: 0 }, { x: 3, y: 4 })).toBe(5);
     expect(pinchZoomFactor(100, 110)).toBeCloseTo(1.1);

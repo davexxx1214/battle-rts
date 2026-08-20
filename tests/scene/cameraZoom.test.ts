@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   cameraZoomBounds,
   clampedCameraZoom,
+  initialCameraZoom,
   wheelZoomFactor,
 } from "../../src/scene/camera/cameraZoom";
 
@@ -20,6 +21,20 @@ describe("battle camera zoom", () => {
 
   it("preserves the existing compact viewport range", () => {
     expect(cameraZoomBounds({ width: 844, height: 390 }, 32)).toEqual({
+      minimum: 11,
+      maximum: 56,
+    });
+  });
+
+  it("uses a dedicated portrait framing while preserving landscape defaults", () => {
+    expect(initialCameraZoom({ width: 1280, height: 720 }, 32)).toBe(32);
+    expect(initialCameraZoom({ width: 844, height: 390 }, 32)).toBe(13);
+    expect(initialCameraZoom({ width: 390, height: 748 }, 32)).toBeCloseTo(32.857);
+    expect(initialCameraZoom({ width: 320, height: 472 }, 32)).toBeCloseTo(17.692);
+  });
+
+  it("lets portrait screens zoom back out to the complete battlefield", () => {
+    expect(cameraZoomBounds({ width: 768, height: 1024 }, 32)).toEqual({
       minimum: 11,
       maximum: 56,
     });

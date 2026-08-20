@@ -122,6 +122,10 @@ export function CampaignMap({
                 </button>
               ))}
             </nav>
+            <div className={styles.mobileCampaignProgress} aria-label="手机端战役进度">
+              <span>主线 {completedStoryMissions} / {totalStoryMissions}</span>
+              <strong>★ {totalStars}</strong>
+            </div>
             <p>{campaign.overview}</p>
             <small className={styles.mapGestureHint}>双指缩放 · 拖动查看路线</small>
           </div>
@@ -181,9 +185,16 @@ export function CampaignMap({
               );
             })}
           </div>
+
+          <CampaignArmory
+            className={styles.mobileArmory}
+            campaign={campaign}
+            unlocked={unlocked}
+          />
         </main>
 
         <aside
+          id="campaign-mission-briefing"
           className={styles.missionBriefing}
           data-mobile-open={mobileBriefingOpen}
           aria-label="任务简报"
@@ -262,6 +273,7 @@ export function CampaignMap({
             className={styles.mobileBriefingButton}
             type="button"
             aria-expanded={mobileBriefingOpen}
+            aria-controls="campaign-mission-briefing"
             onClick={() => setMobileBriefingOpen((open) => !open)}
           >
             {mobileBriefingOpen ? "收起简报" : "任务简报"}
@@ -278,25 +290,43 @@ export function CampaignMap({
         </div>
       </div>
 
-      <footer className={styles.armory}>
-        <span>军备库</span>
-        {(Object.keys(DEPLOYABLE_LABELS) as DeployableKind[]).map((kind) => {
-          const isUnlocked = unlocked.includes(kind);
-          return (
-            <div
-              data-unlocked={isUnlocked}
-              title={deployableLabelForRace(kind, campaign.playerRace)}
-              key={kind}
-            >
-              <img src={deployableIconForRace(kind, campaign.playerRace)} alt="" />
-              <small>{isUnlocked
-                ? deployableLabelForRace(kind, campaign.playerRace)
-                : "未解锁"}</small>
-            </div>
-          );
-        })}
-      </footer>
+      <CampaignArmory
+        className={styles.armory}
+        campaign={campaign}
+        unlocked={unlocked}
+      />
     </section>
+  );
+}
+
+function CampaignArmory({
+  className,
+  campaign,
+  unlocked,
+}: {
+  readonly className: string;
+  readonly campaign: ReturnType<typeof getCampaignDefinition>;
+  readonly unlocked: readonly DeployableKind[];
+}) {
+  return (
+    <footer className={className}>
+      <span>军备库</span>
+      {(Object.keys(DEPLOYABLE_LABELS) as DeployableKind[]).map((kind) => {
+        const isUnlocked = unlocked.includes(kind);
+        return (
+          <div
+            data-unlocked={isUnlocked}
+            title={deployableLabelForRace(kind, campaign.playerRace)}
+            key={kind}
+          >
+            <img src={deployableIconForRace(kind, campaign.playerRace)} alt="" />
+            <small>{isUnlocked
+              ? deployableLabelForRace(kind, campaign.playerRace)
+              : "未解锁"}</small>
+          </div>
+        );
+      })}
+    </footer>
   );
 }
 

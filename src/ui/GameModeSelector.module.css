@@ -52,7 +52,7 @@
 }
 
 @media (orientation: landscape) and (max-height: 520px),
-  (orientation: portrait) and (max-width: 520px) {
+  (orientation: portrait) {
   .selector {
     grid-template-columns: repeat(3, minmax(44px, 1fr));
     padding: 2px;
