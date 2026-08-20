@@ -50,6 +50,41 @@
   fill: rgb(241 199 82);
 }
 
+.minePit[data-faction="verdant"] {
+  stroke: rgb(86 232 145);
+}
+
+.minePit[data-faction="crimson"] {
+  stroke: rgb(247 94 105);
+}
+
+.minePit[data-status="occupied"][data-faction="verdant"] {
+  fill: rgb(62 204 118);
+}
+
+.minePit[data-status="occupied"][data-faction="crimson"] {
+  fill: rgb(231 77 88);
+}
+
+.minePit[data-status="capturing"] {
+  stroke-dasharray: 1.5 1;
+  stroke-width: 1.8;
+}
+
+.minePit[data-capturing-faction="verdant"] {
+  stroke: rgb(86 232 145);
+}
+
+.minePit[data-capturing-faction="crimson"] {
+  stroke: rgb(247 94 105);
+}
+
+.minePit[data-status="depleted"] {
+  fill: rgb(50 54 55);
+  stroke: rgb(137 143 143);
+  opacity: 0.62;
+}
+
 .castle,
 .building,
 .squad {

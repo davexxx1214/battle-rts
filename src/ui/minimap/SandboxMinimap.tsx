@@ -113,8 +113,12 @@ export function SandboxMinimap({
             className={styles.minePit}
             cx={pit.point.x}
             cy={pit.point.y}
+            data-capture-progress={round(pit.captureProgress)}
+            data-capturing-faction={pit.capturingFaction ?? undefined}
             data-faction={pit.faction ?? "neutral"}
             data-minimap-mine={pit.id}
+            data-occupying-mine={pit.occupyingMineId ?? undefined}
+            data-remaining-ore={pit.remainingOre}
             data-status={pit.status}
             key={pit.id}
             r={3.1}

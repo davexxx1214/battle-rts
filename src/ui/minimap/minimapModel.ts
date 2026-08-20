@@ -20,7 +20,11 @@ export interface MinimapBuildZoneShape {
 export interface MinimapMineMarker {
   readonly id: string;
   readonly faction: Faction | null;
-  readonly status: "neutral" | "controlled" | "occupied";
+  readonly status: "neutral" | "controlled" | "capturing" | "occupied" | "depleted";
+  readonly remainingOre: number;
+  readonly occupyingMineId: string | null;
+  readonly capturingFaction: Faction | null;
+  readonly captureProgress: number;
   readonly point: MinimapPoint;
 }
 
@@ -104,6 +108,28 @@ export function createSandboxMinimapModel(
     }));
   });
   const minePits = (battlefield.minePits ?? []).map((pit): MinimapMineMarker => {
+    const runtimePit = battle.mining?.pitsById[pit.id];
+    if (runtimePit) {
+      const status: MinimapMineMarker["status"] = runtimePit.depleted
+        ? "depleted"
+        : runtimePit.occupyingMineId !== null
+          ? "occupied"
+          : runtimePit.capturingFaction !== null && runtimePit.captureProgress > 0
+            ? "capturing"
+            : runtimePit.controller !== null ? "controlled" : "neutral";
+      return Object.freeze({
+        id: pit.id,
+        faction: runtimePit.controller,
+        status,
+        remainingOre: runtimePit.remainingOre,
+        occupyingMineId: runtimePit.occupyingMineId,
+        capturingFaction: runtimePit.capturingFaction,
+        captureProgress: runtimePit.captureProgress,
+        point: freezePoint(projection.project(axialToWorld(pit.coordinate))),
+      });
+    }
+
+    // Static fallback supports legacy sandbox snapshots created before mining state existed.
     const mine = activeBuildingByCoordinate.get(coordinateKey(pit.coordinate));
     const occupiedMine = mine?.kind === "gold-mine" ? mine : null;
     const faction = occupiedMine?.faction ?? pit.initialController;
@@ -111,6 +137,10 @@ export function createSandboxMinimapModel(
       id: pit.id,
       faction,
       status: occupiedMine ? "occupied" : faction ? "controlled" : "neutral",
+      remainingOre: pit.capacity,
+      occupyingMineId: occupiedMine?.id ?? null,
+      capturingFaction: null,
+      captureProgress: 0,
       point: freezePoint(projection.project(axialToWorld(pit.coordinate))),
     });
   });

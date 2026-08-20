@@ -9,6 +9,7 @@ import type { BuildingKind, TroopKind } from "./rules";
 import type { HexCoordinate } from "../map/battlefield";
 import type { CombatTargetType } from "./combat";
 import type { CastleActivationEvent } from "./castleCombat";
+import type { MineCapturedEvent } from "./mineCapture";
 
 interface BattleEventBase {
   readonly sequence: number;
@@ -18,6 +19,7 @@ interface BattleEventBase {
 export type BattleEventInput =
   | BuildingSimulationEvent
   | CastleActivationEvent
+  | MineCapturedEvent
   | {
       readonly type: "gold-full";
       readonly faction: Faction;

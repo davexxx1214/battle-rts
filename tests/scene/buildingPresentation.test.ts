@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createBattleBuilding } from "../../src/game/buildings";
+import { battleModeDefinitionFor } from "../../src/game/battleMode";
 import { stampBattleEvent } from "../../src/game/events";
 import {
   BUILDING_HEALTH_BAR_LAYERS,
@@ -55,6 +56,28 @@ describe("building presentation state", () => {
 
     expect(buildingPresentation(barracks, 3, "undead").productionProgress).toBe(0.5);
     expect(buildingPresentation(barracks, 3, "human").productionProgress).toBe(0.6);
+  });
+
+  it("shows a timed sandbox worksite before starting the mine production clock", () => {
+    const mine = createBattleBuilding({
+      id: "sandbox-mine-1",
+      kind: "gold-mine",
+      faction: "verdant",
+      coordinate: { q: -13, r: 10 },
+      createdAt: 0,
+      constructionSeconds: 6,
+    }, battleModeDefinitionFor("sandbox").buildingLifecyclePolicy);
+
+    expect(buildingPresentation(mine, 3)).toMatchObject({
+      lifecycle: "constructing",
+      constructionProgress: 0.5,
+      productionProgress: null,
+    });
+    expect(buildingPresentation(mine, 6)).toMatchObject({
+      lifecycle: "active",
+      constructionProgress: 1,
+      productionProgress: 0,
+    });
   });
 
   it("marks destroyed buildings and activated castles without UI-owned timers", () => {

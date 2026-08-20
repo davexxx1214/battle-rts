@@ -98,6 +98,15 @@ import {
   type UnitStatusEffect,
   type UnitStatusEffectApplication,
 } from "./unitStatusEffects";
+import {
+  createSandboxMiningState,
+  type MiningLedgerEvent,
+  type SandboxMiningState,
+} from "./miningEconomy";
+import {
+  advanceSandboxMiningSystems,
+  synchronizeSandboxMineOccupancy,
+} from "./sandboxMiningIntegration";
 
 export type { BattleRace, Faction, FactionRaces, UnitRole, WorldPoint } from "./types";
 export { UNIT_SPECS } from "./rules";
@@ -136,6 +145,8 @@ export interface BattleState {
   readonly projectiles: readonly BattleProjectile[];
   readonly events: readonly BattleEvent[];
   readonly economy: EconomyState;
+  readonly mining: SandboxMiningState | null;
+  readonly miningLedger: readonly MiningLedgerEvent[];
   readonly matchPolicy: MatchPolicy;
   readonly matchElapsed: number;
   readonly buildings: readonly BattleBuilding[];
@@ -177,6 +188,7 @@ const MOVEMENT_EPSILON = 1e-9;
 const MAX_STEP_SECONDS = 0.1;
 const EVENT_WINDOW_SECONDS = 2;
 const POST_BATTLE_PRESENTATION_SECONDS = 8;
+const MAX_MINING_LEDGER_EVENTS = 512;
 const ATTACK_LINE_SAMPLE_DISTANCE = 0.35;
 const BUILDING_ATTACK_LINE_CLEARANCE = 1.1;
 
@@ -225,6 +237,10 @@ export function createBattleState(
     projectiles: [],
     events: [],
     economy: createEconomyState(mode.economyPolicy),
+    mining: modeId === "sandbox"
+      ? createSandboxMiningState(battlefield.minePits ?? [])
+      : null,
+    miningLedger: [],
     matchPolicy: options.matchPolicy ?? mode.clockPolicy,
     matchElapsed: 0,
     buildings: createInitialDefensiveBuildings(
@@ -258,6 +274,8 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
   }
   const runtime = resolveBattleRuntimeContext(state);
   const { map, mode } = runtime;
+  const miningAtStart = state.mining ?? null;
+  const miningLedgerAtStart = state.miningLedger ?? [];
   const requestedStepSeconds = Math.min(MAX_STEP_SECONDS, requestedDeltaSeconds);
   if (state.resolvedAt !== null) {
     if (state.elapsed - state.resolvedAt >= POST_BATTLE_PRESENTATION_SECONDS) return state;
@@ -270,6 +288,9 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       state.buildingOccupancy,
       elapsed,
     );
+    const mining = state.mining
+      ? synchronizeSandboxMineOccupancy(state.mining, cleanup.buildings)
+      : null;
     return {
       ...state,
       units: state.units.map((unit) => ({
@@ -278,6 +299,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       })),
       buildings: cleanup.buildings,
       buildingOccupancy: cleanup.occupancy,
+      mining,
       projectiles: [],
       events: pruneBattleEvents(state.events, elapsed - EVENT_WINDOW_SECONDS),
       elapsed,
@@ -584,17 +606,6 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     statusEffectIntents,
     elapsed,
   );
-  const newlyFullFactions = new Set([
-    ...economyStep.newlyFullFactions,
-    ...buildingStep.newlyFullFactions,
-  ]);
-  for (const faction of newlyFullFactions) {
-    emit({
-      type: "gold-full",
-      faction,
-      promptSequence: buildingStep.economy.accounts[faction].fullPromptSequence,
-    });
-  }
   const producedUnits = buildingStep.unitSpawns.map((spawn) => createBattleUnit({
     id: spawn.unitId,
     faction: spawn.faction,
@@ -603,12 +614,48 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     squadId: `${spawn.buildingId}-spawned`,
     position: spawn.position,
   }));
+  const unitsAfterProduction = [...statusSettledUnits, ...producedUnits];
+  const miningAfterBuildingHealth = miningAtStart === null
+    ? null
+    : synchronizeSandboxMineOccupancy(miningAtStart, castleAttackStep.buildings);
+  const sandboxMiningStep = miningAfterBuildingHealth !== null
+    && castleWinnerAfterBuildingHealth === null
+    && matchIsActive
+    && activeMatchDeltaSeconds > 0
+    ? advanceSandboxMiningSystems({
+        mining: miningAfterBuildingHealth,
+        economy: buildingStep.economy,
+        buildings: castleAttackStep.buildings,
+        units: unitsAfterProduction,
+        elapsedSeconds: state.matchElapsed,
+        deltaSeconds: activeMatchDeltaSeconds,
+      })
+    : {
+        mining: miningAfterBuildingHealth,
+        economy: buildingStep.economy,
+        ledgerEvents: [],
+        captureEvents: [],
+        newlyFullFactions: [],
+      };
+  for (const event of sandboxMiningStep.captureEvents) emit(event);
+  const newlyFullFactions = new Set([
+    ...economyStep.newlyFullFactions,
+    ...buildingStep.newlyFullFactions,
+    ...sandboxMiningStep.newlyFullFactions,
+  ]);
+  for (const faction of newlyFullFactions) {
+    emit({
+      type: "gold-full",
+      faction,
+      promptSequence: sandboxMiningStep.economy.accounts[faction].fullPromptSequence,
+    });
+  }
   const buildingCleanup = removeDestroyedBuildingsAt(
     castleAttackStep.buildings,
     buildingStep.occupancy,
     elapsed,
   );
-  const units = [...statusSettledUnits, ...producedUnits];
+  const units = unitsAfterProduction;
   const matchTimedOut = getMatchClock(matchElapsed, state.matchPolicy).timedOut;
   const winner = castleWinnerAfterBuildingHealth
     ?? (
@@ -628,7 +675,12 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       ...pruneBattleEvents(state.events, elapsed - EVENT_WINDOW_SECONDS),
       ...emitted,
     ],
-    economy: buildingStep.economy,
+    economy: sandboxMiningStep.economy,
+    mining: sandboxMiningStep.mining,
+    miningLedger: [
+      ...miningLedgerAtStart,
+      ...sandboxMiningStep.ledgerEvents,
+    ].slice(-MAX_MINING_LEDGER_EVENTS),
     matchPolicy: state.matchPolicy,
     matchElapsed,
     buildings: buildingCleanup.buildings,

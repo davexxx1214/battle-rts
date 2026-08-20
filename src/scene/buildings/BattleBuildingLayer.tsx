@@ -91,8 +91,11 @@ function BattleBuildingVisual({
       ? MathUtils.clamp(signal.age / 0.42, 0, 1)
       : 1;
     const destroyProgress = presentation.destructionProgress;
+    const constructionScale = 0.48 + presentation.constructionProgress * 0.52;
     const entrance = 1 - (1 - deployProgress) ** 3;
-    root.current.scale.setScalar((0.48 + entrance * 0.52) * (1 - destroyProgress * 0.28));
+    root.current.scale.setScalar(
+      constructionScale * (0.48 + entrance * 0.52) * (1 - destroyProgress * 0.28),
+    );
     root.current.rotation.y = destroyProgress * 0.18;
   });
   return (

@@ -1,10 +1,13 @@
-import type { BattleBuilding } from "../../game/buildings";
+import {
+  battleBuildingConstructionPhaseAt,
+  type BattleBuilding,
+} from "../../game/buildings";
 import type { BattleEvent } from "../../game/events";
 import { barracksRulesForRace, GAME_RULES } from "../../game/rules";
 import type { BattleRace } from "../../game/types";
 
 export type BuildingHealthTone = "healthy" | "warning" | "critical";
-export type BuildingLifecyclePresentation = "active" | "destroying";
+export type BuildingLifecyclePresentation = "constructing" | "active" | "destroying";
 export type BuildingSignalKind =
   | "deploy"
   | "gold"
@@ -17,6 +20,7 @@ export interface BuildingPresentation {
   readonly healthRatio: number;
   readonly healthTone: BuildingHealthTone;
   readonly lifecycle: BuildingLifecyclePresentation;
+  readonly constructionProgress: number;
   readonly destructionProgress: number;
   readonly productionProgress: number | null;
   readonly kingVisible: boolean;
@@ -63,12 +67,24 @@ export function buildingPresentation(
   race: BattleRace = "human",
 ): BuildingPresentation {
   const healthRatio = clamp01(building.health / building.maxHealth);
+  const constructionPhase = battleBuildingConstructionPhaseAt(building, elapsed);
+  const constructionCompletedAt = Number.isFinite(building.constructionCompletedAt)
+    ? building.constructionCompletedAt
+    : building.createdAt;
   return {
     healthRatio,
     healthTone: healthRatio > 0.55
       ? "healthy"
       : healthRatio > 0.3 ? "warning" : "critical",
-    lifecycle: building.status === "destroyed" ? "destroying" : "active",
+    lifecycle: constructionPhase === "destroyed"
+      ? "destroying"
+      : constructionPhase === "constructing" ? "constructing" : "active",
+    constructionProgress: constructionPhase === "constructing"
+      ? clamp01(
+          (elapsed - building.createdAt)
+          / Math.max(0.001, constructionCompletedAt - building.createdAt),
+        )
+      : 1,
     destructionProgress: destructionProgress(building, elapsed),
     productionProgress: productionProgress(building, elapsed, race),
     kingVisible: building.kind === "castle"
@@ -105,6 +121,7 @@ function productionProgress(
     || building.kind === "arrow-tower"
     || building.kind === "guard-tower"
     || building.status !== "active"
+    || battleBuildingConstructionPhaseAt(building, elapsed) !== "operational"
   ) return null;
   const barracksRules = barracksRulesForRace(race);
   const config = building.kind === "gold-mine"
@@ -119,11 +136,14 @@ function productionProgress(
         maximum: barracksRules.spawnCount,
       };
   if (building.productionSequence >= config.maximum) return null;
-  const nextAt = building.createdAt
+  const constructionCompletedAt = Number.isFinite(building.constructionCompletedAt)
+    ? building.constructionCompletedAt
+    : building.createdAt;
+  const nextAt = constructionCompletedAt
     + config.first
     + building.productionSequence * config.interval;
   const cycleStart = building.productionSequence === 0
-    ? building.createdAt
+    ? constructionCompletedAt
     : nextAt - config.interval;
   return clamp01((elapsed - cycleStart) / Math.max(0.001, nextAt - cycleStart));
 }

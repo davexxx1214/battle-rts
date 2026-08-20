@@ -35,6 +35,10 @@ import type {
 
 export type BattleBuildingKind = BuildingKind | "castle" | "arrow-tower";
 export type BattleBuildingStatus = "active" | "destroyed";
+export type BattleBuildingConstructionPhase =
+  | "constructing"
+  | "operational"
+  | "destroyed";
 
 export interface CastleCombatState {
   readonly activatedAt: number | null;
@@ -54,6 +58,7 @@ export interface BattleBuilding extends CombatTarget {
   readonly maxHealth: number;
   readonly health: number;
   readonly createdAt: number;
+  readonly constructionCompletedAt: number;
   readonly lifetimeSeconds: number | null;
   readonly productionSequence: number;
   readonly castleCombat: CastleCombatState | null;
@@ -69,6 +74,7 @@ export interface CreateBattleBuildingInput {
   readonly faction: Faction;
   readonly coordinate: HexCoordinate;
   readonly createdAt: number;
+  readonly constructionSeconds?: number;
 }
 
 export interface BuildingSpawnBlocker {
@@ -237,6 +243,15 @@ export function createBattleBuilding(
     throw new Error("Building requires a finite creation time at or after zero.");
   }
   if (
+    input.constructionSeconds !== undefined
+    && (
+      !Number.isFinite(input.constructionSeconds)
+      || input.constructionSeconds < 0
+    )
+  ) {
+    throw new Error("Building construction duration must be finite and non-negative.");
+  }
+  if (
     !Number.isFinite(input.coordinate.q)
     || !Number.isFinite(input.coordinate.r)
     || !Number.isInteger(input.coordinate.q)
@@ -245,13 +260,21 @@ export function createBattleBuilding(
     throw new Error("Building requires a finite integer hex coordinate.");
   }
   const spec = buildingHealthSpec(input.kind);
+  const {
+    constructionSeconds: requestedConstructionSeconds = 0,
+    ...buildingIdentity
+  } = input;
+  const constructionSeconds = lifecyclePolicy?.construction === "timed"
+    ? requestedConstructionSeconds
+    : 0;
   return {
-    ...input,
+    ...buildingIdentity,
     targetType: "building",
     coordinate: { ...input.coordinate },
     position: axialToWorld(input.coordinate),
     maxHealth: spec.maxHealth,
     health: spec.maxHealth,
+    constructionCompletedAt: input.createdAt + constructionSeconds,
     lifetimeSeconds: lifecyclePolicy?.naturalDecay === "disabled"
       ? null
       : spec.lifetimeSeconds,
@@ -266,6 +289,27 @@ export function createBattleBuilding(
     diedAt: null,
     removeAt: null,
   };
+}
+
+export function battleBuildingConstructionPhaseAt(
+  building: BattleBuilding,
+  elapsedSeconds: number,
+): BattleBuildingConstructionPhase {
+  if (building.status === "destroyed" || building.health <= 0) return "destroyed";
+  const constructionCompletedAt = Number.isFinite(building.constructionCompletedAt)
+    ? building.constructionCompletedAt
+    : building.createdAt;
+  return Number.isFinite(elapsedSeconds)
+    && elapsedSeconds + TIME_EPSILON >= constructionCompletedAt
+    ? "operational"
+    : "constructing";
+}
+
+export function isBattleBuildingOperationalAt(
+  building: BattleBuilding,
+  elapsedSeconds: number,
+): boolean {
+  return battleBuildingConstructionPhaseAt(building, elapsedSeconds) === "operational";
 }
 
 export function advanceBuildings(
