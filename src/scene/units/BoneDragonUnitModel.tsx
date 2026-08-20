@@ -14,6 +14,7 @@ import {
   Quaternion,
   Vector3,
 } from "three";
+import type { Material } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 
@@ -50,6 +51,7 @@ export function BoneDragonUnitModel({
   damageTime,
   damageSourcePosition,
   race,
+  ghostValid,
 }: {
   readonly unit: BattleUnit;
   readonly selected: boolean;
@@ -59,6 +61,7 @@ export function BoneDragonUnitModel({
   readonly damageTime?: number;
   readonly damageSourcePosition?: WorldPoint;
   readonly race: BattleRace;
+  readonly ghostValid?: boolean;
 }) {
   const gltf = useLoader(GLTFLoader, UNDEAD_BONE_DRAGON_ASSET.url);
   const root = useRef<Object3D>(null);
@@ -73,6 +76,7 @@ export function BoneDragonUnitModel({
   const dragon = useMemo(() => prepareBoneDragonModel(gltf.scene), [gltf.scene]);
   const mixer = useMemo(() => new AnimationMixer(dragon.model), [dragon.model]);
   const modelMaterials = useMemo(() => collectMaterials(dragon.model), [dragon.model]);
+  const isGhost = ghostValid !== undefined;
   const damageAge = damageTime === undefined
     ? Number.POSITIVE_INFINITY
     : battleTime - damageTime;
@@ -109,6 +113,21 @@ export function BoneDragonUnitModel({
     activeAction.current = null;
     mixer.stopAllAction();
   }, [mixer]);
+  useEffect(() => {
+    if (!isGhost) return;
+    dragon.model.traverse((object) => {
+      if (!(object instanceof Mesh)) return;
+      object.castShadow = false;
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of materials) {
+        material.transparent = true;
+        material.opacity = 0.42;
+        material.depthWrite = false;
+        material.needsUpdate = true;
+      }
+    });
+    return () => disposeOwnedModelMaterials(dragon.model);
+  }, [dragon, isGhost]);
 
   useFrame(({ camera, clock }, delta) => {
     if (dragon.head && lastHeadAttackAngle.current !== 0) {
@@ -141,41 +160,54 @@ export function BoneDragonUnitModel({
     const recoilDirection = damageSourcePosition
       ? normalizedDirection(damageSourcePosition, unit.position)
       : { x: 0, z: 0 };
+    const ghostColor = ghostValid === false ? "#ff625e" : "#67dc9b";
     for (const material of modelMaterials) {
-      material.emissive.set(damageAge < 0.2 ? "#eaffff" : "#77dfff");
-      material.emissiveIntensity = damageAge < 0.2
-        ? (1 - damageProgress) * 1.65
-        : 0.12;
-      material.opacity = fade;
+      material.emissive.set(ghostValid === undefined
+        ? damageAge < 0.2 ? "#eaffff" : "#77dfff"
+        : ghostColor);
+      material.emissiveIntensity = ghostValid === undefined
+        ? damageAge < 0.2 ? (1 - damageProgress) * 1.65 : 0.12
+        : 0.52;
+      material.opacity = ghostValid === undefined ? fade : 0.42;
+      if (ghostValid !== undefined) material.depthWrite = false;
     }
     if (root.current) {
       root.current.visible = alive || deathAge < CORPSE_VISIBLE_SECONDS;
-      root.current.position.x = MathUtils.damp(
-        root.current.position.x,
-        unit.position.x + recoilDirection.x * recoilStrength,
-        10,
-        delta,
-      );
-      root.current.position.y = MathUtils.damp(
-        root.current.position.y,
-        supportHeight + UNDEAD_BONE_DRAGON_ASSET.groundOffset,
-        8,
-        delta,
-      );
-      root.current.position.z = MathUtils.damp(
-        root.current.position.z,
-        unit.position.z + recoilDirection.z * recoilStrength,
-        10,
-        delta,
-      );
-      root.current.rotation.x = MathUtils.damp(root.current.rotation.x, 0, 10, delta);
-      root.current.rotation.y = dampAngle(root.current.rotation.y, unit.facing, 10, delta);
-      root.current.rotation.z = MathUtils.damp(
-        root.current.rotation.z,
-        alive ? Math.sin(clock.elapsedTime * 1.35 + stablePhase(unit.id)) * 0.012 : 0.42,
-        6,
-        delta,
-      );
+      if (ghostValid !== undefined) {
+        root.current.position.set(
+          unit.position.x,
+          supportHeight + UNDEAD_BONE_DRAGON_ASSET.groundOffset,
+          unit.position.z,
+        );
+        root.current.rotation.set(0, unit.facing, 0);
+      } else {
+        root.current.position.x = MathUtils.damp(
+          root.current.position.x,
+          unit.position.x + recoilDirection.x * recoilStrength,
+          10,
+          delta,
+        );
+        root.current.position.y = MathUtils.damp(
+          root.current.position.y,
+          supportHeight + UNDEAD_BONE_DRAGON_ASSET.groundOffset,
+          8,
+          delta,
+        );
+        root.current.position.z = MathUtils.damp(
+          root.current.position.z,
+          unit.position.z + recoilDirection.z * recoilStrength,
+          10,
+          delta,
+        );
+        root.current.rotation.x = MathUtils.damp(root.current.rotation.x, 0, 10, delta);
+        root.current.rotation.y = dampAngle(root.current.rotation.y, unit.facing, 10, delta);
+        root.current.rotation.z = MathUtils.damp(
+          root.current.rotation.z,
+          alive ? Math.sin(clock.elapsedTime * 1.35 + stablePhase(unit.id)) * 0.012 : 0.42,
+          6,
+          delta,
+        );
+      }
     }
     if (healthRoot.current) {
       faceHealthBarToCamera(
@@ -194,7 +226,7 @@ export function BoneDragonUnitModel({
   const groundY = terrainHeightAt(unit.position) + 0.06;
   return (
     <>
-      {unit.health > 0 && (
+      {ghostValid === undefined && unit.health > 0 && (
         <group position={[unit.position.x, groundY, unit.position.z]}>
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
             <ringGeometry args={[ring.innerRadius, ring.outerRadius, ring.segments]} />
@@ -325,6 +357,18 @@ function collectMaterials(model: Object3D): MeshStandardMaterial[] {
     }
   });
   return materials;
+}
+
+function disposeOwnedModelMaterials(model: Object3D): void {
+  const materials = new Set<Material>();
+  model.traverse((object) => {
+    if (!(object instanceof Mesh)) return;
+    const objectMaterials = Array.isArray(object.material)
+      ? object.material
+      : [object.material];
+    for (const material of objectMaterials) materials.add(material);
+  });
+  for (const material of materials) material.dispose();
 }
 
 function normalizedDirection(origin: WorldPoint, destination: WorldPoint): WorldPoint {

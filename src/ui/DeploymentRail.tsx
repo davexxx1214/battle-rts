@@ -1,9 +1,18 @@
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MutableRefObject,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
+
 import type { BattleSessionState } from "../game/battleSession";
+import { getBattleMatchClock } from "../game/battle";
 import {
   getDeployableAvailability,
   type DeploymentFailureReason,
 } from "../game/deployTransaction";
-import { getMatchClock } from "../game/economy";
+import { getMatchResourceMultiplier } from "../game/matchClock";
 import { resolveBattleRace } from "../game/factions";
 import {
   barracksDesignForRace,
@@ -23,13 +32,37 @@ import {
   deployableIconForRace,
   deployableLabelForRace,
 } from "./deployablePresentation";
+import {
+  DEPLOYMENT_DRAG_THRESHOLD_PX,
+  DEPLOYMENT_LONG_PRESS_MS,
+  deploymentGestureIntent,
+} from "./deploymentDrag";
+import { fieldPointerDistance, type FieldPoint } from "./fieldInput";
 import styles from "./DeploymentRail.module.css";
+
+export type DeploymentDragEvent =
+  | {
+      readonly phase: "start";
+      readonly kind: DeployableKind;
+      readonly pointerId: number;
+      readonly client: FieldPoint;
+    }
+  | {
+      readonly phase: "move" | "end";
+      readonly pointerId: number;
+      readonly client: FieldPoint;
+    }
+  | {
+      readonly phase: "cancel";
+      readonly pointerId: number;
+    };
 
 interface DeploymentRailProps {
   readonly session: BattleSessionState;
   readonly selectedKind: DeployableKind | null;
   readonly allowedKinds?: readonly DeployableKind[];
   readonly onSelect: (kind: DeployableKind) => void;
+  readonly onDragDeploy?: (event: DeploymentDragEvent) => void;
 }
 
 interface PresentationMetadata {
@@ -40,6 +73,16 @@ interface PresentationMetadata {
 
 interface DeployableDefinition extends PresentationMetadata {
   readonly kind: DeployableKind;
+}
+
+interface CardPointerGesture {
+  readonly pointerId: number;
+  readonly kind: DeployableKind;
+  readonly element: HTMLButtonElement;
+  readonly start: FieldPoint;
+  latest: FieldPoint;
+  mode: "pending" | "dragging" | "scrolling";
+  timer: number | null;
 }
 
 const HUMAN_BARRACKS = barracksDesignForRace("human");
@@ -77,13 +120,13 @@ export function DeploymentRail({
   selectedKind,
   allowedKinds,
   onSelect,
+  onDragDeploy,
 }: DeploymentRailProps) {
   const battle = session.battle;
   const account = battle.economy.accounts.verdant;
-  const clock = getMatchClock(battle.matchElapsed);
-  const recoveryInterval = clock.phase === "double"
-    ? GAME_RULES.economy.doubleRecoverySeconds
-    : GAME_RULES.economy.normalRecoverySeconds;
+  const clock = getBattleMatchClock(battle);
+  const goldMultiplier = getMatchResourceMultiplier(clock, "gold");
+  const recoveryInterval = GAME_RULES.economy.normalRecoverySeconds / goldMultiplier;
   const secondsToGold = recoveryInterval * (1 - account.recoveryProgress);
   const availableTroops = allowedKinds
     ? TROOPS.filter(({ kind }) => allowedKinds.includes(kind))
@@ -91,11 +134,13 @@ export function DeploymentRail({
   const availableBuildings = allowedKinds
     ? BUILDINGS.filter(({ kind }) => allowedKinds.includes(kind))
     : BUILDINGS;
+  const gestureOwnerRef = useRef<number | null>(null);
 
   return (
     <aside
       className={styles.rail}
       data-full={account.isFull}
+      data-field-ui
       aria-label="部署建筑和兵种"
     >
       <header className={styles.goldHeader}>
@@ -105,7 +150,7 @@ export function DeploymentRail({
             <small>WAR CHEST</small>
             <strong>金币储备</strong>
           </div>
-          <em>×{clock.phase === "double" ? 2 : 1}</em>
+          <em>×{goldMultiplier}</em>
         </div>
         <div
           className={styles.goldReadout}
@@ -136,6 +181,8 @@ export function DeploymentRail({
             session={session}
             selectedKind={selectedKind}
             onSelect={onSelect}
+            onDragDeploy={onDragDeploy}
+            gestureOwnerRef={gestureOwnerRef}
           />
         )}
         {availableBuildings.length > 0 && (
@@ -145,6 +192,8 @@ export function DeploymentRail({
             session={session}
             selectedKind={selectedKind}
             onSelect={onSelect}
+            onDragDeploy={onDragDeploy}
+            gestureOwnerRef={gestureOwnerRef}
           />
         )}
         <footer className={styles.instructions}>
@@ -162,13 +211,196 @@ function DeployableGroup({
   session,
   selectedKind,
   onSelect,
+  onDragDeploy,
+  gestureOwnerRef,
 }: {
   readonly title: string;
   readonly items: readonly DeployableDefinition[];
   readonly session: BattleSessionState;
   readonly selectedKind: DeployableKind | null;
   readonly onSelect: (kind: DeployableKind) => void;
+  readonly onDragDeploy?: (event: DeploymentDragEvent) => void;
+  readonly gestureOwnerRef: MutableRefObject<number | null>;
 }) {
+  const gestureRef = useRef<CardPointerGesture | null>(null);
+  const onDragDeployRef = useRef(onDragDeploy);
+  const suppressClickUntilRef = useRef(0);
+  const [draggingKind, setDraggingKind] = useState<DeployableKind | null>(null);
+
+  useEffect(() => {
+    onDragDeployRef.current = onDragDeploy;
+  }, [onDragDeploy]);
+
+  const clearGestureTimer = (gesture: CardPointerGesture) => {
+    if (gesture.timer === null) return;
+    window.clearTimeout(gesture.timer);
+    gesture.timer = null;
+  };
+
+  const startDeploymentDrag = (gesture: CardPointerGesture, client: FieldPoint) => {
+    if (gesture.mode !== "pending") return;
+    clearGestureTimer(gesture);
+    gesture.mode = "dragging";
+    gesture.latest = client;
+    suppressClickUntilRef.current = performance.now() + 700;
+    setDraggingKind(gesture.kind);
+    onDragDeployRef.current?.({
+      phase: "start",
+      kind: gesture.kind,
+      pointerId: gesture.pointerId,
+      client,
+    });
+  };
+
+  const resetGesture = (gesture: CardPointerGesture, cancelDrag: boolean) => {
+    clearGestureTimer(gesture);
+    if (cancelDrag && gesture.mode === "dragging") {
+      onDragDeployRef.current?.({ phase: "cancel", pointerId: gesture.pointerId });
+    }
+    if (gestureRef.current === gesture) gestureRef.current = null;
+    if (gestureOwnerRef.current === gesture.pointerId) gestureOwnerRef.current = null;
+    setDraggingKind(null);
+  };
+
+  useEffect(() => {
+    const finishWindowGesture = (event: PointerEvent, cancelled: boolean) => {
+      const gesture = gestureRef.current;
+      if (!gesture || gesture.pointerId !== event.pointerId) return;
+      if (gesture.timer !== null) {
+        window.clearTimeout(gesture.timer);
+        gesture.timer = null;
+      }
+      const movedBeforeLongPress = gesture.mode === "pending"
+        && fieldPointerDistance(gesture.start, gesture.latest)
+          >= DEPLOYMENT_DRAG_THRESHOLD_PX;
+      if (
+        gesture.mode === "dragging"
+        || gesture.mode === "scrolling"
+        || movedBeforeLongPress
+      ) {
+        if (event.cancelable) event.preventDefault();
+        suppressClickUntilRef.current = performance.now() + 700;
+      }
+      if (gesture.mode === "dragging") {
+        onDragDeployRef.current?.(cancelled
+          ? { phase: "cancel", pointerId: gesture.pointerId }
+          : {
+              phase: "end",
+              pointerId: gesture.pointerId,
+              client: { x: event.clientX, y: event.clientY },
+            });
+      }
+      gestureRef.current = null;
+      if (gestureOwnerRef.current === gesture.pointerId) gestureOwnerRef.current = null;
+      setDraggingKind(null);
+      if (gesture.element.hasPointerCapture(gesture.pointerId)) {
+        gesture.element.releasePointerCapture(gesture.pointerId);
+      }
+    };
+    const handleWindowPointerUp = (event: PointerEvent) => {
+      finishWindowGesture(event, false);
+    };
+    const handleWindowPointerCancel = (event: PointerEvent) => {
+      finishWindowGesture(event, true);
+    };
+    window.addEventListener("pointerup", handleWindowPointerUp, true);
+    window.addEventListener("pointercancel", handleWindowPointerCancel, true);
+    return () => {
+      window.removeEventListener("pointerup", handleWindowPointerUp, true);
+      window.removeEventListener("pointercancel", handleWindowPointerCancel, true);
+      const gesture = gestureRef.current;
+      if (!gesture) return;
+      if (gesture.timer !== null) window.clearTimeout(gesture.timer);
+      if (gesture.mode === "dragging") {
+        onDragDeployRef.current?.({ phase: "cancel", pointerId: gesture.pointerId });
+      }
+      gestureRef.current = null;
+      if (gestureOwnerRef.current === gesture.pointerId) gestureOwnerRef.current = null;
+    };
+  }, [gestureOwnerRef]);
+
+  const handleCardPointerDown = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    kind: DeployableKind,
+  ) => {
+    if (
+      !onDragDeploy
+      || event.button !== 0
+      || gestureRef.current
+      || gestureOwnerRef.current !== null
+    ) return;
+    suppressClickUntilRef.current = 0;
+    const client = { x: event.clientX, y: event.clientY };
+    const gesture: CardPointerGesture = {
+      pointerId: event.pointerId,
+      kind,
+      element: event.currentTarget,
+      start: client,
+      latest: client,
+      mode: "pending",
+      timer: null,
+    };
+    gestureRef.current = gesture;
+    gestureOwnerRef.current = event.pointerId;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    gesture.timer = window.setTimeout(() => {
+      if (gestureRef.current !== gesture || gesture.mode !== "pending") return;
+      if (deploymentGestureIntent(gesture.start, gesture.latest, true) === "drag") {
+        startDeploymentDrag(gesture, gesture.latest);
+      }
+    }, DEPLOYMENT_LONG_PRESS_MS);
+  };
+
+  const handleCardPointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const gesture = gestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    const client = { x: event.clientX, y: event.clientY };
+    gesture.latest = client;
+    if (gesture.mode === "pending") {
+      const intent = deploymentGestureIntent(gesture.start, client, false);
+      if (intent === "pending") return;
+      if (intent === "scroll") {
+        clearGestureTimer(gesture);
+        gesture.mode = "scrolling";
+        suppressClickUntilRef.current = performance.now() + 700;
+        return;
+      }
+      startDeploymentDrag(gesture, client);
+    }
+    if (gesture.mode !== "dragging") return;
+    event.preventDefault();
+  };
+
+  const handleCardPointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const gesture = gestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    clearGestureTimer(gesture);
+    if (gesture.mode === "dragging" || gesture.mode === "scrolling") {
+      event.preventDefault();
+      suppressClickUntilRef.current = performance.now() + 700;
+    }
+    if (gesture.mode === "dragging") {
+      onDragDeployRef.current?.({
+        phase: "end",
+        pointerId: gesture.pointerId,
+        client: { x: event.clientX, y: event.clientY },
+      });
+    }
+    gestureRef.current = null;
+    if (gestureOwnerRef.current === gesture.pointerId) gestureOwnerRef.current = null;
+    setDraggingKind(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const handleCardPointerCancel = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const gesture = gestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    suppressClickUntilRef.current = performance.now() + 700;
+    resetGesture(gesture, true);
+  };
+
   return (
     <section className={styles.group}>
       <h2>{title}</h2>
@@ -203,11 +435,26 @@ function DeployableGroup({
               className={styles.card}
               data-kind={item.kind}
               data-selected={selectedKind === item.kind}
+              data-dragging={draggingKind === item.kind}
               type="button"
               disabled={disabled}
               aria-pressed={selectedKind === item.kind}
               aria-describedby={`${item.kind}-deployment-status`}
-              onClick={() => onSelect(item.kind)}
+              onClick={(event) => {
+                if (performance.now() < suppressClickUntilRef.current) {
+                  suppressClickUntilRef.current = 0;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  return;
+                }
+                onSelect(item.kind);
+              }}
+              onPointerDown={(event) => handleCardPointerDown(event, item.kind)}
+              onPointerMove={handleCardPointerMove}
+              onPointerUp={handleCardPointerUp}
+              onPointerCancel={handleCardPointerCancel}
+              onLostPointerCapture={handleCardPointerCancel}
+              onContextMenu={(event) => event.preventDefault()}
               key={item.kind}
             >
               <span className={styles.iconFrame} aria-hidden="true">

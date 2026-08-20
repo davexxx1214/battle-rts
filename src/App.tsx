@@ -13,6 +13,7 @@ import styles from "./App.module.css";
 import {
   DEFAULT_GAME_MODE,
   factionRacesForGameMode,
+  matchPolicyForGameMode,
   requiresSceneAssetReload,
   type GameMode,
 } from "./app/gameMode";
@@ -39,6 +40,7 @@ import { DEFAULT_AUDIO_ENABLED } from "./audio/battleAudio";
 import { useBattleAudio } from "./audio/useBattleAudio";
 import {
   createInitialBattle,
+  getBattleMatchClock,
   type BattleState,
   type WorldPoint,
 } from "./game/battle";
@@ -62,7 +64,6 @@ import {
   createFireballPreviewBattle,
   isFireballPreviewRequest,
 } from "./game/fireballPreview";
-import { getMatchClock } from "./game/economy";
 import {
   DEFAULT_AI_DIFFICULTY,
   UNDEAD_TROOP_DESIGNS,
@@ -85,6 +86,7 @@ import {
 import {
   DeploymentRail,
   deploymentReasonLabel,
+  type DeploymentDragEvent,
 } from "./ui/DeploymentRail";
 import { AiDifficultySelector } from "./ui/AiDifficultySelector";
 import { GameModeSelector } from "./ui/GameModeSelector";
@@ -115,6 +117,11 @@ interface TouchDragState {
   readonly startClient: FieldPoint;
   previousField: FieldPoint;
   dragging: boolean;
+}
+
+interface ActiveDeploymentDrag {
+  readonly pointerId: number;
+  readonly kind: DeployableKind;
 }
 
 const SIMULATION_STEP_SECONDS = 0.05;
@@ -160,12 +167,16 @@ export function App() {
   const undeadOpponent = factionRaces.crimson === "undead";
   const undeadPlayer = factionRaces.verdant === "undead";
   const hasUndeadTerritory = hasRace(factionRaces, "undead");
-  const activeCampaignMission = activeCampaignMissionId
-    ? getCampaignMission(activeCampaignMissionId) ?? null
-    : null;
-  const campaignDeployables = activeCampaignMission
-    ? getMissionDeployables(activeCampaignMission, campaignProgress)
-    : undefined;
+  const activeCampaignMission = useMemo(() => (
+    activeCampaignMissionId
+      ? getCampaignMission(activeCampaignMissionId) ?? null
+      : null
+  ), [activeCampaignMissionId]);
+  const campaignDeployables = useMemo(() => (
+    activeCampaignMission
+      ? getMissionDeployables(activeCampaignMission, campaignProgress)
+      : undefined
+  ), [activeCampaignMission, campaignProgress]);
   const [cursorWorld, setCursorWorld] = useState<WorldPoint | null>(null);
   const [cameraResetToken, setCameraResetToken] = useState(0);
   const [battleInstanceRevision, setBattleInstanceRevision] = useState(0);
@@ -183,13 +194,12 @@ export function App() {
   const singleTouchDragRef = useRef<TouchDragState | null>(null);
   const previousPinchDistanceRef = useRef<number | null>(null);
   const suppressTouchDeploymentRef = useRef(false);
+  const deploymentDragRef = useRef<ActiveDeploymentDrag | null>(null);
+  const deploymentDragReleasePointerRef = useRef<number | null>(null);
+  const [deploymentDragActive, setDeploymentDragActive] = useState(false);
+  const [deploymentDragOverBattlefield, setDeploymentDragOverBattlefield] = useState(false);
   const cameraViewStore = useMemo(createCameraViewStore, []);
-  const clock = getMatchClock(battle.matchElapsed);
-  const armyCounts = useMemo(() => countArmies(battle), [battle]);
-  const enemyForceShare = armyCounts.crimson / Math.max(
-    1,
-    armyCounts.verdant + armyCounts.crimson,
-  );
+  const clock = getBattleMatchClock(battle);
   const deploymentEnabled = battlePhase === "engaged" && battle.winner === null;
   const deploymentPreview = useMemo<DeploymentPreview | null>(() => (
     app.selectedDeployable && cursorWorld
@@ -272,6 +282,10 @@ export function App() {
   }, []);
 
   const resetBattle = useCallback(() => {
+    deploymentDragRef.current = null;
+    setDeploymentDragActive(false);
+    setDeploymentDragOverBattlefield(false);
+    setMobileMatchSetupOpen(false);
     setApp(createAppState(
       benchmarkMode,
       mode,
@@ -296,6 +310,9 @@ export function App() {
 
   const changeMode = useCallback((nextMode: GameMode) => {
     if (nextMode === mode) return;
+    deploymentDragRef.current = null;
+    setDeploymentDragActive(false);
+    setDeploymentDragOverBattlefield(false);
     const reloadSceneAssets = requiresSceneAssetReload(
       mode,
       nextMode,
@@ -364,6 +381,10 @@ export function App() {
 
   const returnToCampaignMap = useCallback(() => {
     const nextFactionRaces = getCampaignFactionRaces(selectedCampaignId);
+    deploymentDragRef.current = null;
+    setDeploymentDragActive(false);
+    setDeploymentDragOverBattlefield(false);
+    setMobileMatchSetupOpen(false);
     setFactionRaces(nextFactionRaces);
     setActiveCampaignMissionId(null);
     setApp(createAppState(false, "campaign", null, false, nextFactionRaces));
@@ -417,7 +438,190 @@ export function App() {
     });
   }, [campaignDeployables, playUiCue]);
 
+  const resolveDeploymentDragTarget = useCallback((client: FieldPoint) => {
+    const battlefield = battlefieldRef.current;
+    if (!battlefield) {
+      return { overBattlefield: false, worldPosition: null } as const;
+    }
+    const bounds = battlefield.getBoundingClientRect();
+    const overBounds = client.x >= bounds.left
+      && client.x <= bounds.right
+      && client.y >= bounds.top
+      && client.y <= bounds.bottom;
+    const hitElement = document.elementFromPoint(client.x, client.y);
+    if (!overBounds || hitElement?.closest("[data-field-ui]")) {
+      return { overBattlefield: false, worldPosition: null } as const;
+    }
+    const fieldPoint = fieldPointerCoordinates(
+      client,
+      bounds,
+      { width: battlefield.clientWidth, height: battlefield.clientHeight },
+      false,
+    );
+    return {
+      overBattlefield: true,
+      worldPosition: bridgeRef.current.screenToWorld(fieldPoint.x, fieldPoint.y),
+    } as const;
+  }, []);
+
+  const handleDeploymentDrag = useCallback((event: DeploymentDragEvent) => {
+    if (event.phase === "start") {
+      if (deploymentDragRef.current) return;
+      if (campaignDeployables && !campaignDeployables.includes(event.kind)) return;
+      deploymentDragRef.current = { pointerId: event.pointerId, kind: event.kind };
+      const target = resolveDeploymentDragTarget(event.client);
+      setDeploymentDragActive(true);
+      setDeploymentDragOverBattlefield(
+        target.overBattlefield && target.worldPosition !== null,
+      );
+      setCursorWorld(target.overBattlefield ? target.worldPosition : null);
+      playUiCue("select");
+      setApp((current) => ({
+        ...current,
+        selectedDeployable: event.kind,
+        feedback: {
+          tone: "info",
+          message: "拖到战场格子：高亮后松手部署",
+        },
+      }));
+      return;
+    }
+
+    const activeDrag = deploymentDragRef.current;
+    if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
+    if (event.phase === "move") {
+      const target = resolveDeploymentDragTarget(event.client);
+      setDeploymentDragOverBattlefield(
+        target.overBattlefield && target.worldPosition !== null,
+      );
+      if (target.overBattlefield && target.worldPosition) {
+        setCursorWorld(target.worldPosition);
+      }
+      return;
+    }
+
+    deploymentDragRef.current = null;
+    setDeploymentDragActive(false);
+    setDeploymentDragOverBattlefield(false);
+
+    if (event.phase === "cancel") {
+      setCursorWorld(null);
+      setApp((current) => ({
+        ...current,
+        selectedDeployable: null,
+        feedback: { tone: "info", message: "部署已取消，金币未扣除" },
+      }));
+      return;
+    }
+
+    const target = resolveDeploymentDragTarget(event.client);
+    setCursorWorld(null);
+    if (!target.overBattlefield || !target.worldPosition) {
+      setApp((current) => ({
+        ...current,
+        selectedDeployable: null,
+        feedback: { tone: "info", message: "部署已取消，金币未扣除" },
+      }));
+      return;
+    }
+    const worldPosition = target.worldPosition;
+
+    setApp((current) => {
+      if (current.session.phase !== "engaged") {
+        return {
+          ...current,
+          selectedDeployable: null,
+          feedback: { tone: "error", message: "部署阶段已结束，金币未扣除" },
+        };
+      }
+      const preview = previewDeployment(current.session, {
+        faction: "verdant",
+        kind: activeDrag.kind,
+        worldPosition,
+      });
+      if (!preview.valid) {
+        return {
+          ...current,
+          selectedDeployable: null,
+          feedback: {
+            tone: "error",
+            message: `${deploymentReasonLabel(preview.reason)}，金币未扣除`,
+          },
+        };
+      }
+      const result = deployBattleSessionEntity(current.session, {
+        faction: "verdant",
+        kind: activeDrag.kind,
+        worldPosition,
+      });
+      if (!result.ok) {
+        return {
+          ...current,
+          selectedDeployable: null,
+          feedback: {
+            tone: "error",
+            message: `${deploymentReasonLabel(result.reason)}，金币未扣除`,
+          },
+        };
+      }
+      return {
+        session: result.state,
+        selectedDeployable: null,
+        feedback: { tone: "success", message: "部署成功，金币已扣除" },
+      };
+    });
+  }, [campaignDeployables, playUiCue, resolveDeploymentDragTarget]);
+
+  useEffect(() => {
+    const handleWindowPointerMove = (event: PointerEvent) => {
+      if (deploymentDragRef.current?.pointerId !== event.pointerId) return;
+      handleDeploymentDrag({
+        phase: "move",
+        pointerId: event.pointerId,
+        client: { x: event.clientX, y: event.clientY },
+      });
+    };
+    const finishWindowDeploymentDrag = (
+      phase: "end" | "cancel",
+      event: PointerEvent,
+    ) => {
+      if (deploymentDragRef.current?.pointerId !== event.pointerId) return;
+      deploymentDragReleasePointerRef.current = event.pointerId;
+      queueMicrotask(() => {
+        if (deploymentDragReleasePointerRef.current === event.pointerId) {
+          deploymentDragReleasePointerRef.current = null;
+        }
+      });
+      handleDeploymentDrag(phase === "end"
+        ? {
+            phase,
+            pointerId: event.pointerId,
+            client: { x: event.clientX, y: event.clientY },
+          }
+        : { phase, pointerId: event.pointerId });
+    };
+    const handleWindowPointerUp = (event: PointerEvent) => {
+      finishWindowDeploymentDrag("end", event);
+    };
+    const handleWindowPointerCancel = (event: PointerEvent) => {
+      finishWindowDeploymentDrag("cancel", event);
+    };
+
+    window.addEventListener("pointermove", handleWindowPointerMove, true);
+    window.addEventListener("pointerup", handleWindowPointerUp, true);
+    window.addEventListener("pointercancel", handleWindowPointerCancel, true);
+    return () => {
+      window.removeEventListener("pointermove", handleWindowPointerMove, true);
+      window.removeEventListener("pointerup", handleWindowPointerUp, true);
+      window.removeEventListener("pointercancel", handleWindowPointerCancel, true);
+    };
+  }, [handleDeploymentDrag]);
+
   const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (deploymentDragRef.current) {
+      event.preventDefault();
+      return;
+    }
     if (
       event.pointerType !== "touch"
       || !shouldStartFieldPointerInteraction(event.button, event.target as Element | null)
@@ -447,6 +651,7 @@ export function App() {
   }, []);
 
   const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (deploymentDragRef.current?.pointerId === event.pointerId) return;
     if (event.pointerType === "touch") {
       if (!activeTouchPointersRef.current.has(event.pointerId)) return;
       activeTouchPointersRef.current.set(event.pointerId, {
@@ -505,6 +710,10 @@ export function App() {
   }, [app.selectedDeployable]);
 
   const handlePointerUp = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (
+      deploymentDragRef.current?.pointerId === event.pointerId
+      || deploymentDragReleasePointerRef.current === event.pointerId
+    ) return;
     if (event.pointerType === "touch") {
       const trackedPointer = activeTouchPointersRef.current.has(event.pointerId);
       const drag = singleTouchDragRef.current;
@@ -568,6 +777,9 @@ export function App() {
   }, []);
 
   const cancelDeployment = useCallback(() => {
+    deploymentDragRef.current = null;
+    setDeploymentDragActive(false);
+    setDeploymentDragOverBattlefield(false);
     setCursorWorld(null);
     setApp((current) => current.selectedDeployable
       ? {
@@ -578,9 +790,17 @@ export function App() {
       : current);
   }, []);
 
-  const fieldFeedback = deploymentPreview && !deploymentPreview.valid
-    ? { tone: "error" as const, message: deploymentReasonLabel(deploymentPreview.reason) }
-    : app.feedback;
+  const fieldFeedback = deploymentDragActive
+    ? !deploymentDragOverBattlefield
+      ? { tone: "info" as const, message: "拖回列表或在此松手将取消部署" }
+      : deploymentPreview?.valid
+        ? { tone: "success" as const, message: "格子可部署，松开手指确认" }
+        : deploymentPreview
+          ? { tone: "error" as const, message: deploymentReasonLabel(deploymentPreview.reason) }
+          : { tone: "info" as const, message: "继续拖到战场格子" }
+    : deploymentPreview && !deploymentPreview.valid
+      ? { tone: "error" as const, message: deploymentReasonLabel(deploymentPreview.reason) }
+      : app.feedback;
 
   if (!benchmarkMode && mode === "campaign" && !activeCampaignMission) {
     return (
@@ -619,34 +839,60 @@ export function App() {
           </div>
         </div>
         <div className={styles.commandCenter}>
-          {!benchmarkMode && <GameModeSelector mode={mode} onChange={changeMode} />}
-          {!benchmarkMode && mode !== "campaign" && (
+          {!benchmarkMode && (
+            <GameModeSelector
+              mode={mode}
+              onChange={changeMode}
+              compactOnPortrait
+            />
+          )}
+          {!benchmarkMode && (
             <>
               <button
                 className={styles.mobileMatchSetupButton}
                 type="button"
-                aria-label="对战设置"
+                aria-label="战斗设置"
                 aria-controls="mobile-match-setup"
                 aria-expanded={mobileMatchSetupOpen}
+                title="战斗设置"
                 onClick={() => setMobileMatchSetupOpen((open) => !open)}
               >
-                设置
+                <span className={styles.settingsIcon} aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2Z" />
+                    <path d="m19.1 13.4 1.4 1.1-1.8 3.1-1.7-.7a7.7 7.7 0 0 1-2.3 1.3l-.3 1.8h-3.6l-.3-1.8a7.7 7.7 0 0 1-2.3-1.3l-1.7.7-1.8-3.1 1.4-1.1a7.1 7.1 0 0 1 0-2.8L4.7 9.5l1.8-3.1 1.7.7a7.7 7.7 0 0 1 2.3-1.3l.3-1.8h3.6l.3 1.8A7.7 7.7 0 0 1 17 7.1l1.7-.7 1.8 3.1-1.4 1.1a7.1 7.1 0 0 1 0 2.8Z" />
+                  </svg>
+                </span>
+                <span className={styles.settingsLabel}>设置</span>
               </button>
               <div
                 id="mobile-match-setup"
                 className={styles.matchSetupControls}
                 data-mobile-open={mobileMatchSetupOpen}
               >
-                <FactionRaceSelector
-                  disabled={battlePhase !== "briefing"}
-                  factionRaces={factionRaces}
-                  onChange={changeFactionRace}
-                />
-                <AiDifficultySelector
-                  difficulty={difficulty}
-                  disabled={battlePhase !== "briefing"}
-                  onChange={changeDifficulty}
-                />
+                {mode !== "campaign" && (
+                  <>
+                    <FactionRaceSelector
+                      disabled={battlePhase !== "briefing"}
+                      factionRaces={factionRaces}
+                      onChange={changeFactionRace}
+                    />
+                    <AiDifficultySelector
+                      difficulty={difficulty}
+                      disabled={battlePhase !== "briefing"}
+                      onChange={changeDifficulty}
+                    />
+                  </>
+                )}
+                {activeCampaignMission && (
+                  <button
+                    className={styles.mobileCampaignReturn}
+                    type="button"
+                    onClick={returnToCampaignMap}
+                  >
+                    返回战役地图
+                  </button>
+                )}
               </div>
             </>
           )}
@@ -655,13 +901,21 @@ export function App() {
               ? activeCampaignMission ? "任务待命" : "等待交战"
               : battle.winner
                 ? "战斗结束"
-                : clock.phase === "double" ? "双倍金币" : "战线交锋中"}</span>
+                : clock.activeBonus?.resource === "gold"
+                  ? "双倍金币"
+                  : clock.activeBonus?.resource === "experience"
+                    ? "双倍经验"
+                    : "战线交锋中"}</span>
             <strong>{formatTime(clock.remainingSeconds)}</strong>
           </div>
         </div>
         <div className={styles.headerActions}>
           {activeCampaignMission && (
-            <button className={styles.restartButton} type="button" onClick={returnToCampaignMap}>
+            <button
+              className={`${styles.restartButton} ${styles.campaignReturnButton}`}
+              type="button"
+              onClick={returnToCampaignMap}
+            >
               返回地图
             </button>
           )}
@@ -706,8 +960,20 @@ export function App() {
             <span className={styles.audioLabel}>声音</span>
             <strong>{audioEnabled ? "开启" : "关闭"}</strong>
           </button>
-          <button className={styles.restartButton} type="button" onClick={resetBattle}>
-            重新开局
+          <button
+            className={styles.restartButton}
+            type="button"
+            aria-label="重新开局"
+            title="重新开局"
+            onClick={resetBattle}
+          >
+            <span className={styles.restartIcon} aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M8 7H4V3" />
+                <path d="M4.8 7.2A8 8 0 1 1 4 15" />
+              </svg>
+            </span>
+            <span className={styles.restartLabel}>重新开局</span>
           </button>
         </div>
       </header>
@@ -725,6 +991,7 @@ export function App() {
             selectedKind={app.selectedDeployable}
             allowedKinds={campaignDeployables}
             onSelect={selectDeployable}
+            onDragDeploy={handleDeploymentDrag}
           />
         )}
 
@@ -780,7 +1047,8 @@ export function App() {
                 ? activeCampaignMission.title
                 : battleMatchupLabel(factionRaces)}</span>
             <strong aria-live="polite">{battlePhase === "briefing"
-              ? activeCampaignMission?.primaryObjective ?? "点击交战，开始五分钟攻防"
+              ? activeCampaignMission?.primaryObjective
+                ?? matchBriefingLabel(clock.remainingSeconds)
               : fieldFeedback?.message ?? (app.selectedDeployable
                 ? "移动到己方区域，绿色预览表示可以部署"
                 : "选择建筑或兵种进入部署模式")}</strong>
@@ -866,14 +1134,6 @@ export function App() {
           </div>
         </div>
 
-        <aside className={styles.enemyRail} aria-label="敌军状态">
-          <span>{undeadOpponent ? "UNDEAD HOST" : "HUMAN HOST"}</span>
-          <strong>{armyCounts.crimson}</strong>
-          <small>{undeadOpponent ? "亡灵军团存活" : "人类军团存活"}</small>
-          <div className={styles.forceMeter}>
-            <i style={{ height: `${enemyForceShare * 100}%` }} />
-          </div>
-        </aside>
       </section>
       {!assetsReady && (
         <AssetLoadingScreen
@@ -957,7 +1217,10 @@ function createAppState(
             ? createCampaignBattle(campaignMission)
             : mode === "arena"
               ? createArenaBattle(factionRaces)
-              : createInitialBattle({ factionRaces }),
+              : createInitialBattle({
+                  factionRaces,
+                  matchPolicy: matchPolicyForGameMode(mode),
+                }),
       phase: benchmarkMode || frostPreview || fireballPreview ? "engaged" : "briefing",
     },
     selectedDeployable: null,
@@ -1021,20 +1284,16 @@ function activeTouchDistance(touches: ReadonlyMap<number, FieldPoint>): number |
   return first && second ? fieldPointerDistance(first, second) : null;
 }
 
-function countArmies(battle: BattleState) {
-  return {
-    verdant: battle.units.filter((unit) => (
-      unit.faction === "verdant" && unit.health > 0
-    )).length,
-    crimson: battle.units.filter((unit) => (
-      unit.faction === "crimson" && unit.health > 0
-    )).length,
-  };
-}
-
-function formatTime(seconds: number): string {
+function formatTime(seconds: number | null): string {
+  if (seconds === null) return "∞";
   const total = Math.max(0, Math.ceil(seconds));
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+function matchBriefingLabel(remainingSeconds: number | null): string {
+  if (remainingSeconds === null) return "点击交战，开始无限攻防";
+  const minutes = remainingSeconds / 60;
+  return `点击交战，开始${Number.isInteger(minutes) ? minutes : minutes.toFixed(1)}分钟攻防`;
 }
 
 function winnerLabel(winner: BattleState["winner"], factionRaces: FactionRaces): string {

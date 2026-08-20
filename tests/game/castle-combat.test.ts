@@ -8,7 +8,7 @@ import {
 } from "../../src/game/battle";
 import type { BattleBuilding } from "../../src/game/buildings";
 import { createBattleBuilding } from "../../src/game/buildings";
-import { GAME_RULES, UNIT_SPECS } from "../../src/game/rules";
+import { GAME_RULES, MATCH_POLICIES, UNIT_SPECS } from "../../src/game/rules";
 import { BATTLEFIELD_MAP, axialToWorld } from "../../src/map/battlefield";
 import type { Faction, WorldPoint } from "../../src/game/types";
 
@@ -253,16 +253,60 @@ describe("authoritative castle combat", () => {
     state = setCastleHealth(state, "crimson", crimsonHealth);
     state = {
       ...state,
-      matchElapsed: GAME_RULES.match.durationSeconds - 0.05,
+      matchElapsed: MATCH_POLICIES.normal.durationSeconds - 0.05,
     };
 
     const resolved = stepBattle(state, 0.1);
     const frozen = stepBattle(resolved, 0.1);
 
-    expect(resolved.matchElapsed).toBe(GAME_RULES.match.durationSeconds);
+    expect(resolved.matchElapsed).toBe(MATCH_POLICIES.normal.durationSeconds);
     expect(resolved.winner).toBe(faction);
     expect(resolved.resolvedAt).toBe(resolved.elapsed);
     expect(frozen.matchElapsed).toBe(resolved.matchElapsed);
     expect(frozen.economy).toEqual(resolved.economy);
+  });
+
+  it.each([
+    { mode: "campaign", policy: MATCH_POLICIES.campaign },
+    { mode: "normal", policy: MATCH_POLICIES.normal },
+    { mode: "arena", policy: MATCH_POLICIES.arena },
+  ])("resolves $mode at its configured time by castle health", ({ policy }) => {
+    let state = createBattleState([], { matchPolicy: policy });
+    state = setCastleHealth(state, "verdant", 1_300);
+    state = setCastleHealth(state, "crimson", 900);
+    state = {
+      ...state,
+      matchElapsed: policy.durationSeconds - 0.05,
+    };
+
+    const resolved = stepBattle(state, 0.1);
+
+    expect(resolved.matchElapsed).toBe(policy.durationSeconds);
+    expect(resolved.winner).toBe("verdant");
+  });
+
+  it("does not time out an unlimited battle but still ends when a castle falls", () => {
+    const origin = castleWorld("verdant");
+    const attacker = createBattleUnit({
+      id: "infinite-crimson-finisher",
+      faction: "crimson",
+      role: "knight",
+      position: { x: origin.x, z: origin.z - 1 },
+    });
+    const longRunning = stepBattle({
+      ...createBattleState([], { matchPolicy: MATCH_POLICIES.infinite }),
+      elapsed: 600,
+      matchElapsed: 600,
+    }, 0.1);
+    const finishingState = activateCastle(
+      createBattleState([attacker], { matchPolicy: MATCH_POLICIES.infinite }),
+      "verdant",
+      1,
+    );
+    const finished = stepBattle(finishingState, 0.1);
+
+    expect(longRunning.matchElapsed).toBeCloseTo(600.1);
+    expect(longRunning.winner).toBeNull();
+    expect(finished.winner).toBe("crimson");
   });
 });

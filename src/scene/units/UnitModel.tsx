@@ -60,6 +60,7 @@ export function UnitModel({
   readonly damageSourcePosition?: WorldPoint;
   readonly race?: BattleRace;
   readonly undeadOpponent?: boolean;
+  readonly ghostValid?: boolean;
 }) {
   const resolvedRace: BattleRace = race
     ?? (undeadOpponent && props.unit.faction === "crimson" ? "undead" : "human");
@@ -80,6 +81,7 @@ function CharacterUnitModel({
   damageTime,
   damageSourcePosition,
   race,
+  ghostValid,
 }: {
   readonly unit: BattleUnit;
   readonly selected: boolean;
@@ -89,6 +91,7 @@ function CharacterUnitModel({
   readonly damageTime?: number;
   readonly damageSourcePosition?: WorldPoint;
   readonly race: BattleRace;
+  readonly ghostValid?: boolean;
 }) {
   const role = unit.role as CharacterRole;
   const asset: CharacterSceneAsset = characterSceneAssetFor(
@@ -137,6 +140,7 @@ function CharacterUnitModel({
   animationGltfsRef.current = animationGltfs;
   const mixer = useMemo(() => new AnimationMixer(model), [model]);
   const modelMaterials = useMemo(() => collectModelMaterials(model), [model]);
+  const isGhost = ghostValid !== undefined;
   const animationAccumulator = useRef(0);
   const damageAge = damageTime === undefined ? Number.POSITIVE_INFINITY : battleTime - damageTime;
   const animationName = characterAnimationForState({
@@ -176,6 +180,11 @@ function CharacterUnitModel({
     activeAction.current = null;
     mixer.stopAllAction();
   }, [mixer]);
+  useEffect(() => {
+    if (!isGhost) return;
+    configureGhostMaterials(model);
+    return () => disposeOwnedModelMaterials(model);
+  }, [isGhost, model]);
   useFrame(({ camera }, delta) => {
     const isNearCamera = Math.hypot(
       camera.position.x - unit.position.x,
@@ -195,32 +204,45 @@ function CharacterUnitModel({
     const corpseOpacity = unit.diedAt === null
       ? 1
       : 1 - MathUtils.clamp((deathAge - 6) / 0.85, 0, 1);
+    const ghostColor = ghostValid === false ? "#ff625e" : "#67dc9b";
     for (const material of modelMaterials) {
-      material.emissive.set("#ffffff");
-      material.emissiveIntensity = damageAge < 0.2 ? (1 - damageProgress) * 1.45 : 0;
-      material.opacity = corpseOpacity;
+      material.emissive.set(ghostValid === undefined ? "#ffffff" : ghostColor);
+      material.emissiveIntensity = ghostValid === undefined
+        ? damageAge < 0.2 ? (1 - damageProgress) * 1.45 : 0
+        : 0.52;
+      material.opacity = ghostValid === undefined ? corpseOpacity : 0.42;
+      if (ghostValid !== undefined) material.depthWrite = false;
     }
     if (root.current) {
       root.current.visible = unit.diedAt === null || deathAge < 6.85;
-      root.current.position.x = MathUtils.damp(
-        root.current.position.x,
-        unit.position.x + recoilDirection.x * recoilStrength,
-        11,
-        delta,
-      );
-      root.current.position.y = MathUtils.damp(
-        root.current.position.y,
-        terrainHeightAt(unit.position) + 0.08,
-        11,
-        delta,
-      );
-      root.current.position.z = MathUtils.damp(
-        root.current.position.z,
-        unit.position.z + recoilDirection.z * recoilStrength,
-        11,
-        delta,
-      );
-      root.current.rotation.y = dampAngle(root.current.rotation.y, unit.facing, 13, delta);
+      if (ghostValid !== undefined) {
+        root.current.position.set(
+          unit.position.x,
+          terrainHeightAt(unit.position) + 0.08,
+          unit.position.z,
+        );
+        root.current.rotation.y = unit.facing;
+      } else {
+        root.current.position.x = MathUtils.damp(
+          root.current.position.x,
+          unit.position.x + recoilDirection.x * recoilStrength,
+          11,
+          delta,
+        );
+        root.current.position.y = MathUtils.damp(
+          root.current.position.y,
+          terrainHeightAt(unit.position) + 0.08,
+          11,
+          delta,
+        );
+        root.current.position.z = MathUtils.damp(
+          root.current.position.z,
+          unit.position.z + recoilDirection.z * recoilStrength,
+          11,
+          delta,
+        );
+        root.current.rotation.y = dampAngle(root.current.rotation.y, unit.facing, 13, delta);
+      }
     }
     if (healthRoot.current) {
       faceHealthBarToCamera(
@@ -243,7 +265,7 @@ function CharacterUnitModel({
       rotation={[0, unit.facing, 0]}
     >
       <primitive object={model} />
-      {unit.health > 0 && (
+      {ghostValid === undefined && unit.health > 0 && (
         <mesh position={[0, 0.035, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry
             args={[
@@ -380,6 +402,32 @@ function prepareCharacterModel(
     }
   });
   return model;
+}
+
+function disposeOwnedModelMaterials(model: Object3D): void {
+  const materials = new Set<Material>();
+  model.traverse((object) => {
+    if (!(object instanceof Mesh)) return;
+    const objectMaterials = Array.isArray(object.material)
+      ? object.material
+      : [object.material];
+    for (const material of objectMaterials) materials.add(material);
+  });
+  for (const material of materials) material.dispose();
+}
+
+function configureGhostMaterials(model: Object3D): void {
+  model.traverse((object) => {
+    if (!(object instanceof Mesh)) return;
+    object.castShadow = false;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of materials) {
+      material.transparent = true;
+      material.opacity = 0.42;
+      material.depthWrite = false;
+      material.needsUpdate = true;
+    }
+  });
 }
 
 function tintMaterial(material: Material, tint: Color, strength: number): Material {

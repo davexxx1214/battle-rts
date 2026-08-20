@@ -42,7 +42,11 @@ import {
   legacyUndeadOpponentRaces,
 } from "./factions";
 import { BattleSpatialIndex } from "./spatialIndex";
-import { unitSpecFor } from "./rules";
+import {
+  MATCH_POLICIES,
+  unitSpecFor,
+  type MatchPolicy,
+} from "./rules";
 import {
   advanceEconomy,
   createEconomyState,
@@ -123,6 +127,7 @@ export interface BattleState {
   readonly projectiles: readonly BattleProjectile[];
   readonly events: readonly BattleEvent[];
   readonly economy: EconomyState;
+  readonly matchPolicy: MatchPolicy;
   readonly matchElapsed: number;
   readonly buildings: readonly BattleBuilding[];
   readonly buildingOccupancy: BuildingOccupancy;
@@ -150,6 +155,7 @@ export interface CreateBattleUnitInput {
 export interface CreateBattleStateOptions {
   readonly factionRaces?: Partial<FactionRaces>;
   readonly undeadOpponent?: boolean;
+  readonly matchPolicy?: MatchPolicy;
 }
 
 type EmitBattleEvent = (input: BattleEventInput) => BattleEvent;
@@ -201,6 +207,7 @@ export function createBattleState(
     projectiles: [],
     events: [],
     economy: createEconomyState(),
+    matchPolicy: options.matchPolicy ?? MATCH_POLICIES.normal,
     matchElapsed: 0,
     buildings: createInitialDefensiveBuildings(),
     buildingOccupancy: createBuildingOccupancy(),
@@ -221,19 +228,19 @@ export function createInitialBattle(options: CreateBattleStateOptions = {}): Bat
 }
 
 export function getBattleMatchClock(state: BattleState): MatchClock {
-  return getMatchClock(state.matchElapsed);
+  return getMatchClock(state.matchElapsed, state.matchPolicy);
 }
 
 export function stepBattle(state: BattleState, requestedDeltaSeconds: number): BattleState {
   if (!Number.isFinite(requestedDeltaSeconds) || requestedDeltaSeconds <= 0) {
     return state;
   }
-  const deltaSeconds = Math.min(MAX_STEP_SECONDS, requestedDeltaSeconds);
+  const requestedStepSeconds = Math.min(MAX_STEP_SECONDS, requestedDeltaSeconds);
   if (state.resolvedAt !== null) {
     if (state.elapsed - state.resolvedAt >= POST_BATTLE_PRESENTATION_SECONDS) return state;
     const elapsed = Math.min(
       state.resolvedAt + POST_BATTLE_PRESENTATION_SECONDS,
-      state.elapsed + deltaSeconds,
+      state.elapsed + requestedStepSeconds,
     );
     const cleanup = removeDestroyedBuildingsAt(
       state.buildings,
@@ -254,6 +261,23 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       revision: state.revision + 1,
     };
   }
+  const clockAtStart = getBattleMatchClock(state);
+  if (state.winner === null && clockAtStart.timedOut) {
+    const winner = state.matchPolicy.timeoutResolution === "castle-health"
+      ? resolveTimeoutWinner(state.buildings)
+      : null;
+    if (winner === null) return state;
+    return {
+      ...state,
+      projectiles: [],
+      winner,
+      resolvedAt: state.elapsed,
+      revision: state.revision + 1,
+    };
+  }
+  const deltaSeconds = state.winner === null && clockAtStart.remainingSeconds !== null
+    ? Math.min(requestedStepSeconds, clockAtStart.remainingSeconds)
+    : requestedStepSeconds;
   const elapsed = state.elapsed + deltaSeconds;
   const unitsAtStart = state.units.map((unit) => ({
     ...unit,
@@ -270,10 +294,9 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     emitted.push(event);
     return event;
   };
-  const matchIsActive = state.winner === null
-    && getBattleMatchClock(state).remainingSeconds > 0;
+  const matchIsActive = state.winner === null && !clockAtStart.timedOut;
   const matchElapsed = matchIsActive
-    ? getMatchClock(state.matchElapsed + deltaSeconds).elapsedSeconds
+    ? getMatchClock(state.matchElapsed + deltaSeconds, state.matchPolicy).elapsedSeconds
     : state.matchElapsed;
   const activeMatchDeltaSeconds = matchElapsed - state.matchElapsed;
   const activeBuildingsAtStart = state.buildings.filter((building) => (
@@ -393,7 +416,12 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     buildingHealthSettlement.buildings,
   );
   const economyStep = castleWinnerAfterBuildingHealth === null && matchIsActive
-    ? advanceEconomy(state.economy, state.matchElapsed, activeMatchDeltaSeconds)
+    ? advanceEconomy(
+        state.economy,
+        state.matchElapsed,
+        activeMatchDeltaSeconds,
+        state.matchPolicy,
+      )
     : { state: state.economy, newlyFullFactions: [] };
   const buildingStep = castleWinnerAfterBuildingHealth === null
     ? advanceBuildingProduction({
@@ -522,9 +550,13 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     elapsed,
   );
   const units = [...statusSettledUnits, ...producedUnits];
-  const matchTimedOut = getMatchClock(matchElapsed).remainingSeconds <= 0;
+  const matchTimedOut = getMatchClock(matchElapsed, state.matchPolicy).timedOut;
   const winner = castleWinnerAfterBuildingHealth
-    ?? (matchTimedOut ? resolveTimeoutWinner(buildingCleanup.buildings) : null);
+    ?? (
+      matchTimedOut && state.matchPolicy.timeoutResolution === "castle-health"
+        ? resolveTimeoutWinner(buildingCleanup.buildings)
+        : null
+    );
   return {
     units,
     squads: appendUnitsToSquads(state.squads, producedUnits),
@@ -536,6 +568,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       ...emitted,
     ],
     economy: buildingStep.economy,
+    matchPolicy: state.matchPolicy,
     matchElapsed,
     buildings: buildingCleanup.buildings,
     buildingOccupancy: buildingCleanup.occupancy,

@@ -1,6 +1,7 @@
 import { createInitialBattle, type BattleState } from "../game/battle";
 import {
   GAME_RULES,
+  MATCH_POLICIES,
   type AiDifficulty,
   type DeployableKind,
 } from "../game/rules";
@@ -726,6 +727,7 @@ export function completeCampaignMission(
 
 export function createCampaignBattle(mission: CampaignMission): BattleState {
   const battle = createInitialBattle({
+    matchPolicy: MATCH_POLICIES.campaign,
     factionRaces: {
       verdant: mission.playerRace,
       crimson: mission.enemyRace,

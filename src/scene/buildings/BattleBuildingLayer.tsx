@@ -16,6 +16,7 @@ import { Suspense, useEffect, useMemo, useRef } from "react";
 import type { BattleState } from "../../game/battle";
 import type { BattleBuilding } from "../../game/buildings";
 import { legacyUndeadOpponentRaces } from "../../game/factions";
+import type { BuildingKind } from "../../game/rules";
 import type { BattleRace, FactionRaces } from "../../game/types";
 import {
   BATTLEFIELD_MAP,
@@ -244,6 +245,41 @@ function DeployedBuildingModel({
     [asset.scale, dedicatedUndeadAsset, gltf.scene, race],
   );
   return <primitive object={model} rotation-y={faction === "verdant" ? 0 : Math.PI} />;
+}
+
+export function DeploymentBuildingGhost({
+  kind,
+  race,
+  valid,
+}: {
+  readonly kind: BuildingKind;
+  readonly race: BattleRace;
+  readonly valid: boolean;
+}) {
+  const asset = structureSceneAssetFor(
+    "verdant",
+    BATTLE_BUILDING_ASSET_KEYS[kind],
+    race,
+  );
+  const dedicatedUndeadAsset = asset.url.startsWith(
+    "/assets/generated/tripo/runtime/undead-",
+  )
+    || asset.url.startsWith("/assets/kaykit/halloween/")
+    || asset.url.startsWith("/assets/threejsassets/dungeon/");
+  const gltf = useLoader(GLTFLoader, asset.url);
+  const model = useMemo(
+    () => prepareGhostModel(
+      gltf.scene,
+      asset.scale,
+      race === "undead" && !dedicatedUndeadAsset,
+    ),
+    [asset.scale, dedicatedUndeadAsset, gltf.scene, race],
+  );
+  useEffect(() => {
+    tintGhostModel(model, valid ? "#67dc9b" : "#ff625e");
+  }, [model, valid]);
+  useEffect(() => () => disposeModelMaterials(model), [model]);
+  return <primitive object={model} rotation-y={0} />;
 }
 
 function BuildingDetailModels({
@@ -483,6 +519,71 @@ function prepareModel(source: Object3D, scale: number, undeadTreatment = false):
     }
   });
   return clone;
+}
+
+function prepareGhostModel(
+  source: Object3D,
+  scale: number,
+  undeadTreatment: boolean,
+): Object3D {
+  const clone = source.clone(true);
+  clone.scale.setScalar(scale);
+  clone.updateMatrixWorld(true);
+  const bounds = new Box3().setFromObject(clone);
+  if (Number.isFinite(bounds.min.y)) clone.position.y -= bounds.min.y;
+  clone.traverse((object) => {
+    if (!(object instanceof Mesh)) return;
+    object.castShadow = false;
+    object.receiveShadow = false;
+    object.renderOrder = 99;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    const ghostMaterials = materials.map((material) => {
+      const next = material.clone();
+      if (next instanceof MeshStandardMaterial && undeadTreatment) {
+        next.color.lerp(new Color("#3b294c"), 0.56);
+        next.roughness = Math.max(next.roughness, 0.82);
+      }
+      next.transparent = true;
+      next.opacity = 0.42;
+      next.depthWrite = false;
+      if (next instanceof MeshStandardMaterial) {
+        next.userData.deploymentGhostBaseColor = next.color.getHex();
+      }
+      return next;
+    });
+    object.material = Array.isArray(object.material) ? ghostMaterials : ghostMaterials[0]!;
+  });
+  return clone;
+}
+
+function tintGhostModel(model: Object3D, color: string): void {
+  const tint = new Color(color);
+  model.traverse((object) => {
+    if (!(object instanceof Mesh)) return;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of materials) {
+      if (!(material instanceof MeshStandardMaterial)) continue;
+      const baseColor = material.userData.deploymentGhostBaseColor;
+      if (typeof baseColor === "number") material.color.setHex(baseColor);
+      material.color.lerp(tint, 0.58);
+      material.emissive.copy(tint);
+      material.emissiveIntensity = 0.38;
+      material.needsUpdate = true;
+    }
+  });
+}
+
+function disposeModelMaterials(model: Object3D): void {
+  const disposed = new Set<object>();
+  model.traverse((object) => {
+    if (!(object instanceof Mesh)) return;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of materials) {
+      if (disposed.has(material)) continue;
+      disposed.add(material);
+      material.dispose();
+    }
+  });
 }
 
 function labelTexture(label: string, color: string): CanvasTexture {

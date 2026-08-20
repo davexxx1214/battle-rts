@@ -3,6 +3,7 @@ dist/
 coverage/
 *.log
 /tmp/
+.codex-remote-attachments/
 
 # Local secrets and machine-specific credentials
 config.yaml

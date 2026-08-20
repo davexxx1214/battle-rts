@@ -7,6 +7,7 @@ import {
   BARRACKS_RULES_BY_RACE,
   deploymentCostForRace,
   GAME_RULES,
+  MATCH_POLICIES,
   TROOP_KINDS,
   TROOP_ROLE_BY_DEPLOYABLE,
   UNDEAD_TROOP_COUNTS,
@@ -26,6 +27,56 @@ import {
 describe("central game rules", () => {
   it("accepts the stage zero baseline as a valid configuration", () => {
     expect(validateGameRules(GAME_RULES)).toEqual([]);
+  });
+
+  it("defines mode-specific clocks, final bonuses, and a serializable unlimited policy", () => {
+    expect(MATCH_POLICIES.campaign).toMatchObject({
+      durationSeconds: 180,
+      finalBonus: {
+        resource: "gold",
+        multiplier: 2,
+        startsAtRemainingSeconds: 60,
+      },
+      timeoutResolution: "castle-health",
+    });
+    for (const policy of [MATCH_POLICIES.normal, MATCH_POLICIES.arena]) {
+      expect(policy).toMatchObject({
+        durationSeconds: 300,
+        finalBonus: {
+          resource: "experience",
+          multiplier: 2,
+          startsAtRemainingSeconds: 60,
+        },
+        timeoutResolution: "castle-health",
+      });
+    }
+    expect(MATCH_POLICIES.infinite).toEqual({
+      mode: "infinite",
+      durationSeconds: null,
+      finalBonus: null,
+      timeoutResolution: null,
+    });
+    expect(JSON.parse(JSON.stringify(MATCH_POLICIES.infinite)))
+      .toEqual(MATCH_POLICIES.infinite);
+  });
+
+  it("rejects finite and unlimited policy shapes that contradict their clocks", () => {
+    const invalid: GameRules = {
+      ...GAME_RULES,
+      match: {
+        ...GAME_RULES.match,
+        campaign: { ...MATCH_POLICIES.campaign, durationSeconds: 0 },
+        infinite: {
+          ...MATCH_POLICIES.infinite,
+          finalBonus: MATCH_POLICIES.campaign.finalBonus,
+        },
+      },
+    };
+
+    expect(validateGameRules(invalid)).toEqual(expect.arrayContaining([
+      "match.campaign.durationSeconds must be positive or null",
+      "match.infinite.finalBonus must be null when the match is unlimited",
+    ]));
   });
 
   it("keeps every deployment cost within the agreed 100-gold steps", () => {

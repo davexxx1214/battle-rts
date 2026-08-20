@@ -6,6 +6,7 @@ import {
   createArenaBattle,
 } from "../../src/game/arenaBattle";
 import { createFactionRaces } from "../../src/game/factions";
+import { MATCH_POLICIES } from "../../src/game/rules";
 
 describe("arena game mode", () => {
   it("starts equal-value complete armies while allowing race-specific headcounts", () => {
@@ -27,6 +28,7 @@ describe("arena game mode", () => {
       .toEqual([1, 2, 3, 5]);
     expect(arena.buildings).toEqual(normal.buildings);
     expect(arena.economy).toEqual(normal.economy);
+    expect(arena.matchPolicy).toBe(MATCH_POLICIES.arena);
   });
 });
 

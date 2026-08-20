@@ -8,7 +8,7 @@ import {
   validDeploymentCoordinates,
 } from "../../src/game/deployTransaction";
 import { requestBuildingPlacement } from "../../src/game/deployment";
-import type { DeployableKind } from "../../src/game/rules";
+import { MATCH_POLICIES, type DeployableKind } from "../../src/game/rules";
 import {
   BATTLEFIELD_MAP,
   axialToWorld,
@@ -101,6 +101,21 @@ function undeadOpponentSession(gold = 1000) {
 }
 
 describe("atomic battle deployment", () => {
+  it("keeps deployment open beyond five minutes for an unlimited match", () => {
+    const base = unresolvedSession();
+    const session = {
+      ...base,
+      battle: {
+        ...base.battle,
+        matchPolicy: MATCH_POLICIES.infinite,
+        matchElapsed: 600,
+      },
+    };
+
+    expect(getDeployableAvailability(session, "verdant", "spearman"))
+      .toEqual({ enabled: true, reason: null });
+  });
+
   it("spends gold and commits a building, occupancy, event, and sequence together", () => {
     const session = unresolvedSession();
     const result = deployBattleSessionEntity(session, {
@@ -427,8 +442,13 @@ describe("atomic battle deployment", () => {
       valid: true,
       coordinate: { q: VERDANT_BUILDING_CELL.q, r: VERDANT_BUILDING_CELL.r },
       position: axialToWorld(VERDANT_BUILDING_CELL),
+      requestedPosition: axialToWorld(VERDANT_BUILDING_CELL),
     });
-    expect(invalid).toMatchObject({ valid: false, reason: "enemy-territory" });
+    expect(invalid).toMatchObject({
+      valid: false,
+      reason: "enemy-territory",
+      requestedPosition: axialToWorld(CRIMSON_TROOP_CELL),
+    });
   });
 
   it("lists every valid friendly troop tile for the deployment mask", () => {

@@ -51,6 +51,7 @@ export function CatapultUnitModel({
   damageTime,
   damageSourcePosition,
   race = "human",
+  ghostValid,
 }: {
   readonly unit: BattleUnit;
   readonly selected: boolean;
@@ -60,6 +61,7 @@ export function CatapultUnitModel({
   readonly damageTime?: number;
   readonly damageSourcePosition?: WorldPoint;
   readonly race?: BattleRace;
+  readonly ghostValid?: boolean;
 }) {
   const isUndead = race === "undead";
   const catapultGltf = useLoader(GLTFLoader, SCENE_MODEL_URLS.mobileCatapult);
@@ -102,6 +104,7 @@ export function CatapultUnitModel({
     () => [...collectMaterials(catapult.model), ...collectMaterials(operator)],
     [catapult, operator],
   );
+  const isGhost = ghostValid !== undefined;
   const damageAge = damageTime === undefined ? Number.POSITIVE_INFINITY : battleTime - damageTime;
 
   useEffect(() => {
@@ -125,6 +128,15 @@ export function CatapultUnitModel({
   useEffect(() => () => {
     operatorMixer.stopAllAction();
   }, [operatorMixer]);
+  useEffect(() => {
+    if (!isGhost) return;
+    configureGhostMaterials(catapult.model);
+    configureGhostMaterials(operator);
+    return () => {
+      disposeOwnedModelMaterials(catapult.model);
+      disposeOwnedModelMaterials(operator);
+    };
+  }, [catapult, isGhost, operator]);
 
   useFrame(({ camera }, delta) => {
     operatorMixer.update(delta);
@@ -163,32 +175,45 @@ export function CatapultUnitModel({
       : { x: 0, z: 0 };
     const deathAge = unit.diedAt === null ? 0 : battleTime - unit.diedAt;
     const opacity = unit.diedAt === null ? 1 : 1 - MathUtils.clamp((deathAge - 6) / 0.85, 0, 1);
+    const ghostColor = ghostValid === false ? "#ff625e" : "#67dc9b";
     for (const material of materials) {
-      material.emissive.set("#fff3d2");
-      material.emissiveIntensity = damageAge < 0.2 ? (1 - damageProgress) * 1.2 : 0;
-      material.opacity = opacity;
+      material.emissive.set(ghostValid === undefined ? "#fff3d2" : ghostColor);
+      material.emissiveIntensity = ghostValid === undefined
+        ? damageAge < 0.2 ? (1 - damageProgress) * 1.2 : 0
+        : 0.52;
+      material.opacity = ghostValid === undefined ? opacity : 0.42;
+      if (ghostValid !== undefined) material.depthWrite = false;
     }
     if (root.current) {
       root.current.visible = unit.diedAt === null || deathAge < 6.85;
-      root.current.position.x = MathUtils.damp(
-        root.current.position.x,
-        unit.position.x + recoilDirection.x * recoilStrength,
-        10,
-        delta,
-      );
-      root.current.position.y = MathUtils.damp(
-        root.current.position.y,
-        terrainHeightAt(unit.position) + 0.08,
-        10,
-        delta,
-      );
-      root.current.position.z = MathUtils.damp(
-        root.current.position.z,
-        unit.position.z + recoilDirection.z * recoilStrength,
-        10,
-        delta,
-      );
-      root.current.rotation.y = dampAngle(root.current.rotation.y, unit.facing, 9, delta);
+      if (ghostValid !== undefined) {
+        root.current.position.set(
+          unit.position.x,
+          terrainHeightAt(unit.position) + 0.08,
+          unit.position.z,
+        );
+        root.current.rotation.y = unit.facing;
+      } else {
+        root.current.position.x = MathUtils.damp(
+          root.current.position.x,
+          unit.position.x + recoilDirection.x * recoilStrength,
+          10,
+          delta,
+        );
+        root.current.position.y = MathUtils.damp(
+          root.current.position.y,
+          terrainHeightAt(unit.position) + 0.08,
+          10,
+          delta,
+        );
+        root.current.position.z = MathUtils.damp(
+          root.current.position.z,
+          unit.position.z + recoilDirection.z * recoilStrength,
+          10,
+          delta,
+        );
+        root.current.rotation.y = dampAngle(root.current.rotation.y, unit.facing, 9, delta);
+      }
     }
     if (healthRoot.current) {
       faceHealthBarToCamera(
@@ -214,15 +239,17 @@ export function CatapultUnitModel({
         <primitive object={catapult.model} />
         <primitive object={operator} position={[0.72, 0, -0.62]} rotation={[0, -0.16, 0]} />
       </group>
-      <mesh position={[0, 0.045, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[baseRing.innerRadius, baseRing.outerRadius, baseRing.segments]} />
-        <meshBasicMaterial
-          color={factionColors.accent}
-          transparent
-          opacity={0.9}
-          depthWrite={false}
-        />
-      </mesh>
+      {ghostValid === undefined && (
+        <mesh position={[0, 0.045, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[baseRing.innerRadius, baseRing.outerRadius, baseRing.segments]} />
+          <meshBasicMaterial
+            color={factionColors.accent}
+            transparent
+            opacity={0.9}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
       {selected && unit.health > 0 && (
         <mesh position={[0, 0.065, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[0.9, 1.04, 36]} />
@@ -334,6 +361,32 @@ function tintMaterial(material: Material, tint: Color, strength: number): Materi
     clone.transparent = true;
   }
   return clone;
+}
+
+function disposeOwnedModelMaterials(model: Object3D): void {
+  const materials = new Set<Material>();
+  model.traverse((object) => {
+    if (!(object instanceof Mesh)) return;
+    const objectMaterials = Array.isArray(object.material)
+      ? object.material
+      : [object.material];
+    for (const material of objectMaterials) materials.add(material);
+  });
+  for (const material of materials) material.dispose();
+}
+
+function configureGhostMaterials(model: Object3D): void {
+  model.traverse((object) => {
+    if (!(object instanceof Mesh)) return;
+    object.castShadow = false;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of materials) {
+      material.transparent = true;
+      material.opacity = 0.42;
+      material.depthWrite = false;
+      material.needsUpdate = true;
+    }
+  });
 }
 
 function normalizeToGround(model: Object3D): void {

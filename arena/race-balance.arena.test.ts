@@ -6,7 +6,7 @@ import {
 } from "../src/game/balanceArena";
 import { createArenaBattle } from "../src/game/arenaBattle";
 import { stepBattle, type BattleState } from "../src/game/battle";
-import { GAME_RULES, troopDesignForRace, type TroopKind } from "../src/game/rules";
+import { troopDesignForRace, type TroopKind } from "../src/game/rules";
 import type { BattleRace, Faction } from "../src/game/types";
 
 const TROOPS = ["spearman", "archer", "swordsman", "mage", "catapult"] as const;
@@ -142,7 +142,13 @@ function runMixedArmyMatch(undeadFaction: Faction): {
   const unitDamage = { verdant: 0, crimson: 0 };
   const buildingDamage = { verdant: 0, crimson: 0 };
   let lastSequence = -1;
-  while (state.winner === null && state.matchElapsed < GAME_RULES.match.durationSeconds) {
+  while (
+    state.winner === null
+    && (
+      state.matchPolicy.durationSeconds === null
+      || state.matchElapsed < state.matchPolicy.durationSeconds
+    )
+  ) {
     state = stepBattle(state, 0.05);
     for (const event of state.events) {
       if (event.sequence <= lastSequence || event.type !== "damage-applied") continue;

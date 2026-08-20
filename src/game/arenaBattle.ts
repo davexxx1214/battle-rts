@@ -6,6 +6,7 @@ import {
 } from "./battle";
 import {
   deploymentCostForRace,
+  MATCH_POLICIES,
   troopCountForRace,
   unitRoleForRace,
   type TroopKind,
@@ -28,7 +29,7 @@ const FACTIONS = ["verdant", "crimson"] as const satisfies readonly Faction[];
 export function createArenaBattle(factionRaces: FactionRaces = createFactionRaces()): BattleState {
   return createBattleState(
     FACTIONS.flatMap((faction) => createArenaFaction(faction, factionRaces)),
-    { factionRaces },
+    { factionRaces, matchPolicy: MATCH_POLICIES.arena },
   );
 }
 

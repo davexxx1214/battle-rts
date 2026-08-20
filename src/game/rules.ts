@@ -15,6 +15,29 @@ export const AI_DIFFICULTIES = ["easy", "normal", "hard"] as const;
 export type AiDifficulty = typeof AI_DIFFICULTIES[number];
 export type AiDeploymentPosture = "defensive" | "balanced" | "aggressive";
 
+export const BATTLE_MATCH_MODES = [
+  "campaign",
+  "normal",
+  "arena",
+  "infinite",
+] as const;
+export type BattleMatchMode = typeof BATTLE_MATCH_MODES[number];
+export type MatchBonusResource = "gold" | "experience";
+
+export interface MatchFinalBonus {
+  readonly resource: MatchBonusResource;
+  readonly multiplier: number;
+  readonly startsAtRemainingSeconds: number;
+}
+
+export interface MatchPolicy {
+  readonly mode: BattleMatchMode;
+  /** `null` is a serializable, explicit unlimited match. */
+  readonly durationSeconds: number | null;
+  readonly finalBonus: MatchFinalBonus | null;
+  readonly timeoutResolution: "castle-health" | null;
+}
+
 export interface OpponentAiStrategy {
   readonly firstDecisionSeconds: number;
   readonly decisionIntervalSeconds: number;
@@ -70,10 +93,7 @@ export interface UnitSpec {
 }
 
 export interface GameRules {
-  readonly match: {
-    readonly durationSeconds: number;
-    readonly doubleGoldStartsAtSeconds: number;
-  };
+  readonly match: Readonly<Record<BattleMatchMode, MatchPolicy>>;
   readonly economy: {
     readonly initialGold: number;
     readonly maximumGold: number;
@@ -256,7 +276,7 @@ export const UNDEAD_UNIT_SPECS = {
     maxHealth: 105,
     damage: 14,
     damageReduction: 0,
-    attackRange: 8.5,
+    attackRange: 8,
     attackCooldown: 2.1,
     moveSpeed: 2.45,
     aggroRange: 10.5,
@@ -510,11 +530,47 @@ const BARRACKS_COST = BARRACKS_RULES_BY_RACE.human.cost;
 const GUARD_TOWER_COST = 300;
 const CASTLE_MAX_HEALTH = 2000;
 
-export const GAME_RULES = {
-  match: {
-    durationSeconds: 300,
-    doubleGoldStartsAtSeconds: 240,
+export const MATCH_POLICIES = {
+  campaign: {
+    mode: "campaign",
+    durationSeconds: 180,
+    finalBonus: {
+      resource: "gold",
+      multiplier: 2,
+      startsAtRemainingSeconds: 60,
+    },
+    timeoutResolution: "castle-health",
   },
+  normal: {
+    mode: "normal",
+    durationSeconds: 300,
+    finalBonus: {
+      resource: "experience",
+      multiplier: 2,
+      startsAtRemainingSeconds: 60,
+    },
+    timeoutResolution: "castle-health",
+  },
+  arena: {
+    mode: "arena",
+    durationSeconds: 300,
+    finalBonus: {
+      resource: "experience",
+      multiplier: 2,
+      startsAtRemainingSeconds: 60,
+    },
+    timeoutResolution: "castle-health",
+  },
+  infinite: {
+    mode: "infinite",
+    durationSeconds: null,
+    finalBonus: null,
+    timeoutResolution: null,
+  },
+} as const satisfies Readonly<Record<BattleMatchMode, MatchPolicy>>;
+
+export const GAME_RULES = {
+  match: MATCH_POLICIES,
   economy: {
     initialGold: 500,
     maximumGold: 1000,
@@ -639,11 +695,37 @@ export function validateGameRules(rules: GameRules): string[] {
     units,
   } = rules;
 
-  if (!isPositive(match.durationSeconds)) errors.push("match.durationSeconds must be positive");
-  if (
-    !isPositive(match.doubleGoldStartsAtSeconds)
-    || match.doubleGoldStartsAtSeconds >= match.durationSeconds
-  ) errors.push("match.doubleGoldStartsAtSeconds must be inside the match duration");
+  for (const mode of BATTLE_MATCH_MODES) {
+    const policy = match[mode];
+    const path = `match.${mode}`;
+    if (policy.mode !== mode) errors.push(`${path}.mode must match its configuration key`);
+    if (policy.durationSeconds === null) {
+      if (policy.finalBonus !== null) {
+        errors.push(`${path}.finalBonus must be null when the match is unlimited`);
+      }
+      if (policy.timeoutResolution !== null) {
+        errors.push(`${path}.timeoutResolution must be null when the match is unlimited`);
+      }
+      continue;
+    }
+    if (!isPositive(policy.durationSeconds)) {
+      errors.push(`${path}.durationSeconds must be positive or null`);
+    }
+    if (policy.timeoutResolution !== "castle-health") {
+      errors.push(`${path}.timeoutResolution must compare castle health`);
+    }
+    if (policy.finalBonus) {
+      if (!isPositive(policy.finalBonus.multiplier) || policy.finalBonus.multiplier <= 1) {
+        errors.push(`${path}.finalBonus.multiplier must be greater than one`);
+      }
+      if (
+        !isPositive(policy.finalBonus.startsAtRemainingSeconds)
+        || policy.finalBonus.startsAtRemainingSeconds > policy.durationSeconds
+      ) {
+        errors.push(`${path}.finalBonus must start inside the match duration`);
+      }
+    }
+  }
   if (!isNonNegative(economy.initialGold) || economy.initialGold > economy.maximumGold) {
     errors.push("economy.initialGold must be between zero and maximumGold");
   }

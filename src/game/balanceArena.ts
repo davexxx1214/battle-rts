@@ -5,6 +5,7 @@ import { getPassiveRecoveryWaitSeconds } from "./economy";
 import {
   deploymentCostForRace,
   GAME_RULES,
+  MATCH_POLICIES,
   TROOP_KINDS,
   troopCountForRace,
   unitRoleForRace,
@@ -84,7 +85,7 @@ export function runBalanceArenaMatch(
 ): BalanceArenaMatchResult {
   const durationSeconds = positiveArenaParameter(
     config.durationSeconds,
-    GAME_RULES.match.durationSeconds,
+    MATCH_POLICIES.arena.durationSeconds,
     "durationSeconds",
   );
   const deploymentIntervalSeconds = positiveArenaParameter(
@@ -102,7 +103,12 @@ export function runBalanceArenaMatch(
   const castleDamage = mutableTotals();
   let session: BattleSessionState = {
     phase: "engaged",
-    battle: withInitialGold(createInitialBattle({ factionRaces }), initialGold),
+    battle: withInitialGold(createInitialBattle({
+      factionRaces,
+      // The balance harness owns its stop time so short and long probes do not
+      // trigger a gameplay-mode timeout inside the final simulation step.
+      matchPolicy: MATCH_POLICIES.infinite,
+    }), initialGold),
   };
   let nextDeploymentAt = 0;
   let lastEventSequence = -1;

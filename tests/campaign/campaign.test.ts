@@ -16,6 +16,7 @@ import {
   saveCampaignProgress,
   type CampaignStorage,
 } from "../../src/campaign/campaign";
+import { MATCH_POLICIES } from "../../src/game/rules";
 
 describe("campaign progression", () => {
   it("defines two internally consistent campaign graphs", () => {
@@ -118,6 +119,7 @@ describe("campaign progression", () => {
 
     expect(battle.economy.accounts.verdant.gold).toBe(700);
     expect(battle.economy.accounts.crimson.gold).toBe(500);
+    expect(battle.matchPolicy).toBe(MATCH_POLICIES.campaign);
     expect(battle.matchElapsed).toBe(0);
   });
 

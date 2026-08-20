@@ -3,12 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   advanceEconomy,
   createEconomyState,
+  getMatchResourceMultiplier,
   getPassiveRecoveryWaitSeconds,
   getMatchClock,
   trySpendGold,
   type EconomyState,
 } from "../../src/game/economy";
-import { GAME_RULES } from "../../src/game/rules";
+import { MATCH_POLICIES } from "../../src/game/rules";
 
 describe("gold economy", () => {
   it("reports passive recovery wait in complete gold ticks and honors saved progress", () => {
@@ -29,8 +30,11 @@ describe("gold economy", () => {
     expect(result.state.accounts.verdant.recoveryProgress).toBeCloseTo(0);
   });
 
-  it("preserves fractional recovery progress when double gold starts", () => {
+  it("preserves fractional recovery progress when campaign double gold starts", () => {
     const initial = createEconomyState();
+    const policy = MATCH_POLICIES.campaign;
+    const doubleGoldStartsAt = policy.durationSeconds
+      - policy.finalBonus.startsAtRemainingSeconds;
     const nearBoundary: EconomyState = {
       ...initial,
       accounts: {
@@ -41,22 +45,23 @@ describe("gold economy", () => {
 
     const result = advanceEconomy(
       nearBoundary,
-      GAME_RULES.match.doubleGoldStartsAtSeconds - 1.4,
+      doubleGoldStartsAt - 1.4,
       2.1,
+      policy,
     );
 
-    expect(getMatchClock(GAME_RULES.match.doubleGoldStartsAtSeconds + 0.7).phase).toBe("double");
+    expect(getMatchClock(doubleGoldStartsAt + 0.7, policy).phase).toBe("bonus");
     expect(result.state.accounts.verdant.gold).toBe(600);
     expect(result.state.accounts.verdant.recoveryProgress).toBeCloseTo(0.5);
   });
 
   it("produces identical state for one large update and many small updates", () => {
     const starting = createEconomyState();
-    const large = advanceEconomy(starting, 117.4, 5.6).state;
+    const large = advanceEconomy(starting, 117.4, 5.6, MATCH_POLICIES.campaign).state;
     let small = starting;
     let elapsed = 117.4;
     for (let index = 0; index < 56; index += 1) {
-      small = advanceEconomy(small, elapsed, 0.1).state;
+      small = advanceEconomy(small, elapsed, 0.1, MATCH_POLICIES.campaign).state;
       elapsed += 0.1;
     }
 
@@ -92,23 +97,71 @@ describe("gold economy", () => {
     });
   });
 
-  it("clamps the five-minute match clock and stops passive recovery", () => {
-    const doubleGoldStartsAt = GAME_RULES.match.doubleGoldStartsAtSeconds;
-    const duration = GAME_RULES.match.durationSeconds;
-    expect(getMatchClock(doubleGoldStartsAt - 0.5)).toMatchObject({
+  it("clamps the three-minute campaign clock and stops passive recovery", () => {
+    const policy = MATCH_POLICIES.campaign;
+    const duration = policy.durationSeconds;
+    const doubleGoldStartsAt = duration - policy.finalBonus.startsAtRemainingSeconds;
+    expect(getMatchClock(doubleGoldStartsAt - 0.5, policy)).toMatchObject({
       phase: "normal",
       remainingSeconds: duration - doubleGoldStartsAt + 0.5,
     });
-    expect(getMatchClock(doubleGoldStartsAt)).toMatchObject({
-      phase: "double",
+    const bonusClock = getMatchClock(doubleGoldStartsAt, policy);
+    expect(bonusClock).toMatchObject({
+      phase: "bonus",
       remainingSeconds: duration - doubleGoldStartsAt,
+      activeBonus: policy.finalBonus,
     });
-    expect(getMatchClock(duration + 1)).toMatchObject({ phase: "double", remainingSeconds: 0 });
+    expect(getMatchResourceMultiplier(bonusClock, "gold")).toBe(2);
+    expect(getMatchResourceMultiplier(bonusClock, "experience")).toBe(1);
+    expect(getMatchClock(duration + 1, policy)).toMatchObject({
+      phase: "bonus",
+      remainingSeconds: 0,
+      timedOut: true,
+    });
 
     const initial = createEconomyState();
-    const result = advanceEconomy(initial, duration - 0.5, 20).state;
+    const result = advanceEconomy(initial, duration - 0.5, 20, policy).state;
     expect(result.accounts.verdant.gold).toBe(500);
     expect(result.accounts.verdant.recoveryProgress).toBeCloseTo(0.5 / 1.4);
+  });
+
+  it.each([MATCH_POLICIES.normal, MATCH_POLICIES.arena])(
+    "keeps gold recovery normal during $mode double experience",
+    (policy) => {
+      const bonusStartsAt = policy.durationSeconds
+        - policy.finalBonus.startsAtRemainingSeconds;
+      const clock = getMatchClock(bonusStartsAt, policy);
+      const result = advanceEconomy(
+        createEconomyState(),
+        bonusStartsAt - 1.4,
+        2.8,
+        policy,
+      ).state;
+
+      expect(clock.activeBonus).toMatchObject({ resource: "experience", multiplier: 2 });
+      expect(getMatchResourceMultiplier(clock, "experience")).toBe(2);
+      expect(getMatchResourceMultiplier(clock, "gold")).toBe(1);
+      expect(result.accounts.verdant.gold).toBe(600);
+      expect(result.accounts.verdant.recoveryProgress).toBeCloseTo(0);
+    },
+  );
+
+  it("keeps an unlimited clock and economy advancing beyond five minutes", () => {
+    const clock = getMatchClock(600, MATCH_POLICIES.infinite);
+    const result = advanceEconomy(
+      createEconomyState(),
+      300,
+      2.8,
+      MATCH_POLICIES.infinite,
+    ).state;
+
+    expect(clock).toMatchObject({
+      elapsedSeconds: 600,
+      remainingSeconds: null,
+      activeBonus: null,
+      timedOut: false,
+    });
+    expect(result.accounts.verdant.gold).toBe(600);
   });
 
   it("rejects spending that would break the 100-gold economy steps", () => {

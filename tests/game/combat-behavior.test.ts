@@ -6,7 +6,7 @@ import {
   stepBattle,
   type BattleState,
 } from "../../src/game/battle";
-import { GAME_RULES, UNIT_SPECS } from "../../src/game/rules";
+import { MATCH_POLICIES, UNIT_SPECS } from "../../src/game/rules";
 import {
   BATTLEFIELD_MAP,
   axialToWorld,
@@ -179,7 +179,7 @@ describe("automatic combat role behavior", () => {
     });
     const drawn = stepBattle({
       ...createBattleState([unit]),
-      matchElapsed: GAME_RULES.match.durationSeconds - 0.05,
+      matchElapsed: MATCH_POLICIES.normal.durationSeconds - 0.05,
     }, 0.1);
     const resolvedAt = drawn.resolvedAt!;
     const frozen = runSteps(drawn, 100);

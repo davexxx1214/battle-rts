@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_GAME_MODE,
   factionRacesForGameMode,
+  matchPolicyForGameMode,
   requiresSceneAssetReload,
 } from "../../src/app/gameMode";
 import { GameModeSelector } from "../../src/ui/GameModeSelector";
@@ -31,6 +32,21 @@ describe("game mode selector", () => {
     expect(markup.indexOf("战役模式")).toBeLessThan(markup.indexOf("自由对战"));
   });
 
+  it("offers a compact native mode switcher for portrait battle headers", () => {
+    const markup = renderToStaticMarkup(createElement(GameModeSelector, {
+      mode: "normal",
+      onChange: () => undefined,
+      compactOnPortrait: true,
+    }));
+
+    expect(markup).toContain('data-compact-on-portrait="true"');
+    expect(markup).toContain('aria-label="切换游戏模式"');
+    expect(markup.match(/<option/g)).toHaveLength(3);
+    expect(markup).toContain(">战役</option>");
+    expect(markup).toContain(">自由</option>");
+    expect(markup).toContain(">竞技</option>");
+  });
+
   it("leaves race pairing to the independent faction selectors", () => {
     expect(factionRacesForGameMode("campaign")).toEqual({
       verdant: "human",
@@ -44,6 +60,13 @@ describe("game mode selector", () => {
       verdant: "human",
       crimson: "human",
     });
+  });
+
+  it("maps visible modes to their simulation policies", () => {
+    expect(matchPolicyForGameMode("campaign").durationSeconds).toBe(180);
+    expect(matchPolicyForGameMode("normal").durationSeconds).toBe(300);
+    expect(matchPolicyForGameMode("arena").durationSeconds).toBe(300);
+    expect(matchPolicyForGameMode("normal").finalBonus?.resource).toBe("experience");
   });
 
   it("only reloads scene assets when entering a newly mounted battlefield", () => {

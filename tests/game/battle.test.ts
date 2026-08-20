@@ -8,7 +8,11 @@ import {
   stepBattle,
   type BattleState,
 } from "../../src/game/battle";
-import { GAME_RULES, unitSpecFor } from "../../src/game/rules";
+import {
+  MATCH_POLICIES,
+  unitSpecFor,
+  type MatchPolicy,
+} from "../../src/game/rules";
 import {
   BONE_DRAGON_FROST_SLOW,
   HUMAN_MAGE_BURNING,
@@ -422,9 +426,42 @@ describe("automatic battle simulation", () => {
 
     const drawn = stepBattle({
       ...active,
-      matchElapsed: GAME_RULES.match.durationSeconds - 0.05,
+      matchElapsed: MATCH_POLICIES.normal.durationSeconds - 0.05,
     }, 0.1);
     expect(drawn.winner).toBe("draw");
     expect(drawn.resolvedAt).toBe(drawn.elapsed);
+  });
+
+  it("caps the entire simulation step at a non-grid match deadline", () => {
+    const policy: MatchPolicy = {
+      mode: "normal",
+      durationSeconds: 0.075,
+      finalBonus: null,
+      timeoutResolution: "castle-health",
+    };
+    const unit = createBattleUnit({
+      id: "deadline-mover",
+      faction: "verdant",
+      role: "knight",
+      position: { x: 0, z: 5 },
+    });
+    const timed = {
+      ...createBattleState([unit], { matchPolicy: policy }),
+      elapsed: 0.05,
+      matchElapsed: 0.05,
+    };
+    const unlimited = {
+      ...createBattleState([unit], { matchPolicy: MATCH_POLICIES.infinite }),
+      elapsed: 0.05,
+      matchElapsed: 0.05,
+    };
+
+    const resolved = stepBattle(timed, 0.1);
+    const expectedAtDeadline = stepBattle(unlimited, 0.025);
+
+    expect(resolved.elapsed).toBeCloseTo(0.075);
+    expect(resolved.matchElapsed).toBeCloseTo(0.075);
+    expect(resolved.units).toEqual(expectedAtDeadline.units);
+    expect(resolved.winner).toBe("draw");
   });
 });

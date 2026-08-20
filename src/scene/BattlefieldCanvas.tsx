@@ -1,24 +1,34 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
+  CanvasTexture,
   InstancedMesh,
+  MathUtils,
   Object3D,
   OrthographicCamera,
   Plane,
   Raycaster,
+  Sprite,
   Vector2,
   Vector3,
 } from "three";
-import { Suspense, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import type { MutableRefObject } from "react";
 
-import type {
-  BattleState,
+import {
+  createBattleUnit,
+  type BattleState,
 } from "../game/battle";
 import { hasRace, legacyUndeadOpponentRaces } from "../game/factions";
 import type { FactionRaces } from "../game/types";
 import type { DeploymentPreview } from "../game/deployTransaction";
 import { validDeploymentCoordinates } from "../game/deployTransaction";
-import { isBuildingDeployable, type DeployableKind } from "../game/rules";
+import {
+  isBuildingDeployable,
+  unitRoleForRace,
+  type BuildingKind,
+  type DeployableKind,
+  type TroopKind,
+} from "../game/rules";
 import { terrainHeightAt } from "../map/battlefield";
 import {
   BattleCamera,
@@ -32,7 +42,10 @@ import {
 } from "./camera/cameraZoom";
 import { BattleEffects } from "./effects/BattleEffects";
 import { UnitStatusEffectLayer } from "./effects/UnitStatusEffectLayer";
-import { BattleBuildingLayer } from "./buildings/BattleBuildingLayer";
+import {
+  BattleBuildingLayer,
+  DeploymentBuildingGhost,
+} from "./buildings/BattleBuildingLayer";
 import {
   DeploymentAreaMask,
   VALID_DEPLOYMENT_COLOR,
@@ -186,61 +199,147 @@ export function BattlefieldCanvas({
       <Suspense fallback={null}>
         <BattleEffects battle={battle} />
       </Suspense>
-      {deploymentPreview && <DeploymentPreviewVisual preview={deploymentPreview} />}
+      {deploymentPreview && (
+        <DeploymentPreviewVisual
+          preview={deploymentPreview}
+          race={resolvedFactionRaces.verdant}
+        />
+      )}
     </Canvas>
   );
 }
 
 function DeploymentPreviewVisual({
   preview,
+  race,
 }: {
   readonly preview: DeploymentPreview & { readonly kind: DeployableKind };
+  readonly race: FactionRaces["verdant"];
 }) {
-  if (!preview.position) return null;
+  const anchor = preview.position ?? preview.requestedPosition;
   const building = isBuildingDeployable(preview.kind);
   const placementRing = deploymentPreviewRingGeometry(preview.kind);
   const color = preview.valid ? VALID_DEPLOYMENT_COLOR : "#ef625e";
-  const y = terrainHeightAt(preview.position) + 0.075;
+  const y = terrainHeightAt(anchor) + 0.075;
+  const troopPositions = preview.valid && preview.unitPositions.length > 0
+    ? preview.unitPositions
+    : [anchor];
+  const previewUnits = useMemo(() => (
+    building
+      ? []
+      : troopPositions.map((position, index) => createBattleUnit({
+          id: `deployment-ghost-${preview.kind}-${index}`,
+          faction: "verdant",
+          role: unitRoleForRace(preview.kind as TroopKind, race),
+          combatProfile: race,
+          position,
+        }))
+  ), [building, preview.kind, race, troopPositions]);
   return (
-    <group position={[preview.position.x, y, preview.position.z]}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={100}>
-        <ringGeometry args={[
-          placementRing.innerRadius,
-          placementRing.outerRadius,
-          placementRing.segments,
-        ]} />
-        <meshBasicMaterial
-          color={color}
-          transparent
-          opacity={0.95}
-          depthTest={false}
-          depthWrite={false}
-        />
-      </mesh>
-      <mesh position={[0, building ? 0.16 : 0.06, 0]} renderOrder={99}>
-        <cylinderGeometry args={building ? [0.88, 0.88, 0.26, 6] : [0.34, 0.34, 0.1, 18]} />
-        <meshBasicMaterial
-          color={color}
-          transparent
-          opacity={0.24}
-          depthTest={false}
-          depthWrite={false}
-        />
-      </mesh>
-      {building && (
-        <mesh position={[0, 0.78, 0]} renderOrder={99}>
-          <boxGeometry args={[0.92, 1.24, 0.92]} />
+    <>
+      <group position={[anchor.x, y, anchor.z]}>
+        <mesh position={[0, 0.015, 0]} renderOrder={98}>
+          <cylinderGeometry args={[0.92, 0.92, 0.045, 6]} />
           <meshBasicMaterial
             color={color}
             transparent
-            opacity={0.2}
+            opacity={preview.valid ? 0.3 : 0.2}
             depthTest={false}
             depthWrite={false}
           />
         </mesh>
-      )}
-    </group>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={100}>
+          <ringGeometry args={[
+            placementRing.innerRadius,
+            placementRing.outerRadius,
+            placementRing.segments,
+          ]} />
+          <meshBasicMaterial
+            color={color}
+            transparent
+            opacity={0.95}
+            depthTest={false}
+            depthWrite={false}
+          />
+        </mesh>
+        {building && (
+          <Suspense fallback={null}>
+            <DeploymentBuildingGhost
+              kind={preview.kind as BuildingKind}
+              race={race}
+              valid={preview.valid}
+            />
+          </Suspense>
+        )}
+        {!preview.valid && <InvalidDeploymentMarker building={building} />}
+      </group>
+      {!building && previewUnits.map((unit) => (
+        <Suspense fallback={null} key={unit.id}>
+          <UnitModel
+            unit={unit}
+            selected={false}
+            battleTime={0}
+            race={race}
+            ghostValid={preview.valid}
+          />
+        </Suspense>
+      ))}
+    </>
   );
+}
+
+function InvalidDeploymentMarker({ building }: { readonly building: boolean }) {
+  const marker = useRef<Sprite>(null);
+  const texture = useMemo(createInvalidDeploymentTexture, []);
+  useEffect(() => () => texture.dispose(), [texture]);
+  useFrame(({ camera }) => {
+    if (!marker.current) return;
+    const zoom = camera instanceof OrthographicCamera ? camera.zoom : 1;
+    const scale = MathUtils.clamp(34 / Math.max(zoom, 0.01), 0.9, 2.4);
+    marker.current.scale.setScalar(scale);
+  });
+  return (
+    <sprite
+      ref={marker}
+      position={[0, building ? 1.75 : 1.05, 0]}
+      scale={[1, 1, 1]}
+      renderOrder={140}
+    >
+      <spriteMaterial
+        map={texture}
+        transparent
+        depthTest={false}
+        depthWrite={false}
+      />
+    </sprite>
+  );
+}
+
+function createInvalidDeploymentTexture(): CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const context = canvas.getContext("2d");
+  if (context) {
+    context.clearRect(0, 0, 128, 128);
+    context.fillStyle = "rgba(22, 12, 12, 0.78)";
+    context.beginPath();
+    context.arc(64, 64, 48, 0, Math.PI * 2);
+    context.fill();
+    context.strokeStyle = "#ff5b57";
+    context.lineWidth = 12;
+    context.lineCap = "round";
+    context.beginPath();
+    context.arc(64, 64, 43, 0, Math.PI * 2);
+    context.stroke();
+    context.beginPath();
+    context.moveTo(34, 34);
+    context.lineTo(94, 94);
+    context.stroke();
+  }
+  const texture = new CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
 }
 
 function UnitShadowInstances({ battle }: { readonly battle: BattleState }) {

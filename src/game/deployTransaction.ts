@@ -1,6 +1,7 @@
 import {
   appendUnitsToSquads,
   createBattleUnit,
+  getBattleMatchClock,
 } from "./battle";
 import { createFormationSlots } from "./formation";
 import type { BattleSessionState } from "./battleSessionState";
@@ -21,7 +22,6 @@ import { stampBattleEvent } from "./events";
 import {
   BUILDING_ACTIVE_LIMITS,
   deploymentCostForRace,
-  GAME_RULES,
   isBuildingDeployable,
   troopCountForRace,
   unitRoleForRace,
@@ -64,6 +64,7 @@ export type DeploymentPreview =
       readonly reason: null;
       readonly coordinate: HexCoordinate;
       readonly position: WorldPoint;
+      readonly requestedPosition: WorldPoint;
       readonly unitPositions: readonly WorldPoint[];
     }
   | {
@@ -71,6 +72,7 @@ export type DeploymentPreview =
       readonly reason: DeploymentFailureReason;
       readonly coordinate: HexCoordinate | null;
       readonly position: WorldPoint | null;
+      readonly requestedPosition: WorldPoint;
     };
 
 type DeploymentSuccessDetails =
@@ -111,7 +113,7 @@ export function getDeployableAvailability(
     return { enabled: false, reason: "deployment-closed" };
   }
   const state = session.battle;
-  if (state.winner !== null || state.matchElapsed >= GAME_RULES.match.durationSeconds) {
+  if (state.winner !== null || getBattleMatchClock(state).timedOut) {
     return { enabled: false, reason: "match-over" };
   }
   const race = resolveBattleRace(state.factionRaces, faction, state.undeadOpponent);
@@ -160,7 +162,7 @@ export function previewDeployment(
     if (!placement.ok) {
       return invalidPreview(placement.reason, request.worldPosition);
     }
-    return validPreview(placement.coordinate, []);
+    return validPreview(placement.coordinate, [], request.worldPosition);
   }
 
   const coordinate = resolveWorldHex(BATTLEFIELD_MAP, request.worldPosition);
@@ -189,7 +191,7 @@ export function previewDeployment(
   if (!unitPositions.ok) {
     return invalidPreview(unitPositions.reason, request.worldPosition);
   }
-  return validPreview(coordinate, unitPositions.positions);
+  return validPreview(coordinate, unitPositions.positions, request.worldPosition);
 }
 
 export function validDeploymentCoordinates(
@@ -358,12 +360,14 @@ function createDeployedUnits(
 function validPreview(
   coordinate: HexCoordinate,
   unitPositions: readonly WorldPoint[],
+  requestedPosition: WorldPoint,
 ): DeploymentPreview {
   return {
     valid: true,
     reason: null,
     coordinate: { ...coordinate },
     position: axialToWorld(coordinate),
+    requestedPosition: { ...requestedPosition },
     unitPositions,
   };
 }
@@ -428,6 +432,7 @@ function invalidPreview(
     reason,
     coordinate,
     position: coordinate ? axialToWorld(coordinate) : null,
+    requestedPosition: { ...point },
   };
 }
 

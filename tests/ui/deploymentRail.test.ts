@@ -3,9 +3,28 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { createInitialBattle } from "../../src/game/battle";
+import { MATCH_POLICIES } from "../../src/game/rules";
 import { DeploymentRail } from "../../src/ui/DeploymentRail";
 
 describe("deployment rail", () => {
+  it("only doubles the displayed gold rate for the campaign final minute", () => {
+    const campaign = createInitialBattle({ matchPolicy: MATCH_POLICIES.campaign });
+    const normal = createInitialBattle({ matchPolicy: MATCH_POLICIES.normal });
+    const campaignMarkup = renderToStaticMarkup(createElement(DeploymentRail, {
+      session: { phase: "engaged", battle: { ...campaign, matchElapsed: 120 } },
+      selectedKind: null,
+      onSelect: () => undefined,
+    }));
+    const normalMarkup = renderToStaticMarkup(createElement(DeploymentRail, {
+      session: { phase: "engaged", battle: { ...normal, matchElapsed: 240 } },
+      selectedKind: null,
+      onSelect: () => undefined,
+    }));
+
+    expect(campaignMarkup).toMatch(/WAR CHEST[\s\S]*?<em>×2<\/em>/);
+    expect(normalMarkup).toMatch(/WAR CHEST[\s\S]*?<em>×1<\/em>/);
+  });
+
   it("lists combat units before military facilities", () => {
     const markup = renderToStaticMarkup(createElement(DeploymentRail, {
       session: { phase: "engaged", battle: createInitialBattle() },
@@ -14,6 +33,8 @@ describe("deployment rail", () => {
     }));
 
     expect(markup.indexOf("作战单位")).toBeLessThan(markup.indexOf("建筑工事"));
+    expect(markup).toContain("data-field-ui=\"true\"");
+    expect(markup).toContain("data-dragging=\"false\"");
     expect(markup.match(/<img /g)).toHaveLength(8);
     expect(markup).toContain("长枪兵");
     expect(markup).toContain("箭塔");
