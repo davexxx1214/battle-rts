@@ -23,7 +23,7 @@ describe("battle mode definitions", () => {
     const sandbox = battleModeDefinitionFor("sandbox");
     expect(sandbox).toMatchObject({
       id: "sandbox",
-      defaultMapId: "legacy-v1",
+      defaultMapId: "sandbox-large-v1",
       economyPolicy: SANDBOX_ECONOMY_POLICY,
       buildingLifecyclePolicy: {
         naturalDecay: "disabled",

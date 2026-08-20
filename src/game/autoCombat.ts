@@ -4,11 +4,14 @@ import {
   coordinateKey,
   worldToAxial,
   type BattlefieldMap,
-  type HexCoordinate,
 } from "../map/battlefield";
 import type { BattleBuilding } from "./buildings";
 import type { CombatTarget, CombatTargetRef } from "./combat";
-import { castleChargeNavigationKey, findHexPath } from "./navigation";
+import {
+  castleChargeNavigationKey,
+  findHexPath,
+  type NavigationContext,
+} from "./navigation";
 import { GAME_RULES, unitSpecFor } from "./rules";
 import type { Faction, UnitCombatProfile, UnitRole, WorldPoint } from "./types";
 
@@ -29,13 +32,10 @@ export interface AutomaticTargetSelectionInput {
   readonly units: readonly AutomaticCombatUnit[];
   readonly buildings: readonly BattleBuilding[];
   readonly map?: BattlefieldMap;
+  readonly navigationContext?: NavigationContext;
 }
 
 const POSITION_EPSILON = 1e-9;
-const castleRouteCache = new WeakMap<
-  BattlefieldMap,
-  Map<string, readonly HexCoordinate[]>
->();
 
 export function selectAutomaticTarget(
   input: AutomaticTargetSelectionInput,
@@ -78,7 +78,11 @@ export function selectAutomaticTarget(
       >= -POSITION_EPSILON
   ));
   if (potentialBlockingBuildings.length > 0) {
-    const attackRoute = new Set(castleAttackRoute(input.unit, map).map(coordinateKey));
+    const attackRoute = new Set(castleAttackRoute(
+      input.unit,
+      map,
+      input.navigationContext,
+    ).map(coordinateKey));
     const blockingBuildings = potentialBlockingBuildings.filter((target) => (
       attackRoute.has(coordinateKey(target.coordinate))
     ));
@@ -111,28 +115,23 @@ export function selectAutomaticTarget(
   ))[0] ?? null;
 }
 
-function castleAttackRoute(unit: AutomaticCombatUnit, map: BattlefieldMap) {
+function castleAttackRoute(
+  unit: AutomaticCombatUnit,
+  map: BattlefieldMap,
+  navigationContext?: NavigationContext,
+) {
   const enemyFaction = oppositeFaction(unit.faction);
   const chargeNavigationKey = castleChargeNavigationKey(enemyFaction);
   if (unit.navigationKey === chargeNavigationKey && unit.waypoints.length > 0) {
     return [unit.position, ...unit.waypoints].map(worldToAxial);
   }
   const start = worldToAxial(unit.position);
-  const cacheKey = `${unit.faction}:${coordinateKey(start)}`;
-  let mapCache = castleRouteCache.get(map);
-  if (!mapCache) {
-    mapCache = new Map<string, readonly HexCoordinate[]>();
-    castleRouteCache.set(map, mapCache);
-  }
-  const cached = mapCache.get(cacheKey);
-  if (cached) return cached;
-  const route = findHexPath(
+  return findHexPath(
     map,
     start,
     map.castleApproaches[enemyFaction],
+    navigationContext,
   );
-  mapCache.set(cacheKey, route);
-  return route;
 }
 
 export function forwardProgress(

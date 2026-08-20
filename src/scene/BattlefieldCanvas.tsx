@@ -52,6 +52,8 @@ import {
   VALID_DEPLOYMENT_COLOR,
 } from "./DeploymentAreaMask";
 import { BattlefieldTerrain } from "./terrain/BattlefieldTerrain";
+import { SandboxGrayboxOverlay } from "./terrain/SandboxGrayboxOverlay";
+import { createSandboxGrayboxPresentation } from "./terrain/sandboxGrayboxPresentation";
 import { UnitModel } from "./units/UnitModel";
 import { deploymentPreviewRingGeometry } from "./units/unitRingPresentation";
 import { FrameBenchmark, type BenchmarkSnapshot } from "../game/benchmark";
@@ -103,6 +105,10 @@ export function BattlefieldCanvas({
   onBenchmarkUpdate,
 }: BattlefieldCanvasProps) {
   const battlefield = battlefieldDefinitionFor(battle.mapId);
+  const sandboxGrayboxPlan = useMemo(
+    () => createSandboxGrayboxPresentation(battlefield),
+    [battlefield],
+  );
   const resolvedFactionRaces = factionRaces
     ?? (undeadOpponent ? legacyUndeadOpponentRaces(true) : battle.factionRaces)
     ?? legacyUndeadOpponentRaces(undeadOpponent);
@@ -181,7 +187,9 @@ export function BattlefieldCanvas({
       <SceneBridge bridgeRef={bridgeRef} desktopInitialZoom={initialZoom} />
       {onBenchmarkUpdate && <BenchmarkProbe onUpdate={onBenchmarkUpdate} />}
       <Suspense fallback={<ArenaFallback />}>
-        <BattlefieldTerrain factionRaces={resolvedFactionRaces} />
+        {sandboxGrayboxPlan
+          ? <SandboxGrayboxOverlay plan={sandboxGrayboxPlan} />
+          : <BattlefieldTerrain factionRaces={resolvedFactionRaces} />}
       </Suspense>
       <Suspense fallback={null}>
         <BattleBuildingLayer battle={battle} factionRaces={resolvedFactionRaces} />

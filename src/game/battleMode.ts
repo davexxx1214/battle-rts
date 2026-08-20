@@ -5,6 +5,7 @@ import {
   type MatchPolicy,
   type TroopKind,
 } from "./rules";
+import { SANDBOX_LARGE_BATTLEFIELD_ID } from "../map/sandboxLargeBattlefield";
 import { LEGACY_BATTLEFIELD_ID } from "../map/battlefieldDefinition";
 
 export type BattleModeId = BattleMatchMode;
@@ -266,7 +267,7 @@ export const BATTLE_MODE_DEFINITIONS: Readonly<
   }),
   sandbox: Object.freeze({
     id: "sandbox",
-    defaultMapId: DEFAULT_LEGACY_MAP_ID,
+    defaultMapId: SANDBOX_LARGE_BATTLEFIELD_ID,
     clockPolicy: MATCH_POLICIES.sandbox,
     economyPolicy: SANDBOX_ECONOMY_POLICY,
     populationPolicy: SANDBOX_POPULATION_POLICY,

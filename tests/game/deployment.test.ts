@@ -180,6 +180,8 @@ describe("building deployment", () => {
 
   it("allows a friendly chokepoint because blockers become combat targets", () => {
     const map: BattlefieldMap = {
+      id: "deployment-chokepoint-test",
+      navigationRevision: 1,
       cells: [
         {
           q: 0, r: 0, height: 0, surface: "camp", walkable: true,

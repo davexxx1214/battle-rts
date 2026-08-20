@@ -13,6 +13,7 @@ import { resolveBattleRuntimeContext } from "../../src/game/battleRuntime";
 import {
   battlefieldDefinitionFor,
   LEGACY_BATTLEFIELD_DEFINITION,
+  SANDBOX_LARGE_BATTLEFIELD_DEFINITION,
 } from "../../src/map/battlefieldDefinition";
 
 describe("battle definition integration", () => {
@@ -30,8 +31,8 @@ describe("battle definition integration", () => {
     const stepped = stepBattle(createInitialBattle({ modeId: "sandbox" }), 0.1);
     const restored = JSON.parse(JSON.stringify(stepped)) as BattleState;
 
-    expect(stepped).toMatchObject({ modeId: "sandbox", mapId: "legacy-v1" });
-    expect(restored).toMatchObject({ modeId: "sandbox", mapId: "legacy-v1" });
+    expect(stepped).toMatchObject({ modeId: "sandbox", mapId: "sandbox-large-v1" });
+    expect(restored).toMatchObject({ modeId: "sandbox", mapId: "sandbox-large-v1" });
     expect(Object.keys(restored)).not.toContain("mode");
     expect(Object.keys(restored)).not.toContain("map");
     expect(Object.keys(restored)).not.toContain("runtime");
@@ -40,7 +41,8 @@ describe("battle definition integration", () => {
 
     const runtime = resolveBattleRuntimeContext(restored);
     expect(runtime.mode).toBe(battleModeDefinitionFor("sandbox"));
-    expect(runtime.battlefield).toBe(battlefieldDefinitionFor("legacy-v1"));
+    expect(runtime.battlefield).toBe(SANDBOX_LARGE_BATTLEFIELD_DEFINITION);
+    expect(runtime.battlefield).toBe(battlefieldDefinitionFor("sandbox-large-v1"));
   });
 
   it("fails fast when creation or runtime restoration receives an unknown id", () => {

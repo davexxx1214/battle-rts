@@ -40,7 +40,7 @@ describe("battle session gate", () => {
     expect(firstNormal.economy.accounts.verdant.gold).toBe(500);
     expect(sandbox).toMatchObject({
       modeId: "sandbox",
-      mapId: "legacy-v1",
+      mapId: "sandbox-large-v1",
     });
     expect(sandbox.economy.accounts.verdant.gold).toBe(1_000);
     expect(secondNormal).toEqual(firstNormal);

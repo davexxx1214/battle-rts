@@ -7,14 +7,20 @@ import {
   BATTLEFIELD_STATIC_STRUCTURES,
   BATTLEFIELD_STRUCTURES,
   BATTLEFIELD_WORLD_BOUNDS,
+  axialToWorld,
   terrainHeightAtMap,
 } from "../../src/map/battlefield";
 import {
   BATTLEFIELD_DEFINITIONS,
   LEGACY_BATTLEFIELD_DEFINITION,
   LEGACY_BATTLEFIELD_ID,
+  SANDBOX_LARGE_BATTLEFIELD_DEFINITION,
   battlefieldDefinitionFor,
 } from "../../src/map/battlefieldDefinition";
+import {
+  SANDBOX_LARGE_BATTLEFIELD_ID,
+  SANDBOX_LARGE_BATTLEFIELD_MAP,
+} from "../../src/map/sandboxLargeBattlefield";
 
 describe("battlefield definitions", () => {
   it("adapts every legacy battlefield export without duplicating the map", () => {
@@ -29,6 +35,31 @@ describe("battlefield definitions", () => {
     expect(definition.decorations).toBe(BATTLEFIELD_DECORATIONS);
     expect(Object.isFrozen(BATTLEFIELD_DEFINITIONS)).toBe(true);
     expect(Object.isFrozen(definition)).toBe(true);
+  });
+
+  it("registers the real sandbox large graybox independently from legacy geometry", () => {
+    const definition = battlefieldDefinitionFor(SANDBOX_LARGE_BATTLEFIELD_ID);
+
+    expect(definition).toBe(SANDBOX_LARGE_BATTLEFIELD_DEFINITION);
+    expect(definition.map).toBe(SANDBOX_LARGE_BATTLEFIELD_MAP);
+    expect(definition.map).not.toBe(BATTLEFIELD_MAP);
+    expect(definition).toMatchObject({
+      id: "sandbox-large-v1",
+      navigationRevision: 1,
+      fingerprint: "fnv1a32:bf1e4e83",
+      cameraPreset: {
+        initialTarget: axialToWorld({ q: -7, r: 14 }),
+        defaultZoom: 32,
+        maximumZoom: 56,
+        overviewPaddingCells: 1,
+      },
+    });
+    expect(definition.routes).toHaveLength(3);
+    expect(definition.roadNetworkCells).toHaveLength(327);
+    expect(definition.roadReserve).toHaveLength(331);
+    expect(definition.minePits).toHaveLength(8);
+    expect(definition.buildAnchors?.verdant).toHaveLength(52);
+    expect(definition.buildAnchors?.crimson).toHaveLength(52);
   });
 
   it("fails fast instead of silently falling back for an unknown map id", () => {

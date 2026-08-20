@@ -27,9 +27,19 @@ export interface BattlefieldCell extends HexCoordinate {
   readonly territory: Faction | null;
   readonly buildable: boolean;
   readonly reservedForPath: boolean;
+  /** Explicit static metadata for definition-driven maps; legacy maps may omit it. */
+  readonly zoneId?: string;
+  readonly buildPolicy?: BattlefieldCellBuildPolicy;
+  readonly routeTags?: readonly string[];
+  readonly blocker?: BattlefieldStaticBlocker;
 }
 
+export type BattlefieldCellBuildPolicy = "ordinary" | "mine-only" | "forbidden";
+export type BattlefieldStaticBlocker = "none" | "terrain" | "fixed-structure";
+
 export interface BattlefieldMap {
+  readonly id: string;
+  readonly navigationRevision: number;
   readonly cells: readonly BattlefieldCell[];
   readonly verdantCamp: HexCoordinate;
   readonly crimsonCamp: HexCoordinate;
@@ -41,6 +51,12 @@ export interface BattlefieldMap {
 }
 
 export type BattlefieldBridge = BattlefieldBridgeLayout;
+
+export interface BattlefieldMapIndex {
+  readonly cellByKey: ReadonlyMap<string, BattlefieldCell>;
+  readonly neighborKeysByKey: ReadonlyMap<string, readonly string[]>;
+  readonly maximumDistanceFromCenter: number;
+}
 
 export interface BattlefieldWorldBounds {
   readonly minX: number;
@@ -89,6 +105,20 @@ export type BattlefieldDecoration =
 const HEIGHT_LOW = 0;
 const HEIGHT_MIDDLE = 0.36;
 const HEIGHT_HIGH = 0.72;
+export const HEX_NEIGHBOR_OFFSETS: readonly HexCoordinate[] = Object.freeze([
+  Object.freeze({ q: 1, r: 0 }),
+  Object.freeze({ q: 1, r: -1 }),
+  Object.freeze({ q: 0, r: -1 }),
+  Object.freeze({ q: -1, r: 0 }),
+  Object.freeze({ q: -1, r: 1 }),
+  Object.freeze({ q: 0, r: 1 }),
+]);
+
+const battlefieldMapIndexes = new WeakMap<BattlefieldMap, {
+  readonly cells: readonly BattlefieldCell[];
+  readonly index: BattlefieldMapIndex;
+}>();
+
 interface BattlefieldCampLayout {
   readonly camp: HexCoordinate;
   readonly castle: HexCoordinate;
@@ -194,7 +224,39 @@ export function getMapCell(
   map: BattlefieldMap,
   coordinate: HexCoordinate,
 ): BattlefieldCell | undefined {
-  return map.cells.find((cell) => cell.q === coordinate.q && cell.r === coordinate.r);
+  return battlefieldMapIndexFor(map).cellByKey.get(coordinateKey(coordinate));
+}
+
+/**
+ * Builds immutable lookup data outside the serializable map definition. Legacy
+ * maps and future grayboxes therefore gain O(1) cell access without receiving
+ * mutable Map instances of their own.
+ */
+export function battlefieldMapIndexFor(map: BattlefieldMap): BattlefieldMapIndex {
+  const cached = battlefieldMapIndexes.get(map);
+  if (cached?.cells === map.cells) return cached.index;
+
+  const cellByKey = new Map<string, BattlefieldCell>();
+  for (const cell of map.cells) cellByKey.set(coordinateKey(cell), cell);
+
+  const neighborKeysByKey = new Map<string, readonly string[]>();
+  for (const cell of map.cells) {
+    const neighborKeys = HEX_NEIGHBOR_OFFSETS
+      .map((offset) => coordinateKey({ q: cell.q + offset.q, r: cell.r + offset.r }))
+      .filter((key) => cellByKey.has(key));
+    neighborKeysByKey.set(coordinateKey(cell), Object.freeze(neighborKeys));
+  }
+
+  const index: BattlefieldMapIndex = Object.freeze({
+    cellByKey,
+    neighborKeysByKey,
+    maximumDistanceFromCenter: map.cells.reduce(
+      (maximum, cell) => Math.max(maximum, hexDistance(cell, map.center)),
+      0,
+    ),
+  });
+  battlefieldMapIndexes.set(map, { cells: map.cells, index });
+  return index;
 }
 
 export function terrainHeightAt(point: WorldPoint): number {
@@ -221,6 +283,8 @@ export function hexDistance(first: HexCoordinate, second: HexCoordinate): number
 function createBattlefieldMap(): BattlefieldMap {
   const cells = battlefieldCoordinates().map(([q, r]) => createCell(q, r));
   return {
+    id: "legacy-v1",
+    navigationRevision: 1,
     cells,
     verdantCamp: BATTLEFIELD_CAMP_LAYOUTS.verdant.camp,
     crimsonCamp: BATTLEFIELD_CAMP_LAYOUTS.crimson.camp,

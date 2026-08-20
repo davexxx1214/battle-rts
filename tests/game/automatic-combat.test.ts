@@ -7,6 +7,10 @@ import {
 } from "../../src/game/autoCombat";
 import { createBattleUnit } from "../../src/game/battle";
 import { createBattleBuilding } from "../../src/game/buildings";
+import {
+  clearNavigationCaches,
+  getNavigationCacheStats,
+} from "../../src/game/navigation";
 import { BATTLEFIELD_MAP, axialToWorld } from "../../src/map/battlefield";
 
 function chargingVerdant(position = axialToWorld({ q: -2, r: 5 })) {
@@ -107,6 +111,39 @@ describe("automatic combat target selection", () => {
       units: [attacker, soldier],
       buildings: [sideBuilding],
     })).toMatchObject({ targetType: "unit", id: soldier.id });
+  });
+
+  it("delegates castle routes to the revisioned navigation cache", () => {
+    const attacker = chargingVerdant();
+    const blocker = createBattleBuilding({
+      id: "crimson-revision-blocker",
+      kind: "barracks",
+      faction: "crimson",
+      coordinate: { q: -1, r: 3 },
+      createdAt: 0,
+    });
+    clearNavigationCaches(BATTLEFIELD_MAP);
+
+    for (let index = 0; index < 2; index += 1) {
+      selectAutomaticTarget({
+        unit: attacker,
+        units: [attacker],
+        buildings: [blocker],
+        navigationContext: { revision: 1 },
+      });
+    }
+    expect(getNavigationCacheStats(BATTLEFIELD_MAP)).toMatchObject({
+      pathHits: 1,
+      pathMisses: 1,
+    });
+
+    selectAutomaticTarget({
+      unit: attacker,
+      units: [attacker],
+      buildings: [blocker],
+      navigationContext: { revision: 2 },
+    });
+    expect(getNavigationCacheStats(BATTLEFIELD_MAP).pathMisses).toBe(2);
   });
 
   it("uses cached charge waypoints as the canonical blocking route", () => {

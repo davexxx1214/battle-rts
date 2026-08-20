@@ -24,6 +24,10 @@ vi.mock("../../src/scene/terrain/BattlefieldTerrain", () => ({
   BattlefieldTerrain: () => "terrain-stable",
 }));
 
+vi.mock("../../src/scene/terrain/SandboxGrayboxOverlay", () => ({
+  SandboxGrayboxOverlay: () => "graybox-stable",
+}));
+
 vi.mock("../../src/scene/buildings/BattleBuildingLayer", () => ({
   BattleBuildingLayer: () => {
     if (suspension.buildings) throw suspension.pending;
@@ -73,6 +77,16 @@ describe("battlefield asset loading boundaries", () => {
     expect(renderBattlefield()).toContain("terrain-stable");
   });
 
+  it("keeps legacy terrain unchanged and mounts the graybox only for the sandbox map", () => {
+    const legacy = renderBattlefield();
+    const sandbox = renderBattlefield(createBattleState([], { modeId: "sandbox" }));
+
+    expect(legacy).toContain("terrain-stable");
+    expect(legacy).not.toContain("graybox-stable");
+    expect(sandbox).toContain("graybox-stable");
+    expect(sandbox).not.toContain("terrain-stable");
+  });
+
   it("keeps the existing battlefield visible while a new unit asset loads", () => {
     suspension.unit = true;
     const rendered = renderBattlefield();
@@ -105,15 +119,14 @@ describe("battlefield asset loading boundaries", () => {
   });
 });
 
-function renderBattlefield(): string {
-  const battle = createBattleState([
+function renderBattlefield(battle = createBattleState([
     createBattleUnit({
       faction: "verdant",
       id: "asset-loading-probe",
       position: { x: 0, z: 0 },
       role: "knight",
     }),
-  ]);
+  ])): string {
   return renderToString(createElement(BattlefieldCanvas, {
     battle,
     bridgeRef: { current: createSceneInteractionBridge() },

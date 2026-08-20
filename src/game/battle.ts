@@ -11,6 +11,11 @@ import {
 } from "./projectiles";
 import { buildSquads, type BattleSquad } from "./squads";
 import {
+  buildSquadNavigationPlans,
+  squadNavigationWaypointsFor,
+  type SquadNavigationPlan,
+} from "./squadNavigation";
+import {
   assignMeleeEngagementSlots,
   type MeleeEngagementSlot,
 } from "./engagements";
@@ -167,7 +172,8 @@ export interface CreateBattleStateOptions {
 type EmitBattleEvent = (input: BattleEventInput) => BattleEvent;
 
 const ARRIVAL_DISTANCE = 0.12;
-const NAVIGATION_WAYPOINT_ARRIVAL_DISTANCE = 0.55;
+const WAYPOINT_ARRIVAL_EPSILON = 1e-6;
+const MOVEMENT_EPSILON = 1e-9;
 const MAX_STEP_SECONDS = 0.1;
 const EVENT_WINDOW_SECONDS = 2;
 const POST_BATTLE_PRESENTATION_SECONDS = 8;
@@ -352,6 +358,29 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
         })] as const)
       : [],
   );
+  const squadNavigationPlans = automaticControl
+    ? buildSquadNavigationPlans(
+        map,
+        combatantsAtStart.flatMap((unit) => {
+          if (
+            targetsByUnitId.get(unit.id)
+            || unit.behavior === "castle-locked"
+            || unitSpecFor(unit.role, unit.combatProfile).movementMode !== "ground"
+          ) return [];
+          const targetFaction = oppositeFaction(unit.faction);
+          const navigationKey = castleChargeNavigationKey(targetFaction);
+          return [{
+            id: unit.id,
+            squadId: unit.squadId,
+            faction: unit.faction,
+            position: unit.position,
+            destination: map.castleApproaches[targetFaction],
+            navigationKey,
+            needsRoute: unit.navigationKey !== navigationKey || unit.waypoints.length === 0,
+          }];
+        }),
+      )
+    : new Map<string, SquadNavigationPlan>();
   const engagementSlots = assignMeleeEngagementSlots(
     combatantsAtStart
       .filter((unit) => unitSpecFor(unit.role, unit.combatProfile).attackMode === "melee")
@@ -388,6 +417,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
         spawnedProjectiles,
         emit,
         map,
+        squadNavigationPlans.get(unit.id) ?? null,
       ))
     : unitsAtStart;
   const separatedUnits = separateLivingAllies(advancedUnits, 0.65, map).map((unit, index) => {
@@ -626,6 +656,7 @@ function advanceUnit(
   spawnedProjectiles: BattleProjectile[],
   emit: EmitBattleEvent,
   map: BattlefieldMap,
+  squadNavigationPlan: SquadNavigationPlan | null,
 ): BattleUnit {
   if (unit.health <= 0 || unit.status === "dead") {
     return {
@@ -660,7 +691,7 @@ function advanceUnit(
       ...next,
       behavior: next.behavior === "castle-locked" ? "castle-locked" : "charging",
       engagementSlot: null,
-    }, destination, deltaSeconds, map);
+    }, destination, deltaSeconds, map, squadNavigationPlan);
   }
   next = {
     ...next,
@@ -823,6 +854,7 @@ function advanceTowardDestination(
   destination: WorldPoint,
   deltaSeconds: number,
   map: BattlefieldMap,
+  squadNavigationPlan: SquadNavigationPlan | null = null,
 ): BattleUnit {
   const spec = unitSpecFor(unit.role, unit.combatProfile);
   const moveSpeed = spec.moveSpeed * unitStatusModifiers(unit.statusEffects).moveSpeedMultiplier;
@@ -847,11 +879,13 @@ function advanceTowardDestination(
     };
   }
   const navigationKey = castleChargeNavigationKey(oppositeFaction(unit.faction));
+  const plannedWaypoints = squadNavigationPlan?.navigationKey === navigationKey
+    ? squadNavigationWaypointsFor(squadNavigationPlan, unit.id)
+    : null;
   const waypoints = unit.navigationKey === navigationKey && unit.waypoints.length > 0
     ? unit.waypoints
-    : findWorldPath(map, unit.position, destination);
-  const waypoint = waypoints[0];
-  if (!waypoint) {
+    : plannedWaypoints ?? findWorldPath(map, unit.position, destination);
+  if (waypoints.length === 0) {
     return {
       ...unit,
       status: "idle",
@@ -859,40 +893,13 @@ function advanceTowardDestination(
       navigationKey: null,
     };
   }
-  const remaining = distance(unit.position, waypoint);
-  const arrivalDistance = waypoints.length > 1
-    ? NAVIGATION_WAYPOINT_ARRIVAL_DISTANCE
-    : ARRIVAL_DISTANCE;
-  if (remaining <= arrivalDistance) {
-    const remainingWaypoints = waypoints.slice(1);
-    const position = walkableForwardPosition(unit.faction, unit.position, waypoint, map)
-      ?? unit.position;
-    if (remainingWaypoints.length > 0) {
-      return {
-        ...unit,
-        position,
-        waypoints: remainingWaypoints,
-        status: "moving",
-        navigationKey,
-      };
-    }
-    return {
-      ...unit,
-      position: walkableForwardPosition(unit.faction, unit.position, destination, map)
-        ?? unit.position,
-      status: "idle",
-      waypoints: [],
-      navigationKey: null,
-    };
-  }
-  const facing = Math.atan2(waypoint.x - unit.position.x, waypoint.z - unit.position.z);
-  const requested = moveToward(
-    unit.position,
-    waypoint,
+  const movement = advanceAlongWaypoints(
+    unit,
+    waypoints,
     moveSpeed * deltaSeconds,
+    map,
   );
-  const position = walkableForwardPosition(unit.faction, unit.position, requested, map);
-  if (!position) {
+  if (movement.blocked && movement.traveledDistance <= MOVEMENT_EPSILON) {
     const recovery = recoverBlockedGroundPosition(
       unit.position,
       moveSpeed * deltaSeconds,
@@ -903,20 +910,88 @@ function advanceTowardDestination(
         ...unit,
         position: recovery.position,
         waypoints: recovery.resetNavigation ? [] : waypoints,
-        facing,
+        facing: movement.facing,
         status: "moving",
         navigationKey: recovery.resetNavigation ? null : navigationKey,
       };
     }
     return { ...unit, status: "idle", waypoints: [], navigationKey: null };
   }
+  const arrived = movement.waypoints.length === 0;
   return {
     ...unit,
+    position: movement.position,
+    waypoints: movement.waypoints,
+    facing: movement.facing,
+    status: arrived ? "idle" : "moving",
+    navigationKey: arrived ? null : navigationKey,
+  };
+}
+
+interface WaypointMovement {
+  readonly position: WorldPoint;
+  readonly waypoints: readonly WorldPoint[];
+  readonly facing: number;
+  readonly traveledDistance: number;
+  readonly blocked: boolean;
+}
+
+function advanceAlongWaypoints(
+  unit: BattleUnit,
+  waypoints: readonly WorldPoint[],
+  maximumDistance: number,
+  map: BattlefieldMap,
+): WaypointMovement {
+  let position = unit.position;
+  let facing = unit.facing;
+  let remainingDistance = Math.max(0, maximumDistance);
+  let traveledDistance = 0;
+  let waypointIndex = 0;
+  let blocked = false;
+
+  while (waypointIndex < waypoints.length) {
+    const waypoint = waypoints[waypointIndex]!;
+    const waypointDistance = distance(position, waypoint);
+    if (waypointDistance <= MOVEMENT_EPSILON) {
+      position = { ...waypoint };
+      waypointIndex += 1;
+      continue;
+    }
+    if (remainingDistance <= MOVEMENT_EPSILON) break;
+
+    facing = Math.atan2(waypoint.x - position.x, waypoint.z - position.z);
+    const requested = moveToward(
+      position,
+      waypoint,
+      Math.min(remainingDistance, waypointDistance),
+    );
+    const moved = walkableForwardPosition(unit.faction, position, requested, map);
+    if (!moved) {
+      blocked = true;
+      break;
+    }
+    const stepDistance = distance(position, moved);
+    if (stepDistance <= MOVEMENT_EPSILON) {
+      blocked = true;
+      break;
+    }
+    position = moved;
+    traveledDistance += stepDistance;
+    remainingDistance = Math.max(0, remainingDistance - stepDistance);
+    if (distance(position, waypoint) <= MOVEMENT_EPSILON) {
+      position = { ...waypoint };
+      waypointIndex += 1;
+      continue;
+    }
+    break;
+  }
+
+  return {
     position,
-    waypoints,
+    waypoints: waypoints.slice(waypointIndex),
     facing,
-    status: "moving",
-    navigationKey,
+    traveledDistance,
+    blocked,
   };
 }
 
@@ -1238,7 +1313,7 @@ function advanceTowardTarget(
     return { ...unit, facing, status: "idle", waypoints: [], navigationKey: null };
   }
   const arrivalDistance = waypoints.length > 1
-    ? NAVIGATION_WAYPOINT_ARRIVAL_DISTANCE
+    ? WAYPOINT_ARRIVAL_EPSILON
     : ARRIVAL_DISTANCE;
   if (distance(moved, waypoint) <= arrivalDistance) waypoints = waypoints.slice(1);
   return {
@@ -1269,7 +1344,7 @@ function advanceTowardCombatPosition(
     const requested = moveToward(unit.position, waypoint, maximumDistance);
     const position = walkableForwardPosition(unit.faction, unit.position, requested, map);
     if (position) {
-      if (distance(position, waypoint) <= NAVIGATION_WAYPOINT_ARRIVAL_DISTANCE) {
+      if (distance(position, waypoint) <= WAYPOINT_ARRIVAL_EPSILON) {
         waypoints = waypoints.slice(1);
       }
       return {
@@ -1322,7 +1397,7 @@ function advanceTowardCombatPosition(
     position,
     facing,
     status: "moving",
-    waypoints: distance(position, waypoint) <= NAVIGATION_WAYPOINT_ARRIVAL_DISTANCE
+    waypoints: distance(position, waypoint) <= WAYPOINT_ARRIVAL_EPSILON
       ? route.slice(1)
       : route,
     navigationKey,
