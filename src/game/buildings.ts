@@ -24,6 +24,11 @@ import {
   unitRoleForRace,
   type BuildingKind,
 } from "./rules";
+import {
+  sandboxBuildingSlotForKind,
+  sandboxBuildingSpec,
+  type SandboxAdvancedBuildingKind,
+} from "./sandboxCatalog";
 import { resolveBattleRace } from "./factions";
 import type {
   BattleRace,
@@ -33,7 +38,11 @@ import type {
   WorldPoint,
 } from "./types";
 
-export type BattleBuildingKind = BuildingKind | "castle" | "arrow-tower";
+export type BattleBuildingKind =
+  | BuildingKind
+  | SandboxAdvancedBuildingKind
+  | "castle"
+  | "arrow-tower";
 export type BattleBuildingStatus = "active" | "destroyed";
 export type BattleBuildingConstructionPhase =
   | "constructing"
@@ -259,7 +268,7 @@ export function createBattleBuilding(
   ) {
     throw new Error("Building requires a finite integer hex coordinate.");
   }
-  const spec = buildingHealthSpec(input.kind);
+  const spec = buildingHealthSpec(input.kind, lifecyclePolicy);
   const {
     constructionSeconds: requestedConstructionSeconds = 0,
     ...buildingIdentity
@@ -714,16 +723,32 @@ function actionPriority(action: BuildingAction): number {
   return action.type === "destroy" ? 1 : 0;
 }
 
-function buildingHealthSpec(kind: BattleBuildingKind): {
+function buildingHealthSpec(
+  kind: BattleBuildingKind,
+  lifecyclePolicy?: BuildingLifecyclePolicy,
+): {
   readonly maxHealth: number;
   readonly lifetimeSeconds: number | null;
 } {
+  const sandboxSlot = sandboxBuildingSlotForKind(kind);
+  if (sandboxSlot && lifecyclePolicy?.naturalDecay === "disabled") {
+    return {
+      maxHealth: sandboxBuildingSpec(sandboxSlot).maxHealth,
+      lifetimeSeconds: null,
+    };
+  }
   if (kind === "gold-mine") return GAME_RULES.buildings.goldMine;
   if (kind === "barracks") return GAME_RULES.buildings.barracks;
   if (kind === "arrow-tower") {
     return { maxHealth: GAME_RULES.buildings.arrowTower.maxHealth, lifetimeSeconds: null };
   }
   if (kind === "guard-tower") return GAME_RULES.buildings.guardTower;
+  if (sandboxSlot) {
+    return {
+      maxHealth: sandboxBuildingSpec(sandboxSlot).maxHealth,
+      lifetimeSeconds: null,
+    };
+  }
   return { maxHealth: GAME_RULES.castle.maxHealth, lifetimeSeconds: null };
 }
 

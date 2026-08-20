@@ -22,11 +22,13 @@ import {
   type SandboxMiningState,
 } from "./miningEconomy";
 import type { BuildingKind } from "./rules";
+import { sandboxBuildingSpec } from "./sandboxCatalog";
 import type { Faction, WorldPoint } from "./types";
 
+const SANDBOX_GOLD_MINE_SPEC = sandboxBuildingSpec("mine");
 export const SANDBOX_GOLD_MINE_CONSTRUCTION_RULES = Object.freeze({
-  cost: 400,
-  constructionSeconds: 6,
+  cost: SANDBOX_GOLD_MINE_SPEC.cost,
+  constructionSeconds: SANDBOX_GOLD_MINE_SPEC.constructionSeconds,
 });
 
 /**

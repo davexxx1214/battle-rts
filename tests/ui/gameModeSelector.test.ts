@@ -24,10 +24,10 @@ describe("game mode selector", () => {
     expect(markup).toContain("战役模式");
     expect(markup).toContain("自由对战");
     expect(markup).toContain("竞技场模式");
-    expect(markup).not.toContain("沙盒");
-    expect(markup).not.toContain('value="sandbox"');
+    expect(markup).toContain("沙盒模式");
+    expect(markup).toContain('value="sandbox"');
     expect(markup).not.toContain("人类对亡灵");
-    expect(markup.match(/<button/g)).toHaveLength(3);
+    expect(markup.match(/<button/g)).toHaveLength(4);
     expect(markup).toContain('aria-label="游戏模式"');
     expect(markup).toContain('aria-pressed="true"');
     expect(markup).toMatch(/自由对战<\/span><span[^>]*aria-hidden="true">自由<\/span><\/button>/);
@@ -43,10 +43,11 @@ describe("game mode selector", () => {
 
     expect(markup).toContain('data-compact-on-portrait="true"');
     expect(markup).toContain('aria-label="切换游戏模式"');
-    expect(markup.match(/<option/g)).toHaveLength(3);
+    expect(markup.match(/<option/g)).toHaveLength(4);
     expect(markup).toContain(">战役</option>");
     expect(markup).toContain(">自由</option>");
     expect(markup).toContain(">竞技</option>");
+    expect(markup).toContain(">沙盒</option>");
   });
 
   it("leaves race pairing to the independent faction selectors", () => {
@@ -62,18 +63,24 @@ describe("game mode selector", () => {
       verdant: "human",
       crimson: "human",
     });
+    expect(factionRacesForGameMode("sandbox")).toEqual({
+      verdant: "human",
+      crimson: "human",
+    });
   });
 
   it("maps visible modes to their simulation policies", () => {
     expect(matchPolicyForGameMode("campaign").durationSeconds).toBe(180);
     expect(matchPolicyForGameMode("normal").durationSeconds).toBe(300);
     expect(matchPolicyForGameMode("arena").durationSeconds).toBe(300);
+    expect(matchPolicyForGameMode("sandbox").durationSeconds).toBeNull();
     expect(matchPolicyForGameMode("normal").finalBonus?.resource).toBe("experience");
   });
 
   it("only reloads scene assets when entering a newly mounted battlefield", () => {
     expect(requiresSceneAssetReload("normal", "arena", false)).toBe(false);
     expect(requiresSceneAssetReload("arena", "normal", false)).toBe(false);
+    expect(requiresSceneAssetReload("normal", "sandbox", false)).toBe(false);
     expect(requiresSceneAssetReload("campaign", "arena", false)).toBe(true);
     expect(requiresSceneAssetReload("campaign", "normal", true)).toBe(false);
     expect(requiresSceneAssetReload("normal", "campaign", false)).toBe(false);

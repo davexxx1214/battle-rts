@@ -3,6 +3,7 @@ import {
   type BuildingKind,
   type DeployableKind,
 } from "./rules";
+import type { SandboxAdvancedBuildingKind } from "./sandboxCatalog";
 import type { Faction, WorldPoint } from "./types";
 import {
   coordinateKey,
@@ -14,7 +15,7 @@ import {
 
 export interface OccupiedBuildingHex {
   readonly buildingId: string;
-  readonly kind: BuildingKind;
+  readonly kind: BuildingKind | SandboxAdvancedBuildingKind;
   readonly faction: Faction;
   readonly coordinate: HexCoordinate;
 }

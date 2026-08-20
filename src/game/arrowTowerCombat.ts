@@ -1,4 +1,7 @@
-import type { BattleBuilding } from "./buildings";
+import {
+  isBattleBuildingOperationalAt,
+  type BattleBuilding,
+} from "./buildings";
 import type { CombatTarget } from "./combat";
 import { GAME_RULES } from "./rules";
 import type { Faction, WorldPoint } from "./types";
@@ -22,6 +25,7 @@ export function advanceArrowTowerAttacks(
   buildings: readonly BattleBuilding[],
   targets: readonly CombatTarget[],
   deltaSeconds: number,
+  elapsedSeconds = Number.POSITIVE_INFINITY,
 ): ArrowTowerAttackStep {
   if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) {
     return { buildings, attacks: [] };
@@ -43,6 +47,7 @@ export function advanceArrowTowerAttacks(
     if (
       building.status !== "active"
       || building.health <= 0
+      || !isBattleBuildingOperationalAt(building, elapsedSeconds)
       || cooldownRemaining > 0
     ) return { ...building, arrowTowerCombat };
     const target = targets

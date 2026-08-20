@@ -54,12 +54,20 @@ interface AssetGroup {
   readonly urls: readonly string[];
 }
 
-const BUILDING_PRELOAD_KINDS = [
-  "castle",
-  "guard-tower",
-  "gold-mine",
-  "barracks",
-] as const satisfies readonly BattleBuildingKind[];
+const BATTLE_BUILDING_PRELOAD_KIND_SET = {
+  castle: true,
+  "arrow-tower": true,
+  "guard-tower": true,
+  "gold-mine": true,
+  barracks: true,
+  "archery-range": true,
+  "mage-tower": true,
+  "siege-workshop": true,
+} as const satisfies Readonly<Record<BattleBuildingKind, true>>;
+
+export const BATTLE_BUILDING_PRELOAD_KINDS = Object.freeze(
+  Object.keys(BATTLE_BUILDING_PRELOAD_KIND_SET) as BattleBuildingKind[],
+);
 
 const TERRAIN_ASSET_URLS = TERRAIN_TILE_ASSET_KEYS.map(
   (key) => TERRAIN_TILE_ASSETS[key].url,
@@ -70,12 +78,12 @@ const GLTF_ASSET_GROUPS: readonly AssetGroup[] = [
   { id: "character-animations", urls: CHARACTER_ANIMATION_URLS },
   { id: "catapult-animations", urls: CATAPULT_OPERATOR_ANIMATION_URLS },
   ...(["verdant", "crimson"] as const satisfies readonly Faction[]).flatMap((faction) => (
-    BUILDING_PRELOAD_KINDS.map((kind) => ({
+    BATTLE_BUILDING_PRELOAD_KINDS.map((kind) => ({
       id: `building-details-${faction}-${kind}`,
       urls: battleBuildingDetailAssets(faction, kind).map(({ url }) => url),
     }))
   )),
-  ...BUILDING_PRELOAD_KINDS.map((kind) => ({
+  ...BATTLE_BUILDING_PRELOAD_KINDS.map((kind) => ({
     id: `building-details-undead-${kind}`,
     urls: battleBuildingDetailAssets("crimson", kind, true).map(({ url }) => url),
   })),

@@ -107,6 +107,18 @@ import {
   advanceSandboxMiningSystems,
   synchronizeSandboxMineOccupancy,
 } from "./sandboxMiningIntegration";
+import {
+  advanceSandboxProduction,
+  createSandboxProductionState,
+  sandboxProductionPopulationByFaction,
+  type SandboxProductionSpawn,
+  type SandboxProductionState,
+} from "./sandboxProductionQueue";
+import {
+  sandboxProductionExitForSpawn,
+  synchronizeSandboxProductionBuildings,
+} from "./sandboxProductionIntegration";
+import { sandboxTroopSpec } from "./sandboxCatalog";
 
 export type { BattleRace, Faction, FactionRaces, UnitRole, WorldPoint } from "./types";
 export { UNIT_SPECS } from "./rules";
@@ -147,6 +159,7 @@ export interface BattleState {
   readonly economy: EconomyState;
   readonly mining: SandboxMiningState | null;
   readonly miningLedger: readonly MiningLedgerEvent[];
+  readonly production: SandboxProductionState | null;
   readonly matchPolicy: MatchPolicy;
   readonly matchElapsed: number;
   readonly buildings: readonly BattleBuilding[];
@@ -241,6 +254,7 @@ export function createBattleState(
       ? createSandboxMiningState(battlefield.minePits ?? [])
       : null,
     miningLedger: [],
+    production: modeId === "sandbox" ? createSandboxProductionState() : null,
     matchPolicy: options.matchPolicy ?? mode.clockPolicy,
     matchElapsed: 0,
     buildings: createInitialDefensiveBuildings(
@@ -276,6 +290,8 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
   const { map, mode } = runtime;
   const miningAtStart = state.mining ?? null;
   const miningLedgerAtStart = state.miningLedger ?? [];
+  const productionAtStart = state.production
+    ?? (state.modeId === "sandbox" ? createSandboxProductionState() : null);
   const requestedStepSeconds = Math.min(MAX_STEP_SECONDS, requestedDeltaSeconds);
   if (state.resolvedAt !== null) {
     if (state.elapsed - state.resolvedAt >= POST_BATTLE_PRESENTATION_SECONDS) return state;
@@ -291,6 +307,9 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     const mining = state.mining
       ? synchronizeSandboxMineOccupancy(state.mining, cleanup.buildings)
       : null;
+    const production = productionAtStart
+      ? synchronizeSandboxProductionBuildings(productionAtStart, cleanup.buildings)
+      : null;
     return {
       ...state,
       units: state.units.map((unit) => ({
@@ -300,6 +319,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       buildings: cleanup.buildings,
       buildingOccupancy: cleanup.occupancy,
       mining,
+      production,
       projectiles: [],
       events: pruneBattleEvents(state.events, elapsed - EVENT_WINDOW_SECONDS),
       elapsed,
@@ -441,14 +461,16 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
         map,
         squadNavigationPlans.get(unit.id) ?? null,
       ))
-    : unitsAtStart;
+    : unitsAtStart.map((unit) => advanceIssuedWaypoints(unit, deltaSeconds, map));
   const separatedUnits = separateLivingAllies(advancedUnits, 0.65, map).map((unit, index) => {
-    const position = clampToForwardProgress(
-      unit.faction,
-      advancedUnits[index]!.position,
-      unit.position,
-      map,
-    );
+    const position = automaticControl
+      ? clampToForwardProgress(
+          unit.faction,
+          advancedUnits[index]!.position,
+          unit.position,
+          map,
+        )
+      : unit.position;
     return {
       ...unit,
       position: unitSpecFor(unit.role, unit.combatProfile).movementMode === "flying"
@@ -525,10 +547,11 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
   const arrowTowerAttackStep = castleWinnerAfterBuildingHealth === null
     && matchIsActive
     && activeMatchDeltaSeconds > 0
-    ? advanceArrowTowerAttacks(
+      ? advanceArrowTowerAttacks(
         buildingStep.buildings,
         damagedUnits,
         activeMatchDeltaSeconds,
+        matchElapsed,
       )
     : { buildings: buildingStep.buildings, attacks: [] };
   for (const attack of arrowTowerAttackStep.attacks) {
@@ -606,7 +629,56 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     statusEffectIntents,
     elapsed,
   );
-  const producedUnits = buildingStep.unitSpawns.map((spawn) => createBattleUnit({
+  const productionAfterBuildingHealth = productionAtStart === null
+    ? null
+    : synchronizeSandboxProductionBuildings(
+        productionAtStart,
+        castleAttackStep.buildings,
+      );
+  const productionPopulationBefore = productionAfterBuildingHealth
+    ? sandboxProductionPopulationByFaction(productionAfterBuildingHealth)
+    : null;
+  const resolvedProductionExits = new Map<
+    string,
+    ReturnType<typeof sandboxProductionExitForSpawn>
+  >();
+  const productionExitUnits: Array<Pick<
+    BattleUnit,
+    "position" | "health" | "status"
+  >> = [...statusSettledUnits];
+  const sandboxProductionStep = productionAfterBuildingHealth !== null
+    && castleWinnerAfterBuildingHealth === null
+    && matchIsActive
+    && activeMatchDeltaSeconds > 0
+    ? advanceSandboxProduction(productionAfterBuildingHealth, {
+        elapsedSeconds: state.matchElapsed,
+        deltaSeconds: activeMatchDeltaSeconds,
+        isExitBlocked: (spawn: SandboxProductionSpawn) => {
+          const exit = sandboxProductionExitForSpawn(
+            map,
+            runtime.battlefield.roadReserve ?? [],
+            castleAttackStep.buildings,
+            productionExitUnits,
+            spawn,
+          );
+          resolvedProductionExits.set(spawn.entryId, exit);
+          if (exit.status === "available") {
+            productionExitUnits.push(...exit.positions.map((position) => ({
+              position,
+              health: 1,
+              status: "idle" as const,
+            })));
+          }
+          return exit.status === "ready-blocked";
+        },
+      })
+    : {
+        state: productionAfterBuildingHealth,
+        spawns: [] as readonly SandboxProductionSpawn[],
+        populationBefore: productionPopulationBefore,
+        populationAfter: productionPopulationBefore,
+      };
+  const legacyProducedUnits = buildingStep.unitSpawns.map((spawn) => createBattleUnit({
     id: spawn.unitId,
     faction: spawn.faction,
     role: spawn.role,
@@ -614,6 +686,54 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     squadId: `${spawn.buildingId}-spawned`,
     position: spawn.position,
   }));
+  const sandboxProducedUnits = sandboxProductionStep.spawns.flatMap((spawn) => {
+    const exit = resolvedProductionExits.get(spawn.entryId);
+    if (!exit || exit.status !== "available") {
+      throw new Error(`Sandbox production ${spawn.entryId} spawned without an open exit.`);
+    }
+    const race = state.factionRaces[spawn.faction];
+    const spec = sandboxTroopSpec(spawn.troopKind);
+    return spawn.unitIds.map((unitId, index) => {
+      const position = exit.positions[index]!;
+      const rallyWaypoints = spawn.rallyPoint === null
+        ? []
+        : findWorldPath(map, position, axialToWorld(spawn.rallyPoint));
+      const unit = createBattleUnit({
+        id: unitId,
+        faction: spawn.faction,
+        role: spec.roleByRace[race],
+        combatProfile: race,
+        squadId: spawn.squadId,
+        position,
+      });
+      return rallyWaypoints.length === 0
+        ? unit
+        : {
+            ...unit,
+            status: "moving" as const,
+            waypoints: rallyWaypoints,
+            navigationKey: `rally:${spawn.entryId}`,
+          };
+    });
+  });
+  for (const spawn of sandboxProductionStep.spawns) {
+    const exit = resolvedProductionExits.get(spawn.entryId);
+    if (!exit || exit.status !== "available") continue;
+    const race = state.factionRaces[spawn.faction];
+    const role = sandboxTroopSpec(spawn.troopKind).roleByRace[race];
+    spawn.unitIds.forEach((unitId, index) => emit({
+      type: "building-unit-spawned",
+      buildingId: spawn.buildingId,
+      faction: spawn.faction,
+      unitId,
+      race,
+      role,
+      position: exit.positions[index]!,
+      scheduledAt: spawn.scheduledAtSeconds,
+      spawnSequence: spawn.entrySequence * 10 + index,
+    }));
+  }
+  const producedUnits = [...legacyProducedUnits, ...sandboxProducedUnits];
   const unitsAfterProduction = [...statusSettledUnits, ...producedUnits];
   const miningAfterBuildingHealth = miningAtStart === null
     ? null
@@ -629,6 +749,18 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
         units: unitsAfterProduction,
         elapsedSeconds: state.matchElapsed,
         deltaSeconds: activeMatchDeltaSeconds,
+        reservedPopulationByFaction: sandboxProductionStep.populationAfter
+          ? {
+              verdant: sandboxProductionStep.populationAfter.verdant.reservedPopulation,
+              crimson: sandboxProductionStep.populationAfter.crimson.reservedPopulation,
+            }
+          : undefined,
+        readyBlockedPopulationByFaction: sandboxProductionStep.populationAfter
+          ? {
+              verdant: sandboxProductionStep.populationAfter.verdant.readyBlockedPopulation,
+              crimson: sandboxProductionStep.populationAfter.crimson.readyBlockedPopulation,
+            }
+          : undefined,
       })
     : {
         mining: miningAfterBuildingHealth,
@@ -681,6 +813,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       ...miningLedgerAtStart,
       ...sandboxMiningStep.ledgerEvents,
     ].slice(-MAX_MINING_LEDGER_EVENTS),
+    production: sandboxProductionStep.state,
     matchPolicy: state.matchPolicy,
     matchElapsed,
     buildings: buildingCleanup.buildings,
@@ -980,6 +1113,42 @@ function advanceTowardDestination(
   };
 }
 
+/** Advances explicit sandbox/rally waypoints without automatic targeting. */
+function advanceIssuedWaypoints(
+  unit: BattleUnit,
+  deltaSeconds: number,
+  map: BattlefieldMap,
+): BattleUnit {
+  if (
+    unit.health <= 0
+    || unit.status === "dead"
+    || unit.status !== "moving"
+    || unit.waypoints.length === 0
+  ) return unit;
+  const spec = unitSpecFor(unit.role, unit.combatProfile);
+  const moveSpeed = spec.moveSpeed
+    * unitStatusModifiers(unit.statusEffects).moveSpeedMultiplier;
+  const movement = advanceAlongWaypoints(
+    unit,
+    unit.waypoints,
+    moveSpeed * deltaSeconds,
+    map,
+    false,
+  );
+  if (movement.blocked && movement.traveledDistance <= MOVEMENT_EPSILON) {
+    return { ...unit, status: "idle", waypoints: [], navigationKey: null };
+  }
+  const arrived = movement.waypoints.length === 0;
+  return {
+    ...unit,
+    position: movement.position,
+    waypoints: movement.waypoints,
+    facing: movement.facing,
+    status: arrived ? "idle" : "moving",
+    navigationKey: arrived ? null : unit.navigationKey,
+  };
+}
+
 interface WaypointMovement {
   readonly position: WorldPoint;
   readonly waypoints: readonly WorldPoint[];
@@ -993,6 +1162,7 @@ function advanceAlongWaypoints(
   waypoints: readonly WorldPoint[],
   maximumDistance: number,
   map: BattlefieldMap,
+  enforceForwardProgress = true,
 ): WaypointMovement {
   let position = unit.position;
   let facing = unit.facing;
@@ -1017,7 +1187,9 @@ function advanceAlongWaypoints(
       waypoint,
       Math.min(remainingDistance, waypointDistance),
     );
-    const moved = walkableForwardPosition(unit.faction, position, requested, map);
+    const moved = enforceForwardProgress
+      ? walkableForwardPosition(unit.faction, position, requested, map)
+      : walkablePosition(requested, map);
     if (!moved) {
       blocked = true;
       break;
@@ -1534,6 +1706,15 @@ function walkableForwardPosition(
 ): WorldPoint | null {
   const position = clampToForwardProgress(faction, origin, requested, map);
   return getMapCell(map, worldToAxial(position))?.walkable ? position : null;
+}
+
+function walkablePosition(
+  requested: WorldPoint,
+  map: BattlefieldMap,
+): WorldPoint | null {
+  return getMapCell(map, worldToAxial(requested))?.walkable
+    ? requested
+    : null;
 }
 
 function moveTowardWalkableCellCenter(

@@ -18,6 +18,12 @@ import {
   createBattleUnit,
   type BattleState,
 } from "../game/battle";
+import type { SandboxBuildingConstructionPreview } from "../game/sandboxBattleTransactions";
+import {
+  sandboxBuildingSpec,
+  type SandboxBuildingSlot,
+} from "../game/sandboxCatalog";
+import { createSandboxProductionExitFan } from "../game/sandboxProductionExit";
 import { hasRace, legacyUndeadOpponentRaces } from "../game/factions";
 import type { FactionRaces } from "../game/types";
 import type { DeploymentPreview } from "../game/deployTransaction";
@@ -29,7 +35,11 @@ import {
   type DeployableKind,
   type TroopKind,
 } from "../game/rules";
-import { terrainHeightAtMap } from "../map/battlefield";
+import {
+  axialToWorld,
+  BATTLEFIELD_HEX_CIRCUMRADIUS,
+  terrainHeightAtMap,
+} from "../map/battlefield";
 import { battlefieldDefinitionFor } from "../map/battlefieldDefinition";
 import {
   BattleCamera,
@@ -71,6 +81,7 @@ interface BattlefieldCanvasProps {
   readonly bridgeRef: MutableRefObject<SceneInteractionBridge>;
   readonly deploymentKind?: DeployableKind | null;
   readonly deploymentPreview: (DeploymentPreview & { readonly kind: DeployableKind }) | null;
+  readonly sandboxConstructionPreview?: SandboxBuildingConstructionPreview | null;
   readonly cameraResetToken: number;
   readonly cameraViewStore: CameraViewStore;
   readonly onAssetProgress?: (progress: SceneAssetLoadProgress) => void;
@@ -93,6 +104,7 @@ export function BattlefieldCanvas({
   bridgeRef,
   deploymentKind = null,
   deploymentPreview,
+  sandboxConstructionPreview = null,
   cameraResetToken,
   cameraViewStore,
   onAssetProgress,
@@ -230,9 +242,134 @@ export function BattlefieldCanvas({
           race={resolvedFactionRaces.verdant}
         />
       )}
+      {sandboxConstructionPreview && (
+        <SandboxConstructionPreviewVisual
+          preview={sandboxConstructionPreview}
+          race={resolvedFactionRaces.verdant}
+        />
+      )}
       </BattlefieldSceneProvider>
     </Canvas>
   );
+}
+
+function SandboxConstructionPreviewVisual({
+  preview,
+  race,
+}: {
+  readonly preview: SandboxBuildingConstructionPreview;
+  readonly race: FactionRaces["verdant"];
+}) {
+  const battlefield = useBattlefieldDefinition();
+  const { map } = battlefield;
+  const roadReserve = battlefield.roadReserve ?? [];
+  const exitFan = useMemo(() => {
+    if (
+      !preview.coordinate
+      || !preview.slot
+      || !isSandboxProductionBuilding(preview.slot)
+    ) return null;
+    const result = createSandboxProductionExitFan(
+      map,
+      roadReserve,
+      preview.coordinate,
+    );
+    return result.ok ? result.fan : null;
+  }, [map, preview.coordinate, preview.slot, roadReserve]);
+
+  if (!preview.slot) return null;
+  const anchor = preview.position ?? preview.requestedPosition;
+  const kind = sandboxBuildingSpec(preview.slot).kind;
+  const color = preview.valid ? VALID_DEPLOYMENT_COLOR : "#ef625e";
+  const y = terrainHeightAtMap(map, anchor) + 0.075;
+  return (
+    <>
+      <group
+        name="sandbox-construction-preview"
+        position={[anchor.x, y, anchor.z]}
+      >
+        <mesh position={[0, 0.015, 0]} renderOrder={98}>
+          <cylinderGeometry args={[
+            BATTLEFIELD_HEX_CIRCUMRADIUS * 0.8,
+            BATTLEFIELD_HEX_CIRCUMRADIUS * 0.8,
+            0.045,
+            6,
+          ]} />
+          <meshBasicMaterial
+            color={color}
+            transparent
+            opacity={preview.valid ? 0.32 : 0.2}
+            depthTest={false}
+            depthWrite={false}
+          />
+        </mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={100}>
+          <ringGeometry args={[0.83, 0.93, 6]} />
+          <meshBasicMaterial
+            color={color}
+            transparent
+            opacity={0.95}
+            depthTest={false}
+            depthWrite={false}
+          />
+        </mesh>
+        <Suspense fallback={null}>
+          <DeploymentBuildingGhost
+            kind={kind}
+            race={race}
+            valid={preview.valid}
+          />
+        </Suspense>
+        {!preview.valid && <InvalidDeploymentMarker building />}
+      </group>
+      {exitFan?.candidates.map((coordinate, index) => {
+        const position = axialToWorld(coordinate);
+        const markerY = terrainHeightAtMap(map, position) + 0.095;
+        const markerColor = preview.valid
+          ? index === 0 ? "#f4cf67" : "#68dbe8"
+          : "#ef625e";
+        return (
+          <group
+            key={`${coordinate.q},${coordinate.r}`}
+            name={index === 0
+              ? "sandbox-production-exit-door"
+              : "sandbox-production-exit-reserve"}
+            position={[position.x, markerY, position.z]}
+          >
+            <mesh renderOrder={105}>
+              <cylinderGeometry args={[0.42, 0.42, 0.05, 6]} />
+              <meshBasicMaterial
+                color={markerColor}
+                transparent
+                opacity={0.72}
+                depthTest={false}
+                depthWrite={false}
+              />
+            </mesh>
+            <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={106}>
+              <ringGeometry args={[0.36, 0.46, 6]} />
+              <meshBasicMaterial
+                color={markerColor}
+                transparent
+                opacity={1}
+                depthTest={false}
+                depthWrite={false}
+              />
+            </mesh>
+          </group>
+        );
+      })}
+    </>
+  );
+}
+
+function isSandboxProductionBuilding(
+  slot: SandboxBuildingSlot,
+): boolean {
+  return slot === "barracks"
+    || slot === "archery-range"
+    || slot === "mage-tower"
+    || slot === "siege-workshop";
 }
 
 function DeploymentPreviewVisual({

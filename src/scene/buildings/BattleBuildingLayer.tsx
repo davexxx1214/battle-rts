@@ -14,9 +14,8 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { Suspense, useEffect, useMemo, useRef } from "react";
 
 import type { BattleState } from "../../game/battle";
-import type { BattleBuilding } from "../../game/buildings";
+import type { BattleBuilding, BattleBuildingKind } from "../../game/buildings";
 import { legacyUndeadOpponentRaces } from "../../game/factions";
-import type { BuildingKind } from "../../game/rules";
 import type { BattleRace, FactionRaces } from "../../game/types";
 import {
   axialToWorld,
@@ -77,7 +76,12 @@ function BattleBuildingVisual({
 }) {
   const { map } = useBattlefieldDefinition();
   const root = useRef<Object3D>(null);
-  const presentation = buildingPresentation(building, battle.elapsed, race);
+  const presentation = buildingPresentation(
+    building,
+    battle.elapsed,
+    race,
+    battle.production,
+  );
   const signal = latestBuildingSignal(building, battle.elapsed, battle.events);
   const hasBuildingDetails = battleBuildingDetailAssets(
     building.faction,
@@ -256,7 +260,7 @@ export function DeploymentBuildingGhost({
   race,
   valid,
 }: {
-  readonly kind: BuildingKind;
+  readonly kind: BattleBuildingKind;
   readonly race: BattleRace;
   readonly valid: boolean;
 }) {

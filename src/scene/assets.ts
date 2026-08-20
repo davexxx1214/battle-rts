@@ -467,6 +467,9 @@ export const BATTLE_BUILDING_ASSET_KEYS = {
   "guard-tower": "arrow-tower",
   "gold-mine": "mine",
   barracks: "barracks",
+  "archery-range": "barracks",
+  "mage-tower": "barracks",
+  "siege-workshop": "barracks",
 } as const satisfies Readonly<Record<
   BattleBuildingKind,
   "castle" | "arrow-tower" | "mine" | "barracks"
@@ -551,6 +554,9 @@ function createBattleBuildingDetails(color: "blue" | "red") {
         -0.56, 0.08, -0.58,
       ], -0.16),
     ],
+    "archery-range": [],
+    "mage-tower": [],
+    "siege-workshop": [],
   } as const;
 }
 
@@ -563,6 +569,9 @@ function createUndeadBuildingDetails(): Readonly<
     "guard-tower": [],
     "gold-mine": [],
     barracks: [],
+    "archery-range": [],
+    "mage-tower": [],
+    "siege-workshop": [],
   };
 }
 

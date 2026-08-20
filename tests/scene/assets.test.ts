@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { BattleBuildingKind } from "../../src/game/buildings";
+import { BATTLE_BUILDING_PRELOAD_KINDS } from "../../src/scene/SceneAssetPreloader";
 import {
   BATTLE_BUILDING_DETAIL_URLS,
   BATTLE_BUILDING_ASSET_KEYS,
@@ -23,6 +25,23 @@ import {
 } from "../../src/scene/assets";
 
 describe("scene asset presentation", () => {
+  it("maps and preloads every battle building for both presentation races", () => {
+    const kinds = Object.keys(BATTLE_BUILDING_ASSET_KEYS) as BattleBuildingKind[];
+
+    expect([...BATTLE_BUILDING_PRELOAD_KINDS].sort()).toEqual([...kinds].sort());
+    for (const kind of kinds) {
+      const assetKey = BATTLE_BUILDING_ASSET_KEYS[kind];
+      for (const faction of ["verdant", "crimson"] as const) {
+        for (const race of ["human", "undead"] as const) {
+          const asset = structureSceneAssetFor(faction, assetKey, race);
+          expect(asset.url).toMatch(/\.gl(?:tf|b)$/);
+          expect(asset.scale).toBeGreaterThan(0);
+          expect(battleBuildingDetailAssets(faction, kind, race)).toBeInstanceOf(Array);
+        }
+      }
+    }
+  });
+
   it("uses faction-matched KayKit assets for both fortified camps", () => {
     const functionalKinds = ["castle", "blacksmith", "barracks", "arrow-tower", "mine"] as const;
 
@@ -101,7 +120,7 @@ describe("scene asset presentation", () => {
   it("keeps only the used shipwreck from Tripo and mixes curated undead packs", () => {
     expect(sceneColorsForFaction("crimson", true)).toEqual(UNDEAD_SCENE_COLORS);
     expect(sceneColorsForFaction("verdant", true)).toEqual(FACTION_SCENE_COLORS.verdant);
-    for (const kind of ["castle", "arrow-tower", "guard-tower", "gold-mine", "barracks"] as const) {
+    for (const kind of Object.keys(BATTLE_BUILDING_ASSET_KEYS) as BattleBuildingKind[]) {
       expect(battleBuildingDetailAssets("crimson", kind, true)).toEqual([]);
     }
     expect(structureSceneAssetFor("crimson", "castle", true))

@@ -39,6 +39,7 @@ vi.mock("../../src/scene/buildings/BattleBuildingLayer", () => ({
     if (suspension.buildings) throw suspension.pending;
     return "buildings-stable";
   },
+  DeploymentBuildingGhost: () => "building-ghost-stable",
 }));
 
 vi.mock("../../src/scene/units/UnitModel", () => ({
@@ -67,6 +68,9 @@ import {
   createSceneInteractionBridge,
 } from "../../src/scene/BattlefieldCanvas";
 import { createBattleState, createBattleUnit } from "../../src/game/battle";
+import type { SandboxBuildingConstructionPreview } from "../../src/game/sandboxBattleTransactions";
+import { axialToWorld } from "../../src/map/battlefield";
+import { SANDBOX_LARGE_BUILD_ANCHORS } from "../../src/map/sandboxLargeBattlefield";
 import { createCameraViewStore } from "../../src/scene/camera/cameraViewStore";
 
 describe("battlefield asset loading boundaries", () => {
@@ -126,21 +130,46 @@ describe("battlefield asset loading boundaries", () => {
     expect(rendered).toContain("effects-stable");
     expect(rendered).not.toContain("statuses-stable");
   });
+
+  it("renders the snapped sandbox building ghost and its four production exits", () => {
+    const battle = createBattleState([], { modeId: "sandbox" });
+    const coordinate = SANDBOX_LARGE_BUILD_ANCHORS.verdant[0]!.coordinate;
+    const position = axialToWorld(coordinate);
+    const preview: SandboxBuildingConstructionPreview = {
+      valid: true,
+      reason: null,
+      requestedPosition: position,
+      position,
+      coordinate,
+      slot: "barracks",
+    };
+
+    const rendered = renderBattlefield(battle, preview);
+
+    expect(rendered).toContain("sandbox-construction-preview");
+    expect(rendered).toContain("building-ghost-stable");
+    expect(rendered.match(/sandbox-production-exit-door/g)).toHaveLength(1);
+    expect(rendered.match(/sandbox-production-exit-reserve/g)).toHaveLength(3);
+  });
 });
 
-function renderBattlefield(battle = createBattleState([
+function renderBattlefield(
+  battle = createBattleState([
     createBattleUnit({
       faction: "verdant",
       id: "asset-loading-probe",
       position: { x: 0, z: 0 },
       role: "knight",
     }),
-  ])): string {
+  ]),
+  sandboxConstructionPreview: SandboxBuildingConstructionPreview | null = null,
+): string {
   return renderToString(createElement(BattlefieldCanvas, {
     battle,
     bridgeRef: { current: createSceneInteractionBridge() },
     cameraResetToken: 0,
     cameraViewStore: createCameraViewStore(),
     deploymentPreview: null,
+    sandboxConstructionPreview,
   }));
 }

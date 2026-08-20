@@ -6,7 +6,12 @@ import {
   type BattleState,
 } from "../../src/game/battle";
 import { vacateMinePit } from "../../src/game/miningEconomy";
-import { startSandboxMineConstruction } from "../../src/game/sandboxBattleTransactions";
+import {
+  previewSandboxBuildingConstruction,
+  startSandboxMineConstruction,
+} from "../../src/game/sandboxBattleTransactions";
+import { axialToWorld } from "../../src/map/battlefield";
+import { SANDBOX_LARGE_BUILD_ANCHORS } from "../../src/map/sandboxLargeBattlefield";
 
 function withVerdantGold(battle: BattleState, gold: number): BattleState {
   return {
@@ -22,6 +27,26 @@ function withVerdantGold(battle: BattleState, gold: number): BattleState {
 }
 
 describe("sandbox battle construction transactions", () => {
+  it("previews the exact ordinary transaction without spending or mutating state", () => {
+    const initial = createInitialBattle({ modeId: "sandbox" });
+    const preview = previewSandboxBuildingConstruction(initial, {
+      faction: "verdant",
+      slot: "barracks",
+      worldPosition: axialToWorld(
+        SANDBOX_LARGE_BUILD_ANCHORS.verdant[0]!.coordinate,
+      ),
+    });
+    expect(preview).toMatchObject({
+      valid: true,
+      reason: null,
+      slot: "barracks",
+      coordinate: SANDBOX_LARGE_BUILD_ANCHORS.verdant[0]!.coordinate,
+    });
+    expect(initial.economy.accounts.verdant.gold).toBe(1_000);
+    expect(initial.buildings.some((building) => building.kind === "barracks")).toBe(false);
+    expect(initial.production?.queuesByBuildingId).toEqual({});
+  });
+
   it("atomically spends 400, reserves the pit, and produces only after 6+4 seconds", () => {
     const initial = createInitialBattle({ modeId: "sandbox" });
     const construction = startSandboxMineConstruction(initial, {

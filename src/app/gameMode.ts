@@ -3,7 +3,7 @@ import { battleModeDefinitionFor } from "../game/battleMode";
 import type { MatchPolicy } from "../game/rules";
 import type { FactionRaces } from "../game/types";
 
-export const VISIBLE_GAME_MODES = ["campaign", "normal", "arena"] as const;
+export const VISIBLE_GAME_MODES = ["campaign", "normal", "arena", "sandbox"] as const;
 export type GameMode = typeof VISIBLE_GAME_MODES[number];
 
 export const DEFAULT_GAME_MODE: GameMode = "normal";
@@ -17,6 +17,7 @@ export function factionRacesForGameMode(mode: GameMode): FactionRaces {
     campaign: DEFAULT_FACTION_RACES,
     normal: DEFAULT_FACTION_RACES,
     arena: DEFAULT_FACTION_RACES,
+    sandbox: DEFAULT_FACTION_RACES,
   };
   return defaults[mode];
 }

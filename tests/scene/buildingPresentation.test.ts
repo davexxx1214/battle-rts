@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createBattleBuilding } from "../../src/game/buildings";
 import { battleModeDefinitionFor } from "../../src/game/battleMode";
 import { stampBattleEvent } from "../../src/game/events";
+import type { SandboxProductionState } from "../../src/game/sandboxProductionQueue";
 import {
   BUILDING_HEALTH_BAR_LAYERS,
   buildingPresentation,
@@ -56,6 +57,107 @@ describe("building presentation state", () => {
 
     expect(buildingPresentation(barracks, 3, "undead").productionProgress).toBe(0.5);
     expect(buildingPresentation(barracks, 3, "human").productionProgress).toBe(0.6);
+  });
+
+  it("reads sandbox producer progress from the authoritative queue head", () => {
+    const producers = [
+      { kind: "barracks", troopKind: "spearman", progress: 3, expected: 0.5 },
+      { kind: "archery-range", troopKind: "archer", progress: 4, expected: 0.5 },
+      { kind: "mage-tower", troopKind: "mage", progress: 3, expected: 0.25 },
+      { kind: "siege-workshop", troopKind: "catapult", progress: 9, expected: 0.5 },
+    ] as const;
+
+    for (const [index, producer] of producers.entries()) {
+      const building = createBattleBuilding({
+        id: `sandbox-producer-${index}`,
+        kind: producer.kind,
+        faction: index % 2 === 0 ? "verdant" : "crimson",
+        coordinate: { q: index, r: 10 },
+        createdAt: 0,
+      }, battleModeDefinitionFor("sandbox").buildingLifecyclePolicy);
+      const production: SandboxProductionState = {
+        nextEntrySequence: 2,
+        queuesByBuildingId: {
+          [building.id]: {
+            buildingId: building.id,
+            faction: building.faction,
+            producer: producer.kind,
+            rallyPoint: null,
+            entries: [{
+              id: `${building.id}:production:1`,
+              sequence: 1,
+              troopKind: producer.troopKind,
+              status: "training",
+              trainingProgressSeconds: producer.progress,
+            }],
+          },
+        },
+      };
+
+      expect(buildingPresentation(building, 20, "human", production).productionProgress)
+        .toBe(producer.expected);
+    }
+  });
+
+  it("hides sandbox producer progress for empty, missing, or mismatched queues", () => {
+    const barracks = createBattleBuilding({
+      id: "sandbox-barracks-empty",
+      kind: "barracks",
+      faction: "verdant",
+      coordinate: { q: 0, r: 10 },
+      createdAt: 0,
+    }, battleModeDefinitionFor("sandbox").buildingLifecyclePolicy);
+    const empty: SandboxProductionState = {
+      nextEntrySequence: 1,
+      queuesByBuildingId: {
+        [barracks.id]: {
+          buildingId: barracks.id,
+          faction: barracks.faction,
+          producer: "barracks",
+          rallyPoint: null,
+          entries: [],
+        },
+      },
+    };
+    const missing: SandboxProductionState = {
+      nextEntrySequence: 1,
+      queuesByBuildingId: {},
+    };
+
+    expect(buildingPresentation(barracks, 20, "human", empty).productionProgress).toBeNull();
+    expect(buildingPresentation(barracks, 20, "human", missing).productionProgress).toBeNull();
+    expect(buildingPresentation({ ...barracks, kind: "archery-range" }, 20).productionProgress)
+      .toBeNull();
+  });
+
+  it("shows a completed sandbox queue head while its exit remains blocked", () => {
+    const workshop = createBattleBuilding({
+      id: "sandbox-workshop-blocked",
+      kind: "siege-workshop",
+      faction: "crimson",
+      coordinate: { q: 8, r: -10 },
+      createdAt: 0,
+    }, battleModeDefinitionFor("sandbox").buildingLifecyclePolicy);
+    const production: SandboxProductionState = {
+      nextEntrySequence: 2,
+      queuesByBuildingId: {
+        [workshop.id]: {
+          buildingId: workshop.id,
+          faction: workshop.faction,
+          producer: "siege-workshop",
+          rallyPoint: null,
+          entries: [{
+            id: "sandbox-workshop-blocked:production:1",
+            sequence: 1,
+            troopKind: "catapult",
+            status: "ready-blocked",
+            trainingProgressSeconds: 18,
+          }],
+        },
+      },
+    };
+
+    expect(buildingPresentation(workshop, 20, "undead", production).productionProgress).toBe(1);
   });
 
   it("shows a timed sandbox worksite before starting the mine production clock", () => {

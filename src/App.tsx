@@ -71,6 +71,17 @@ import {
   type DeployableKind,
 } from "./game/rules";
 import { createBenchmarkBattle, type BenchmarkSnapshot } from "./game/benchmark";
+import {
+  previewSandboxBuildingConstruction,
+  startSandboxBuildingConstruction,
+  type SandboxBuildingConstructionPreview,
+} from "./game/sandboxBattleTransactions";
+import {
+  sandboxBuildingSpec,
+  type SandboxBuildingSlot,
+  type SandboxTroopSlot,
+} from "./game/sandboxCatalog";
+import { enqueueSandboxBattleProduction } from "./game/sandboxProductionTransactions";
 import { battlefieldDefinitionFor } from "./map/battlefieldDefinition";
 import {
   BattlefieldCanvas,
@@ -102,6 +113,7 @@ import {
   type FieldPoint,
 } from "./ui/fieldInput";
 import { SandboxMinimap } from "./ui/minimap";
+import { SandboxCommandPanel } from "./ui/SandboxCommandPanel";
 
 interface AppState {
   readonly session: BattleSessionState;
@@ -184,6 +196,9 @@ export function App() {
       : undefined
   ), [activeCampaignMission, campaignProgress]);
   const [cursorWorld, setCursorWorld] = useState<WorldPoint | null>(null);
+  const [selectedSandboxBuilding, setSelectedSandboxBuilding] = useState<
+    SandboxBuildingSlot | null
+  >(null);
   const [cameraResetToken, setCameraResetToken] = useState(0);
   const [battleInstanceRevision, setBattleInstanceRevision] = useState(0);
   const [audioEnabled, setAudioEnabled] = useState(DEFAULT_AUDIO_ENABLED);
@@ -206,16 +221,28 @@ export function App() {
   const [deploymentDragOverBattlefield, setDeploymentDragOverBattlefield] = useState(false);
   const cameraViewStore = useMemo(createCameraViewStore, []);
   const clock = getBattleMatchClock(battle);
-  const deploymentEnabled = battlePhase === "engaged" && battle.winner === null;
+  const sandboxMode = battle.modeId === "sandbox";
+  const deploymentEnabled = !sandboxMode
+    && battlePhase === "engaged"
+    && battle.winner === null;
   const deploymentPreview = useMemo<DeploymentPreview | null>(() => (
-    app.selectedDeployable && cursorWorld
+    !sandboxMode && app.selectedDeployable && cursorWorld
       ? previewDeployment(app.session, {
           faction: "verdant",
           kind: app.selectedDeployable,
           worldPosition: cursorWorld,
         })
       : null
-  ), [app.selectedDeployable, app.session, cursorWorld]);
+  ), [app.selectedDeployable, app.session, cursorWorld, sandboxMode]);
+  const sandboxConstructionPreview = useMemo<SandboxBuildingConstructionPreview | null>(() => (
+    sandboxMode && selectedSandboxBuilding && cursorWorld
+      ? previewSandboxBuildingConstruction(battle, {
+          faction: "verdant",
+          slot: selectedSandboxBuilding,
+          worldPosition: cursorWorld,
+        })
+      : null
+  ), [battle, cursorWorld, sandboxMode, selectedSandboxBuilding]);
   const playUiCue = useBattleAudio({
     battle,
     resetToken: battleInstanceRevision,
@@ -275,22 +302,29 @@ export function App() {
     const cancel = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setCursorWorld(null);
+      setSelectedSandboxBuilding(null);
       setApp((current) => current.selectedDeployable
         ? {
             ...current,
             selectedDeployable: null,
             feedback: { tone: "info", message: "已取消部署" },
           }
-        : current);
+        : selectedSandboxBuilding
+          ? {
+              ...current,
+              feedback: { tone: "info", message: "已取消建造" },
+            }
+          : current);
     };
     window.addEventListener("keydown", cancel);
     return () => window.removeEventListener("keydown", cancel);
-  }, []);
+  }, [selectedSandboxBuilding]);
 
   const resetBattle = useCallback(() => {
     deploymentDragRef.current = null;
     setDeploymentDragActive(false);
     setDeploymentDragOverBattlefield(false);
+    setSelectedSandboxBuilding(null);
     setMobileMatchSetupOpen(false);
     setApp(createAppState(
       benchmarkMode,
@@ -319,6 +353,7 @@ export function App() {
     deploymentDragRef.current = null;
     setDeploymentDragActive(false);
     setDeploymentDragOverBattlefield(false);
+    setSelectedSandboxBuilding(null);
     const reloadSceneAssets = requiresSceneAssetReload(
       mode,
       nextMode,
@@ -412,7 +447,12 @@ export function App() {
     setApp((current) => ({
       ...current,
       session: beginBattleSession(current.session),
-      feedback: { tone: "info", message: "选择左侧卡牌，然后点击己方势力范围部署" },
+      feedback: {
+        tone: "info",
+        message: current.session.battle.modeId === "sandbox"
+          ? "选择左侧建筑，然后点击合法建造格开始沙盒经营"
+          : "选择左侧卡牌，然后点击己方势力范围部署",
+      },
     }));
   }, [assetsReady]);
 
@@ -443,6 +483,66 @@ export function App() {
       };
     });
   }, [campaignDeployables, playUiCue]);
+
+  const selectSandboxBuilding = useCallback((slot: SandboxBuildingSlot) => {
+    if (!sandboxMode || battlePhase !== "engaged" || battle.winner !== null) return;
+    playUiCue("select");
+    setCursorWorld(null);
+    setApp((current) => ({ ...current, selectedDeployable: null }));
+    const cancelling = selectedSandboxBuilding === slot;
+    setSelectedSandboxBuilding(cancelling ? null : slot);
+    const display = sandboxBuildingSpec(slot).displayByRace[factionRaces.verdant];
+    setApp((current) => ({
+      ...current,
+      feedback: {
+        tone: "info",
+        message: cancelling
+          ? "已取消建造"
+          : slot === "mine"
+            ? `已选择${display.name}：点击受控矿坑`
+            : `已选择${display.name}：点击己方合法建造锚点`,
+      },
+    }));
+  }, [
+    battle.winner,
+    battlePhase,
+    factionRaces.verdant,
+    playUiCue,
+    sandboxMode,
+    selectedSandboxBuilding,
+  ]);
+
+  const enqueueSandboxProduction = useCallback((
+    buildingId: string,
+    troopKind: SandboxTroopSlot,
+  ) => {
+    playUiCue("select");
+    setApp((current) => {
+      if (current.session.phase !== "engaged") return current;
+      const result = enqueueSandboxBattleProduction(current.session.battle, {
+        faction: "verdant",
+        buildingId,
+        troopKind,
+      });
+      if (!result.ok) {
+        return {
+          ...current,
+          feedback: {
+            tone: "error",
+            message: sandboxActionReasonLabel(result.reason),
+          },
+        };
+      }
+      return {
+        ...current,
+        session: { ...current.session, battle: result.battle },
+        feedback: {
+          tone: "success",
+          message: `训练已入队，支付 ${result.costCharged} 金币`,
+        },
+      };
+    });
+  }, [playUiCue]);
 
   const resolveDeploymentDragTarget = useCallback((client: FieldPoint) => {
     const battlefield = battlefieldRef.current;
@@ -710,10 +810,10 @@ export function App() {
       setCursorWorld(null);
       return;
     }
-    if (!app.selectedDeployable) return;
+    if (!app.selectedDeployable && !selectedSandboxBuilding) return;
     const point = localPointer(event);
     setCursorWorld(bridgeRef.current.screenToWorld(point.x, point.y));
-  }, [app.selectedDeployable]);
+  }, [app.selectedDeployable, selectedSandboxBuilding]);
 
   const handlePointerUp = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (
@@ -738,14 +838,49 @@ export function App() {
       }
     }
 
-    if (
-      !shouldStartFieldPointerInteraction(event.button, event.target as Element | null)
-      || !app.selectedDeployable
-      || !deploymentEnabled
-    ) return;
+    if (!shouldStartFieldPointerInteraction(event.button, event.target as Element | null)) return;
+    const placingSandboxBuilding = sandboxMode
+      && selectedSandboxBuilding !== null
+      && battlePhase === "engaged"
+      && battle.winner === null;
+    if (!placingSandboxBuilding && (!app.selectedDeployable || !deploymentEnabled)) return;
     const point = localPointer(event);
     const worldPosition = bridgeRef.current.screenToWorld(point.x, point.y);
     if (!worldPosition) return;
+    if (placingSandboxBuilding) {
+      const slot = selectedSandboxBuilding;
+      setCursorWorld(null);
+      setApp((current) => {
+        if (current.session.phase !== "engaged" || current.session.battle.modeId !== "sandbox") {
+          return current;
+        }
+        const result = startSandboxBuildingConstruction(current.session.battle, {
+          faction: "verdant",
+          slot,
+          worldPosition,
+        });
+        if (!result.ok) {
+          return {
+            ...current,
+            feedback: {
+              tone: "error",
+              message: sandboxActionReasonLabel(result.reason),
+            },
+          };
+        }
+        return {
+          ...current,
+          session: { ...current.session, battle: result.battle },
+          feedback: {
+            tone: "success",
+            message: `施工已开始，支付 ${result.costCharged} 金币${
+              result.usedEmergencyPermit ? "（已使用紧急采矿许可）" : ""
+            }`,
+          },
+        };
+      });
+      return;
+    }
     setApp((current) => {
       const kind = current.selectedDeployable;
       if (!kind || current.session.phase !== "engaged") return current;
@@ -767,7 +902,15 @@ export function App() {
         feedback: { tone: "success", message: "部署成功，金币已扣除" },
       };
     });
-  }, [app.selectedDeployable, campaignDeployables, deploymentEnabled]);
+  }, [
+    app.selectedDeployable,
+    battle.winner,
+    battlePhase,
+    campaignDeployables,
+    deploymentEnabled,
+    sandboxMode,
+    selectedSandboxBuilding,
+  ]);
 
   const handlePointerCancel = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType !== "touch") return;
@@ -787,14 +930,20 @@ export function App() {
     setDeploymentDragActive(false);
     setDeploymentDragOverBattlefield(false);
     setCursorWorld(null);
+    setSelectedSandboxBuilding(null);
     setApp((current) => current.selectedDeployable
       ? {
           ...current,
           selectedDeployable: null,
           feedback: { tone: "info", message: "已取消部署" },
         }
-      : current);
-  }, []);
+      : selectedSandboxBuilding
+        ? {
+            ...current,
+            feedback: { tone: "info", message: "已取消建造" },
+          }
+        : current);
+  }, [selectedSandboxBuilding]);
 
   const fieldFeedback = deploymentDragActive
     ? !deploymentDragOverBattlefield
@@ -804,6 +953,15 @@ export function App() {
         : deploymentPreview
           ? { tone: "error" as const, message: deploymentReasonLabel(deploymentPreview.reason) }
           : { tone: "info" as const, message: "继续拖到战场格子" }
+    : sandboxConstructionPreview
+      ? sandboxConstructionPreview.valid
+        ? { tone: "success" as const, message: "格子可建造，左键确认施工" }
+        : {
+            tone: "error" as const,
+            message: sandboxActionReasonLabel(
+              sandboxConstructionPreview.reason ?? "invalid-request",
+            ),
+          }
     : deploymentPreview && !deploymentPreview.valid
       ? { tone: "error" as const, message: deploymentReasonLabel(deploymentPreview.reason) }
       : app.feedback;
@@ -991,7 +1149,15 @@ export function App() {
         inert={!assetsReady}
         aria-hidden={!assetsReady}
       >
-        {battle.winner === null && (
+        {battle.winner === null && (sandboxMode ? (
+          <SandboxCommandPanel
+            battle={battle}
+            selectedBuilding={selectedSandboxBuilding}
+            disabled={battlePhase !== "engaged"}
+            onSelectBuilding={selectSandboxBuilding}
+            onEnqueueProduction={enqueueSandboxProduction}
+          />
+        ) : (
           <DeploymentRail
             session={app.session}
             selectedKind={app.selectedDeployable}
@@ -999,12 +1165,12 @@ export function App() {
             onSelect={selectDeployable}
             onDragDeploy={handleDeploymentDrag}
           />
-        )}
+        ))}
 
         <div
           ref={battlefieldRef}
           className={styles.battlefield}
-          data-deploying={app.selectedDeployable !== null}
+          data-deploying={app.selectedDeployable !== null || selectedSandboxBuilding !== null}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerLeave={() => setCursorWorld(null)}
@@ -1023,6 +1189,7 @@ export function App() {
             deploymentPreview={app.selectedDeployable && deploymentPreview
               ? { kind: app.selectedDeployable, ...deploymentPreview }
               : null}
+            sandboxConstructionPreview={sandboxConstructionPreview}
             cameraResetToken={cameraResetToken}
             cameraViewStore={cameraViewStore}
             onAssetProgress={setAssetLoadProgress}
@@ -1051,20 +1218,34 @@ export function App() {
             <span>方向键平移</span>
             <span>滚轮缩放</span>
             <span>中键旋转</span>
-            <span>{app.selectedDeployable ? "左键部署 · 右键取消" : "从左侧选择部署单位"}</span>
+            <span>{selectedSandboxBuilding
+              ? "左键建造 · 右键取消"
+              : app.selectedDeployable
+                ? "左键部署 · 右键取消"
+                : sandboxMode
+                  ? "从左侧选择建筑或训练单位"
+                  : "从左侧选择部署单位"}</span>
           </div>
           <div className={styles.objectiveFlag} data-tone={fieldFeedback?.tone ?? "info"}>
-            <span>{app.selectedDeployable
-              ? "DEPLOYMENT MODE"
+            <span>{selectedSandboxBuilding
+              ? "CONSTRUCTION MODE"
+              : app.selectedDeployable
+                ? "DEPLOYMENT MODE"
               : activeCampaignMission
                 ? activeCampaignMission.title
                 : battleMatchupLabel(factionRaces)}</span>
             <strong aria-live="polite">{battlePhase === "briefing"
               ? activeCampaignMission?.primaryObjective
                 ?? matchBriefingLabel(clock.remainingSeconds)
-              : fieldFeedback?.message ?? (app.selectedDeployable
-                ? "移动到己方区域，绿色预览表示可以部署"
-                : "选择建筑或兵种进入部署模式")}</strong>
+              : fieldFeedback?.message ?? (selectedSandboxBuilding
+                ? selectedSandboxBuilding === "mine"
+                  ? "点击受控矿坑开始建造金矿"
+                  : "点击己方合法建造锚点开始施工"
+                : app.selectedDeployable
+                  ? "移动到己方区域，绿色预览表示可以部署"
+                  : sandboxMode
+                    ? "建造资源与生产建筑，兵种只从对应建筑训练"
+                    : "选择建筑或兵种进入部署模式")}</strong>
           </div>
           {hasUndeadTerritory && battlePhase === "briefing" && (
             <aside className={styles.undeadRosterPanel} aria-label="亡灵兵种概览">
@@ -1308,6 +1489,39 @@ function matchBriefingLabel(remainingSeconds: number | null): string {
   if (remainingSeconds === null) return "点击交战，开始无限攻防";
   const minutes = remainingSeconds / 60;
   return `点击交战，开始${Number.isInteger(minutes) ? minutes : minutes.toFixed(1)}分钟攻防`;
+}
+
+function sandboxActionReasonLabel(reason: string): string {
+  const labels: Readonly<Record<string, string>> = {
+    "sandbox-mode-required": "此操作只在沙盒模式可用",
+    "match-over": "战斗已经结束",
+    "unknown-building-slot": "未知建筑类型",
+    "invalid-building-slot": "此位置不能建造该建筑",
+    "unknown-pit": "未找到该矿坑",
+    "outside-battlefield": "目标位于地图边界外",
+    "invalid-zone": "这里不是合法建造区",
+    "pit-state-unavailable": "这里没有可用矿坑",
+    "pit-not-controlled": "需要先控制该矿坑",
+    "pit-depleted": "该矿坑已经枯竭",
+    "pit-occupied": "该矿坑已有金矿",
+    "occupied-hex": "这个格子已被占用",
+    "duplicate-building-id": "建筑编号冲突，请重试",
+    "invalid-request": "建造请求无效",
+    "missing-prerequisite": "需要一座已完成且存活的兵营",
+    "building-limit-reached": "该建筑已达到数量上限",
+    "production-exit-unavailable": "该位置没有可用的生产出口",
+    "would-block-production-exit": "此建筑会封死已有生产出口",
+    "building-not-found": "生产建筑不存在或已被摧毁",
+    "faction-mismatch": "不能操作敌方建筑",
+    "invalid-troop": "未知兵种",
+    "wrong-producer": "该兵种必须从对应建筑训练",
+    "queue-full": "该建筑的三项生产队列已满",
+    "invalid-population": "人口状态异常",
+    "population-cap": "人口预留将超过 100 上限",
+    "insufficient-gold": "金币不足",
+    "building-not-operational": "建筑尚未完工",
+  };
+  return labels[reason] ?? `操作失败：${reason}`;
 }
 
 function winnerLabel(winner: BattleState["winner"], factionRaces: FactionRaces): string {

@@ -4,6 +4,11 @@ import {
 } from "../../game/buildings";
 import type { BattleEvent } from "../../game/events";
 import { barracksRulesForRace, GAME_RULES } from "../../game/rules";
+import { sandboxTroopSpec } from "../../game/sandboxCatalog";
+import {
+  sandboxProductionQueueFor,
+  type SandboxProductionState,
+} from "../../game/sandboxProductionQueue";
 import type { BattleRace } from "../../game/types";
 
 export type BuildingHealthTone = "healthy" | "warning" | "critical";
@@ -65,6 +70,7 @@ export function buildingPresentation(
   building: BattleBuilding,
   elapsed: number,
   race: BattleRace = "human",
+  sandboxProduction: SandboxProductionState | null = null,
 ): BuildingPresentation {
   const healthRatio = clamp01(building.health / building.maxHealth);
   const constructionPhase = battleBuildingConstructionPhaseAt(building, elapsed);
@@ -86,7 +92,12 @@ export function buildingPresentation(
         )
       : 1,
     destructionProgress: destructionProgress(building, elapsed),
-    productionProgress: productionProgress(building, elapsed, race),
+    productionProgress: productionProgress(
+      building,
+      elapsed,
+      race,
+      sandboxProduction,
+    ),
     kingVisible: building.kind === "castle"
       && building.castleCombat?.activatedAt !== null,
   };
@@ -115,6 +126,7 @@ function productionProgress(
   building: BattleBuilding,
   elapsed: number,
   race: BattleRace,
+  sandboxProduction: SandboxProductionState | null,
 ): number | null {
   if (
     building.kind === "castle"
@@ -123,6 +135,31 @@ function productionProgress(
     || building.status !== "active"
     || battleBuildingConstructionPhaseAt(building, elapsed) !== "operational"
   ) return null;
+  if (
+    building.kind === "barracks"
+    || building.kind === "archery-range"
+    || building.kind === "mage-tower"
+    || building.kind === "siege-workshop"
+  ) {
+    if (sandboxProduction !== null) {
+      const queue = sandboxProductionQueueFor(sandboxProduction, building.id);
+      if (
+        !queue
+        || queue.faction !== building.faction
+        || queue.producer !== building.kind
+      ) return null;
+      const head = queue.entries[0];
+      if (!head) return null;
+      if (head.status === "ready-blocked") return 1;
+      return clamp01(
+        head.trainingProgressSeconds
+        / Math.max(0.001, sandboxTroopSpec(head.troopKind).trainingSeconds),
+      );
+    }
+    // These kinds do not exist in legacy modes. Without an authoritative
+    // sandbox queue they must not inherit the legacy barracks auto-spawn clock.
+    if (building.kind !== "barracks") return null;
+  }
   const barracksRules = barracksRulesForRace(race);
   const config = building.kind === "gold-mine"
     ? {
