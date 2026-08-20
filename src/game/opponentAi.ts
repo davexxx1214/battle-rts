@@ -1,4 +1,5 @@
 import type { BattleSessionState } from "./battleSessionState";
+import { resolveBattleRuntimeContext } from "./battleRuntime";
 import {
   deployBattleSessionEntity,
   getDeployableAvailability,
@@ -17,10 +18,10 @@ import {
 import { resolveBattleRace } from "./factions";
 import type { WorldPoint } from "./types";
 import {
-  BATTLEFIELD_MAP,
   axialToWorld,
   hexDistance,
   type BattlefieldCell,
+  type BattlefieldMap,
 } from "../map/battlefield";
 
 const OPPONENT_FACTION = "crimson" as const;
@@ -30,9 +31,17 @@ export function advanceOpponentAi(
   difficulty: AiDifficulty,
 ): BattleSessionState {
   if (session.phase !== "engaged" || session.battle.winner !== null) return session;
+  const runtime = resolveBattleRuntimeContext(session.battle);
+  if (runtime.mode.opponentPolicy.kind !== "legacy-deployment-ai") return session;
   const strategy = GAME_RULES.opponentAi.strategies[difficulty];
   const preferredKind = selectOpponentKind(session, strategy, difficulty);
-  const deployment = chooseDeployment(session, preferredKind, strategy, difficulty);
+  const deployment = chooseDeployment(
+    session,
+    preferredKind,
+    strategy,
+    difficulty,
+    runtime.map,
+  );
   const kind = deployment?.kind;
   const worldPosition = deployment?.worldPosition;
   if (!kind || !worldPosition) return session;
@@ -49,6 +58,7 @@ function chooseDeployment(
   preferredKind: DeployableKind,
   strategy: OpponentAiStrategy,
   difficulty: AiDifficulty,
+  map: BattlefieldMap,
 ): { readonly kind: DeployableKind; readonly worldPosition: WorldPoint } | null {
   const availability = getDeployableAvailability(
     session,
@@ -60,6 +70,7 @@ function chooseDeployment(
       session,
       preferredKind,
       strategy.deploymentPosture,
+      map,
     );
     if (worldPosition) return { kind: preferredKind, worldPosition };
   } else if (
@@ -73,6 +84,7 @@ function chooseDeployment(
     session,
     troopKind,
     strategy.deploymentPosture,
+    map,
   );
   return worldPosition ? { kind: troopKind, worldPosition } : null;
 }
@@ -81,11 +93,12 @@ function chooseDeploymentPosition(
   session: BattleSessionState,
   kind: DeployableKind,
   posture: AiDeploymentPosture,
+  map: BattlefieldMap,
 ): WorldPoint | null {
   const comparator = kind === "gold-mine"
-    ? compareDefensiveCells
-    : deploymentComparator(posture);
-  const cell = [...BATTLEFIELD_MAP.cells]
+    ? compareDefensiveCells(map)
+    : deploymentComparator(posture, map);
+  const cell = [...map.cells]
     .sort(comparator)
     .find((candidate) => previewDeployment(session, {
       faction: OPPONENT_FACTION,
@@ -132,37 +145,50 @@ function selectTroopKind(
 
 function deploymentComparator(
   posture: AiDeploymentPosture,
+  map: BattlefieldMap,
 ): (first: BattlefieldCell, second: BattlefieldCell) => number {
-  if (posture === "defensive") return compareDefensiveCells;
-  if (posture === "balanced") return compareBalancedCells;
-  return compareAggressiveCells;
+  if (posture === "defensive") return compareDefensiveCells(map);
+  if (posture === "balanced") return compareBalancedCells(map);
+  return compareAggressiveCells(map);
 }
 
-function compareDefensiveCells(first: BattlefieldCell, second: BattlefieldCell): number {
-  const castle = BATTLEFIELD_MAP.castles[OPPONENT_FACTION];
-  return hexDistance(first, castle) - hexDistance(second, castle)
-    || first.q - second.q
-    || first.r - second.r;
+function compareDefensiveCells(
+  map: BattlefieldMap,
+): (first: BattlefieldCell, second: BattlefieldCell) => number {
+  return (first, second) => {
+    const castle = map.castles[OPPONENT_FACTION];
+    return hexDistance(first, castle) - hexDistance(second, castle)
+      || first.q - second.q
+      || first.r - second.r;
+  };
 }
 
-function compareBalancedCells(first: BattlefieldCell, second: BattlefieldCell): number {
-  const ownCastle = BATTLEFIELD_MAP.castles[OPPONENT_FACTION];
-  const enemyCastle = BATTLEFIELD_MAP.castles.verdant;
-  const firstBalance = Math.abs(
-    hexDistance(first, ownCastle) - hexDistance(first, enemyCastle),
-  );
-  const secondBalance = Math.abs(
-    hexDistance(second, ownCastle) - hexDistance(second, enemyCastle),
-  );
-  return firstBalance - secondBalance
-    || hexDistance(first, enemyCastle) - hexDistance(second, enemyCastle)
-    || first.q - second.q
-    || first.r - second.r;
+function compareBalancedCells(
+  map: BattlefieldMap,
+): (first: BattlefieldCell, second: BattlefieldCell) => number {
+  return (first, second) => {
+    const ownCastle = map.castles[OPPONENT_FACTION];
+    const enemyCastle = map.castles.verdant;
+    const firstBalance = Math.abs(
+      hexDistance(first, ownCastle) - hexDistance(first, enemyCastle),
+    );
+    const secondBalance = Math.abs(
+      hexDistance(second, ownCastle) - hexDistance(second, enemyCastle),
+    );
+    return firstBalance - secondBalance
+      || hexDistance(first, enemyCastle) - hexDistance(second, enemyCastle)
+      || first.q - second.q
+      || first.r - second.r;
+  };
 }
 
-function compareAggressiveCells(first: BattlefieldCell, second: BattlefieldCell): number {
-  const enemyCastle = BATTLEFIELD_MAP.castles.verdant;
-  return hexDistance(first, enemyCastle) - hexDistance(second, enemyCastle)
-    || first.q - second.q
-    || first.r - second.r;
+function compareAggressiveCells(
+  map: BattlefieldMap,
+): (first: BattlefieldCell, second: BattlefieldCell) => number {
+  return (first, second) => {
+    const enemyCastle = map.castles.verdant;
+    return hexDistance(first, enemyCastle) - hexDistance(second, enemyCastle)
+      || first.q - second.q
+      || first.r - second.r;
+  };
 }

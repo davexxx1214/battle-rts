@@ -20,7 +20,7 @@ import { useEffect, useMemo, useRef } from "react";
 
 import type { BattleUnit, UnitRole, WorldPoint } from "../../game/battle";
 import type { BattleRace } from "../../game/types";
-import { terrainHeightAt } from "../../map/battlefield";
+import { terrainHeightAtMap } from "../../map/battlefield";
 import { sceneColorsForFaction } from "../assets";
 import { unitStatusModelTint } from "../effects/statusEffectPresentation";
 import { CatapultUnitModel } from "./CatapultUnitModel";
@@ -43,6 +43,7 @@ import {
   faceHealthBarToCamera,
   shouldShowUnitHealthBar,
 } from "./unitHealthPresentation";
+import { useBattlefieldDefinition } from "../battlefieldSceneContext";
 
 const CHARACTER_SCALE = 0.27;
 const FAR_ANIMATION_STEP_SECONDS = 1 / 15;
@@ -94,6 +95,7 @@ function CharacterUnitModel({
   readonly race: BattleRace;
   readonly ghostValid?: boolean;
 }) {
+  const { map } = useBattlefieldDefinition();
   const role = unit.role as CharacterRole;
   const asset: CharacterSceneAsset = characterSceneAssetFor(
     role,
@@ -239,7 +241,7 @@ function CharacterUnitModel({
       if (ghostValid !== undefined) {
         root.current.position.set(
           unit.position.x,
-          terrainHeightAt(unit.position) + 0.08,
+          terrainHeightAtMap(map, unit.position) + 0.08,
           unit.position.z,
         );
         root.current.rotation.y = unit.facing;
@@ -252,7 +254,7 @@ function CharacterUnitModel({
         );
         root.current.position.y = MathUtils.damp(
           root.current.position.y,
-          terrainHeightAt(unit.position) + 0.08,
+          terrainHeightAtMap(map, unit.position) + 0.08,
           11,
           delta,
         );
@@ -282,7 +284,7 @@ function CharacterUnitModel({
   return (
     <group
       ref={root}
-      position={[unit.position.x, terrainHeightAt(unit.position) + 0.08, unit.position.z]}
+      position={[unit.position.x, terrainHeightAtMap(map, unit.position) + 0.08, unit.position.z]}
       rotation={[0, unit.facing, 0]}
     >
       <primitive object={model} />

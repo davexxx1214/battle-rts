@@ -13,7 +13,9 @@ import {
 } from "./rules";
 import { createFactionRaces } from "./factions";
 import type { Faction, FactionRaces } from "./types";
-import { BATTLEFIELD_MAP, axialToWorld } from "../map/battlefield";
+import { axialToWorld, type BattlefieldMap } from "../map/battlefield";
+import { battleModeDefinitionFor } from "./battleMode";
+import { battlefieldDefinitionFor } from "../map/battlefieldDefinition";
 
 export const ARENA_STARTING_GOLD_PER_FACTION = 7800;
 
@@ -27,18 +29,22 @@ const ARENA_ROSTER = [
 const FACTIONS = ["verdant", "crimson"] as const satisfies readonly Faction[];
 
 export function createArenaBattle(factionRaces: FactionRaces = createFactionRaces()): BattleState {
+  const map = battlefieldDefinitionFor(
+    battleModeDefinitionFor("arena").defaultMapId,
+  ).map;
   return createBattleState(
-    FACTIONS.flatMap((faction) => createArenaFaction(faction, factionRaces)),
-    { factionRaces, matchPolicy: MATCH_POLICIES.arena },
+    FACTIONS.flatMap((faction) => createArenaFaction(faction, factionRaces, map)),
+    { modeId: "arena", factionRaces, matchPolicy: MATCH_POLICIES.arena },
   );
 }
 
 function createArenaFaction(
   faction: Faction,
   factionRaces: FactionRaces,
+  map: BattlefieldMap,
 ): readonly BattleUnit[] {
-  const center = axialToWorld(BATTLEFIELD_MAP.center);
-  const frontCells = BATTLEFIELD_MAP.cells
+  const center = axialToWorld(map.center);
+  const frontCells = map.cells
     .filter((cell) => cell.territory === faction && cell.walkable)
     .sort((first, second) => (
       distanceSquared(axialToWorld(first), center)

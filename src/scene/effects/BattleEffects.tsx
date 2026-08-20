@@ -21,8 +21,9 @@ import { useEffect, useMemo, useRef } from "react";
 import type { BattleState, UnitRole, WorldPoint } from "../../game/battle";
 import type { BattleProjectile } from "../../game/projectiles";
 import { unitSpecFor } from "../../game/rules";
-import { terrainHeightAt } from "../../map/battlefield";
+import { terrainHeightAtMap } from "../../map/battlefield";
 import { boneDragonTerrainSupportHeight } from "../boneDragonPresentation";
+import { useBattlefieldDefinition } from "../battlefieldSceneContext";
 import { FixedObjectPool } from "./effectPool";
 import {
   BATTLE_FX_SEQUENCES,
@@ -246,6 +247,7 @@ function PoisonCloudMuzzle({
   readonly sequence: number;
   readonly textures: BattleFxTextures["poison"];
 }) {
+  const { map } = useBattlefieldDefinition();
   const root = useRef<Object3D>(null);
   const cloud = useRef<Sprite>(null);
   const ring = useRef<Sprite>(null);
@@ -259,7 +261,7 @@ function PoisonCloudMuzzle({
   const directionZ = length > 1e-8 ? offsetZ / length : 1;
   const startX = origin.x + directionX * 0.2;
   const startZ = origin.z + directionZ * 0.2;
-  const startY = terrainHeightAt(origin) + POISON_CLOUD_LAUNCH_HEIGHT;
+  const startY = terrainHeightAtMap(map, origin) + POISON_CLOUD_LAUNCH_HEIGHT;
   useFrame(({ clock }) => {
     bornAt.current ??= clock.elapsedTime - age;
     const progress = MathUtils.clamp(
@@ -324,6 +326,7 @@ function PoisonCloudImpact({
   readonly sequence: number;
   readonly textures: BattleFxTextures["poison"];
 }) {
+  const { map } = useBattlefieldDefinition();
   const root = useRef<Object3D>(null);
   const cloud = useRef<Sprite>(null);
   const burst = useRef<Sprite>(null);
@@ -332,7 +335,7 @@ function PoisonCloudImpact({
   const burstMaterial = useRef<SpriteMaterial>(null);
   const ringMaterial = useRef<SpriteMaterial>(null);
   const bornAt = useRef<number | null>(null);
-  const baseY = terrainHeightAt(position) + 0.68;
+  const baseY = terrainHeightAtMap(map, position) + 0.68;
   useFrame(({ clock }) => {
     bornAt.current ??= clock.elapsedTime - age;
     const progress = MathUtils.clamp(
@@ -411,6 +414,7 @@ function FrostBreathCone({
   readonly age: number;
   readonly textures: BattleFxTextures["frost"];
 }) {
+  const { map } = useBattlefieldDefinition();
   const jetVertical = useRef<Mesh>(null);
   const jetHorizontal = useRef<Mesh>(null);
   const burstVertical = useRef<Mesh>(null);
@@ -432,7 +436,7 @@ function FrostBreathCone({
     [origin, spec.attackRange, target],
   );
   const facing = Math.atan2(aim.directionX, aim.directionZ);
-  const mouthHeight = boneDragonTerrainSupportHeight(origin, facing)
+  const mouthHeight = boneDragonTerrainSupportHeight(origin, facing, map)
     + FROST_BREATH_MOUTH_HEIGHT;
   const coneHalfAngle = (spec.coneAngleDegrees ?? 0) * Math.PI / 360;
   useFrame(({ clock }) => {
@@ -638,10 +642,11 @@ function FrostImpactBurst({
   readonly age: number;
   readonly texture: Texture;
 }) {
+  const { map } = useBattlefieldDefinition();
   const sprite = useRef<Sprite>(null);
   const material = useRef<SpriteMaterial>(null);
   const bornAt = useRef<number | null>(null);
-  const height = terrainHeightAt(position) + 0.78;
+  const height = terrainHeightAtMap(map, position) + 0.78;
   useFrame(({ clock }) => {
     bornAt.current ??= clock.elapsedTime - age;
     const progress = MathUtils.clamp((clock.elapsedTime - bornAt.current) / 0.32, 0, 1);
@@ -718,6 +723,7 @@ function LightningStrike({
   readonly sequence: number;
   readonly textures: BattleFxTextures["lightning"];
 }) {
+  const { map } = useBattlefieldDefinition();
   const boltA = useRef<Mesh>(null);
   const boltB = useRef<Mesh>(null);
   const glowA = useRef<Mesh>(null);
@@ -733,7 +739,7 @@ function LightningStrike({
   const flareMaterial = useRef<SpriteMaterial>(null);
   const burstMaterial = useRef<SpriteMaterial>(null);
   const bornAt = useRef<number | null>(null);
-  const groundY = terrainHeightAt(position) + LIGHTNING_STRIKE_GROUND_OFFSET;
+  const groundY = terrainHeightAtMap(map, position) + LIGHTNING_STRIKE_GROUND_OFFSET;
   useFrame(({ clock }) => {
     bornAt.current ??= clock.elapsedTime - age;
     const progress = MathUtils.clamp(
@@ -938,6 +944,7 @@ function ProjectilePool({
   readonly projectiles: readonly BattleProjectile[];
   readonly fxTextures: BattleFxTextures;
 }) {
+  const { map } = useBattlefieldDefinition();
   const arrowShafts = useRef<InstancedMesh>(null);
   const arrowHeads = useRef<InstancedMesh>(null);
   const arrowFletchings = useRef<InstancedMesh>(null);
@@ -991,8 +998,8 @@ function ProjectilePool({
             projectileFlightHeight(
               "mage",
               progress,
-              terrainHeightAt(projectile.origin),
-              terrainHeightAt(projectile.destination),
+              terrainHeightAtMap(map, projectile.origin),
+              terrainHeightAtMap(map, projectile.destination),
               POISON_CLOUD_LAUNCH_HEIGHT,
               POISON_CLOUD_LANDING_HEIGHT,
             ),
@@ -1021,8 +1028,8 @@ function ProjectilePool({
           projectileFlightHeight(
             "ranger",
             progress,
-            terrainHeightAt(projectile.origin),
-            terrainHeightAt(projectile.destination),
+            terrainHeightAtMap(map, projectile.origin),
+            terrainHeightAtMap(map, projectile.destination),
             projectile.sourceType === "building" ? 2.65 : 0.92,
             0.92,
           ),
@@ -1050,8 +1057,8 @@ function ProjectilePool({
           projectileFlightHeight(
             "catapult",
             progress,
-            terrainHeightAt(projectile.origin),
-            terrainHeightAt(projectile.destination),
+            terrainHeightAtMap(map, projectile.origin),
+            terrainHeightAtMap(map, projectile.destination),
             0.85,
             0.85,
           ),
@@ -1076,8 +1083,8 @@ function ProjectilePool({
           projectileFlightHeight(
             "mage",
             progress,
-            terrainHeightAt(projectile.origin),
-            terrainHeightAt(projectile.destination),
+            terrainHeightAtMap(map, projectile.origin),
+            terrainHeightAtMap(map, projectile.destination),
             0.92,
             0.92,
           ),
@@ -1201,6 +1208,7 @@ function AnimatedFxSprite({
   readonly scale: number;
   readonly rotation?: number;
 }) {
+  const { map } = useBattlefieldDefinition();
   const sprite = useRef<Sprite>(null);
   const material = useRef<SpriteMaterial>(null);
   const bornAt = useRef<number | null>(null);
@@ -1217,7 +1225,7 @@ function AnimatedFxSprite({
   return (
     <sprite
       ref={sprite}
-      position={[position.x, terrainHeightAt(position) + height, position.z]}
+      position={[position.x, terrainHeightAtMap(map, position) + height, position.z]}
       scale={[scale * 0.84, scale, 1]}
       renderOrder={28}
     >
@@ -1234,6 +1242,7 @@ function AnimatedFxSprite({
 }
 
 function HitSpark({ position, age }: { readonly position: WorldPoint; readonly age: number }) {
+  const { map } = useBattlefieldDefinition();
   const root = useRef<Object3D>(null);
   const material = useRef<MeshBasicMaterial>(null);
   const bornAt = useRef<number | null>(null);
@@ -1247,7 +1256,7 @@ function HitSpark({ position, age }: { readonly position: WorldPoint; readonly a
     if (material.current) material.current.opacity = 1 - progress;
   });
   return (
-    <group ref={root} position={[position.x, terrainHeightAt(position) + 0.82, position.z]}>
+    <group ref={root} position={[position.x, terrainHeightAtMap(map, position) + 0.82, position.z]}>
       {[0, Math.PI / 3, -Math.PI / 3].map((rotation) => (
         <mesh rotation={[0, 0, rotation]} key={rotation}>
           <planeGeometry args={[0.52, 0.055]} />
@@ -1267,6 +1276,7 @@ function DamageNumber({
   readonly position: WorldPoint;
   readonly age: number;
 }) {
+  const { map } = useBattlefieldDefinition();
   const sprite = useRef<Sprite>(null);
   const material = useRef<SpriteMaterial>(null);
   const bornAt = useRef<number | null>(null);
@@ -1290,7 +1300,7 @@ function DamageNumber({
     return result;
   }, [amount]);
   useEffect(() => () => texture.dispose(), [texture]);
-  const baseHeight = terrainHeightAt(position) + 1.32;
+  const baseHeight = terrainHeightAtMap(map, position) + 1.32;
   useFrame(({ clock }) => {
     bornAt.current ??= clock.elapsedTime - age;
     const progress = MathUtils.clamp((clock.elapsedTime - bornAt.current) / 0.5, 0, 1);
@@ -1322,6 +1332,7 @@ function ImpactFlash({
   readonly role: UnitRole;
   readonly age: number;
 }) {
+  const { map } = useBattlefieldDefinition();
   const root = useRef<Mesh>(null);
   const material = useRef<MeshBasicMaterial>(null);
   const bornAt = useRef<number | null>(null);
@@ -1337,7 +1348,7 @@ function ImpactFlash({
   return (
     <mesh
       ref={root}
-      position={[position.x, terrainHeightAt(position) + 0.32, position.z]}
+      position={[position.x, terrainHeightAtMap(map, position) + 0.32, position.z]}
       rotation={[-Math.PI / 2, 0, 0]}
     >
       <ringGeometry args={[0.28, 0.42, role === "mage" ? 20 : role === "catapult" ? 12 : 7]} />

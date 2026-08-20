@@ -66,7 +66,10 @@ export function createBenchmarkBattle(unitCount = 80): BattleState {
 
 function createBenchmarkFaction(faction: Faction, count: number) {
   const roles: readonly UnitRole[] = ["knight", "ranger", "mage", "catapult"];
-  const cells = BATTLEFIELD_MAP.cells.filter((cell) => (
+  const map = battlefieldDefinitionFor(
+    battleModeDefinitionFor("normal").defaultMapId,
+  ).map;
+  const cells = map.cells.filter((cell) => (
     cell.territory === faction && cell.walkable
   ));
   if (cells.length === 0) {
@@ -96,4 +99,6 @@ function round(value: number): number {
 }
 import { createBattleState, createBattleUnit, type BattleState } from "./battle";
 import type { Faction, UnitRole } from "./types";
-import { BATTLEFIELD_MAP, axialToWorld } from "../map/battlefield";
+import { axialToWorld } from "../map/battlefield";
+import { battleModeDefinitionFor } from "./battleMode";
+import { battlefieldDefinitionFor } from "../map/battlefieldDefinition";

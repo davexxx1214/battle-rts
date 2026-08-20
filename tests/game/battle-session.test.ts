@@ -28,6 +28,32 @@ describe("battle session gate", () => {
     }
   });
 
+  it("keeps normal mode isolated across a sandbox session and applies mode economies", () => {
+    const firstNormal = createInitialBattle();
+    const sandbox = createInitialBattle({ modeId: "sandbox" });
+    const secondNormal = createInitialBattle();
+
+    expect(firstNormal).toMatchObject({
+      modeId: "normal",
+      mapId: "legacy-v1",
+    });
+    expect(firstNormal.economy.accounts.verdant.gold).toBe(500);
+    expect(sandbox).toMatchObject({
+      modeId: "sandbox",
+      mapId: "legacy-v1",
+    });
+    expect(sandbox.economy.accounts.verdant.gold).toBe(1_000);
+    expect(secondNormal).toEqual(firstNormal);
+    expect(secondNormal).not.toBe(firstNormal);
+
+    const recoveredNormal = advanceBattleSession(firstNormal, "engaged", 28, 0.1);
+    const waitedSandbox = advanceBattleSession(sandbox, "engaged", 6_000, 0.1);
+
+    expect(recoveredNormal.economy.accounts.verdant.gold).toBe(600);
+    expect(waitedSandbox.matchElapsed).toBeCloseTo(600);
+    expect(waitedSandbox.economy.accounts.verdant.gold).toBe(1_000);
+  });
+
   it("keeps the battle frozen until the player engages", () => {
     const initial = createInitialBattle();
 
@@ -85,6 +111,17 @@ describe("battle session gate", () => {
     expect(afterDecision.buildings.some(({ faction, kind }) => (
       faction === "crimson" && (kind === "gold-mine" || kind === "barracks")
     ))).toBe(false);
+  });
+
+  it("does not run the legacy deployment AI in sandbox mode", () => {
+    const initial = createInitialBattle({ modeId: "sandbox" });
+    const advanced = advanceBattleSession(initial, "engaged", 40, 0.1);
+
+    expect(advanced.matchElapsed).toBeCloseTo(4);
+    expect(advanced.deploymentCounts).toEqual(initial.deploymentCounts);
+    expect(advanced.nextDeploymentSequence).toBe(0);
+    expect(advanced.buildings).toEqual(initial.buildings);
+    expect(advanced.economy).toEqual(initial.economy);
   });
 
   it("runs hard opponent decisions on the original one-second boundaries", () => {

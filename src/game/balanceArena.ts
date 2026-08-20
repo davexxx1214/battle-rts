@@ -14,7 +14,8 @@ import {
 } from "./rules";
 import { createFactionRaces } from "./factions";
 import type { BattleRace, Faction, FactionRaces } from "./types";
-import { BATTLEFIELD_MAP, axialToWorld } from "../map/battlefield";
+import { axialToWorld } from "../map/battlefield";
+import { resolveBattleRuntimeContext } from "./battleRuntime";
 
 export type ArenaLane = "west" | "east" | "alternating";
 
@@ -104,6 +105,7 @@ export function runBalanceArenaMatch(
   let session: BattleSessionState = {
     phase: "engaged",
     battle: withInitialGold(createInitialBattle({
+      modeId: "infinite",
       factionRaces,
       // The balance harness owns its stop time so short and long probes do not
       // trigger a gameplay-mode timeout inside the final simulation step.
@@ -123,7 +125,12 @@ export function runBalanceArenaMatch(
         const result = deployBattleSessionEntity(session, {
           faction,
           kind,
-          worldPosition: deploymentPosition(faction, lane, deployments[faction]),
+          worldPosition: deploymentPosition(
+            session.battle,
+            faction,
+            lane,
+            deployments[faction],
+          ),
         });
         if (!result.ok) continue;
         session = result.state;
@@ -282,6 +289,7 @@ function withInitialGold(state: BattleState, gold: number): BattleState {
 }
 
 function deploymentPosition(
+  state: BattleState,
   faction: Faction,
   lane: ArenaLane,
   deploymentCount: number,
@@ -289,7 +297,9 @@ function deploymentPosition(
   const bridgeId = lane === "alternating"
     ? deploymentCount % 2 === 0 ? "west" : "east"
     : lane;
-  const bridge = BATTLEFIELD_MAP.bridges.find((candidate) => candidate.id === bridgeId);
+  const bridge = resolveBattleRuntimeContext(state).map.bridges.find(
+    (candidate) => candidate.id === bridgeId,
+  );
   if (!bridge) throw new Error(`Arena requires the ${bridgeId} bridge.`);
   return axialToWorld(bridge.landings[faction][0]);
 }

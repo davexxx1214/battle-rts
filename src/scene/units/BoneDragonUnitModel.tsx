@@ -21,7 +21,7 @@ import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.j
 
 import type { BattleUnit, WorldPoint } from "../../game/battle";
 import type { BattleRace } from "../../game/types";
-import { terrainHeightAt } from "../../map/battlefield";
+import { terrainHeightAtMap } from "../../map/battlefield";
 import {
   sceneColorsForFaction,
   UNDEAD_BONE_DRAGON_ASSET,
@@ -33,6 +33,7 @@ import {
   faceHealthBarToCamera,
   shouldShowUnitHealthBar,
 } from "./unitHealthPresentation";
+import { useBattlefieldDefinition } from "../battlefieldSceneContext";
 
 const CORPSE_VISIBLE_SECONDS = 6.85;
 const ATTACK_POSE_SECONDS = 0.62;
@@ -65,6 +66,7 @@ export function BoneDragonUnitModel({
   readonly race: BattleRace;
   readonly ghostValid?: boolean;
 }) {
+  const { map } = useBattlefieldDefinition();
   const gltf = useLoader(GLTFLoader, UNDEAD_BONE_DRAGON_ASSET.url);
   const root = useRef<Object3D>(null);
   const healthRoot = useRef<Object3D>(null);
@@ -92,7 +94,7 @@ export function BoneDragonUnitModel({
   const statusTint = ghostValid === undefined && unit.health > 0
     ? unitStatusModelTint(unit.statusEffects, battleTime)
     : null;
-  const supportHeight = boneDragonTerrainSupportHeight(unit.position, unit.facing);
+  const supportHeight = boneDragonTerrainSupportHeight(unit.position, unit.facing, map);
   const animationName = unit.status === "moving"
     ? "Walk"
     : unit.status === "dead" ? "Rest_Pose" : "Idle";
@@ -243,7 +245,7 @@ export function BoneDragonUnitModel({
   const healthWidth = 1.22 * healthRatio;
   const factionColors = sceneColorsForFaction(unit.faction, race);
   const ring = unitBaseRingGeometry(unit.role);
-  const groundY = terrainHeightAt(unit.position) + 0.06;
+  const groundY = terrainHeightAtMap(map, unit.position) + 0.06;
   return (
     <>
       {ghostValid === undefined && unit.health > 0 && (

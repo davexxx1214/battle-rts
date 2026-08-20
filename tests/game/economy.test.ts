@@ -3,12 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
   advanceEconomy,
   createEconomyState,
+  grantGold,
   getMatchResourceMultiplier,
   getPassiveRecoveryWaitSeconds,
   getMatchClock,
   trySpendGold,
   type EconomyState,
 } from "../../src/game/economy";
+import { SANDBOX_ECONOMY_POLICY } from "../../src/game/battleMode";
 import { MATCH_POLICIES } from "../../src/game/rules";
 
 describe("gold economy", () => {
@@ -168,5 +170,45 @@ describe("gold economy", () => {
     const initial = createEconomyState();
     expect(trySpendGold(initial, "verdant", 50)).toEqual({ state: initial, spent: false });
     expect(trySpendGold(initial, "verdant", 600)).toEqual({ state: initial, spent: false });
+  });
+
+  it("starts sandbox at 1000 and explicitly disables passive income", () => {
+    const initial = createEconomyState(SANDBOX_ECONOMY_POLICY);
+    const advanced = advanceEconomy(
+      initial,
+      0,
+      600,
+      MATCH_POLICIES.sandbox,
+      SANDBOX_ECONOMY_POLICY,
+    );
+
+    expect(initial.accounts.verdant.gold).toBe(1_000);
+    expect(initial.accounts.crimson.gold).toBe(1_000);
+    expect(advanced.state).toBe(initial);
+    expect(advanced.newlyFullFactions).toEqual([]);
+  });
+
+  it("uses 20-gold wallet steps and a 5000 cap for sandbox mine income", () => {
+    const initial = createEconomyState(SANDBOX_ECONOMY_POLICY);
+    const spent = trySpendGold(initial, "verdant", 60, SANDBOX_ECONOMY_POLICY);
+    expect(spent.spent).toBe(true);
+    expect(spent.state.accounts.verdant.gold).toBe(940);
+    expect(trySpendGold(initial, "verdant", 50, SANDBOX_ECONOMY_POLICY).spent)
+      .toBe(false);
+
+    const nearCap: EconomyState = {
+      ...initial,
+      accounts: {
+        ...initial.accounts,
+        verdant: { ...initial.accounts.verdant, gold: 4_980 },
+      },
+    };
+    const grant = grantGold(nearCap, "verdant", 80, SANDBOX_ECONOMY_POLICY);
+    expect(grant).toMatchObject({
+      creditedAmount: 20,
+      wastedAmount: 60,
+      becameFull: true,
+    });
+    expect(grant.state.accounts.verdant.gold).toBe(5_000);
   });
 });

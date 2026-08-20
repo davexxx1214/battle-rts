@@ -727,6 +727,7 @@ export function completeCampaignMission(
 
 export function createCampaignBattle(mission: CampaignMission): BattleState {
   const battle = createInitialBattle({
+    modeId: "campaign",
     matchPolicy: MATCH_POLICIES.campaign,
     factionRaces: {
       verdant: mission.playerRace,

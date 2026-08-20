@@ -19,9 +19,8 @@ import { legacyUndeadOpponentRaces } from "../../game/factions";
 import type { BuildingKind } from "../../game/rules";
 import type { BattleRace, FactionRaces } from "../../game/types";
 import {
-  BATTLEFIELD_MAP,
   axialToWorld,
-  terrainHeightAt,
+  terrainHeightAtMap,
 } from "../../map/battlefield";
 import {
   CASTLE_BATTLE_FLAG_ASSET,
@@ -38,6 +37,7 @@ import {
   type BuildingHealthTone,
   type BuildingSignal,
 } from "./buildingPresentation";
+import { useBattlefieldDefinition } from "../battlefieldSceneContext";
 
 export function BattleBuildingLayer({
   battle,
@@ -75,6 +75,7 @@ function BattleBuildingVisual({
   readonly building: BattleBuilding;
   readonly race: BattleRace;
 }) {
+  const { map } = useBattlefieldDefinition();
   const root = useRef<Object3D>(null);
   const presentation = buildingPresentation(building, battle.elapsed, race);
   const signal = latestBuildingSignal(building, battle.elapsed, battle.events);
@@ -83,7 +84,7 @@ function BattleBuildingVisual({
     building.kind,
     race,
   ).length > 0;
-  const y = terrainHeightAt(building.position) + 0.03;
+  const y = terrainHeightAtMap(map, building.position) + 0.03;
   useFrame(() => {
     if (!root.current) return;
     const deployProgress = signal?.kind === "deploy"
@@ -429,12 +430,13 @@ function CastleBattleStandard({
   readonly faction: BattleBuilding["faction"];
   readonly race: BattleRace;
 }) {
+  const { map } = useBattlefieldDefinition();
   const isUndead = race === "undead";
   const asset = isUndead ? UNDEAD_CASTLE_BATTLE_FLAG_ASSET : CASTLE_BATTLE_FLAG_ASSET;
   const gltf = useLoader(GLTFLoader, asset.url);
   const model = useMemo(() => prepareModel(gltf.scene, asset.scale), [asset.scale, gltf.scene]);
-  const approach = axialToWorld(BATTLEFIELD_MAP.castleApproaches[faction]);
-  const castle = axialToWorld(BATTLEFIELD_MAP.castles[faction]);
+  const approach = axialToWorld(map.castleApproaches[faction]);
+  const castle = axialToWorld(map.castles[faction]);
   return (
     <group position={[approach.x - castle.x, 0.08, approach.z - castle.z]}>
       <primitive object={model} />

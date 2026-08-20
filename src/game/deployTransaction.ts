@@ -5,6 +5,7 @@ import {
 } from "./battle";
 import { createFormationSlots } from "./formation";
 import type { BattleSessionState } from "./battleSessionState";
+import { resolveBattleRuntimeContext } from "./battleRuntime";
 import { createBattleBuilding } from "./buildings";
 import {
   areWorldPointsConnected,
@@ -33,10 +34,10 @@ import { resolveBattleRace } from "./factions";
 import type { BattleRace } from "./types";
 import type { Faction, WorldPoint } from "./types";
 import {
-  BATTLEFIELD_MAP,
   axialToWorld,
   coordinateKey,
   getMapCell,
+  type BattlefieldMap,
   type HexCoordinate,
 } from "../map/battlefield";
 
@@ -44,6 +45,7 @@ export type DeploymentFailureReason =
   | BuildingPlacementFailureReason
   | "insufficient-gold"
   | "building-limit"
+  | "direct-deployment-disabled"
   | "deployment-closed"
   | "match-over"
   | "unwalkable-hex";
@@ -113,6 +115,10 @@ export function getDeployableAvailability(
     return { enabled: false, reason: "deployment-closed" };
   }
   const state = session.battle;
+  const runtime = resolveBattleRuntimeContext(state);
+  if (runtime.mode.acquisitionPolicy.kind !== "direct-deployment") {
+    return { enabled: false, reason: "direct-deployment-disabled" };
+  }
   if (state.winner !== null || getBattleMatchClock(state).timedOut) {
     return { enabled: false, reason: "match-over" };
   }
@@ -126,7 +132,7 @@ export function getDeployableAvailability(
       building.faction === faction && building.kind === kind
     )).length;
     if (existing >= maximum) return { enabled: false, reason: "building-limit" };
-    if (!hasBuildableHex(BATTLEFIELD_MAP, faction, state.buildingOccupancy, state.units)) {
+    if (!hasBuildableHex(runtime.map, faction, state.buildingOccupancy, state.units)) {
       return { enabled: false, reason: "no-buildable-hex" };
     }
   }
@@ -138,13 +144,14 @@ export function previewDeployment(
   request: DeploymentRequest,
 ): DeploymentPreview {
   const state = session.battle;
+  const { map } = resolveBattleRuntimeContext(state);
   const availability = getDeployableAvailability(
     session,
     request.faction,
     request.kind,
   );
   if (!availability.enabled) {
-    return invalidPreview(availability.reason, request.worldPosition);
+    return invalidPreview(availability.reason, request.worldPosition, map);
   }
 
   const deploymentId = deploymentEntityId(
@@ -153,33 +160,33 @@ export function previewDeployment(
     state.nextDeploymentSequence + 1,
   );
   if (isBuildingDeployable(request.kind)) {
-    const placement = requestBuildingPlacement(BATTLEFIELD_MAP, state.buildingOccupancy, {
+    const placement = requestBuildingPlacement(map, state.buildingOccupancy, {
       buildingId: deploymentId,
       kind: request.kind,
       faction: request.faction,
       worldPosition: request.worldPosition,
     }, state.units);
     if (!placement.ok) {
-      return invalidPreview(placement.reason, request.worldPosition);
+      return invalidPreview(placement.reason, request.worldPosition, map);
     }
     return validPreview(placement.coordinate, [], request.worldPosition);
   }
 
-  const coordinate = resolveWorldHex(BATTLEFIELD_MAP, request.worldPosition);
+  const coordinate = resolveWorldHex(map, request.worldPosition);
   if (!coordinate) {
-    return invalidPreview("outside-battlefield", request.worldPosition);
+    return invalidPreview("outside-battlefield", request.worldPosition, map);
   }
-  const cell = getMapCell(BATTLEFIELD_MAP, coordinate);
-  if (!cell) return invalidPreview("outside-battlefield", request.worldPosition);
+  const cell = getMapCell(map, coordinate);
+  if (!cell) return invalidPreview("outside-battlefield", request.worldPosition, map);
   if (cell.territory !== null && cell.territory !== request.faction) {
-    return invalidPreview("enemy-territory", request.worldPosition);
+    return invalidPreview("enemy-territory", request.worldPosition, map);
   }
   if (cell.territory !== request.faction || !cell.walkable) {
-    return invalidPreview("unwalkable-hex", request.worldPosition);
+    return invalidPreview("unwalkable-hex", request.worldPosition, map);
   }
   const occupiedBuildings = occupiedBuildingKeys(state);
   if (occupiedBuildings.has(coordinateKey(coordinate))) {
-    return invalidPreview("occupied-hex", request.worldPosition);
+    return invalidPreview("occupied-hex", request.worldPosition, map);
   }
   const unitPositions = planTroopPositions(
     request.faction,
@@ -187,9 +194,10 @@ export function previewDeployment(
     coordinate,
     occupiedBuildings,
     resolveBattleRace(state.factionRaces, request.faction, state.undeadOpponent),
+    map,
   );
   if (!unitPositions.ok) {
-    return invalidPreview(unitPositions.reason, request.worldPosition);
+    return invalidPreview(unitPositions.reason, request.worldPosition, map);
   }
   return validPreview(coordinate, unitPositions.positions, request.worldPosition);
 }
@@ -202,16 +210,17 @@ export function validDeploymentCoordinates(
   const availability = getDeployableAvailability(session, faction, kind);
   if (!availability.enabled) return [];
   const state = session.battle;
+  const { map } = resolveBattleRuntimeContext(state);
   if (isBuildingDeployable(kind)) {
     return validBuildingDeploymentCoordinates(
-      BATTLEFIELD_MAP,
+      map,
       faction,
       state.buildingOccupancy,
       state.units,
     );
   }
   const occupiedBuildings = occupiedBuildingKeys(state);
-  return BATTLEFIELD_MAP.cells
+  return map.cells
     .filter((cell) => (
       cell.territory === faction
       && cell.walkable
@@ -221,6 +230,7 @@ export function validDeploymentCoordinates(
         cell,
         occupiedBuildings,
         resolveBattleRace(state.factionRaces, faction, state.undeadOpponent),
+        map,
       ).ok
     ))
     .map(({ q, r }) => ({ q, r }));
@@ -231,6 +241,7 @@ export function deployBattleSessionEntity(
   request: DeploymentRequest,
 ): DeploymentResult {
   const state = session.battle;
+  const runtime = resolveBattleRuntimeContext(state);
   const preview = previewDeployment(session, request);
   if (!preview.valid) return { ok: false, state: session, reason: preview.reason };
 
@@ -245,6 +256,7 @@ export function deployBattleSessionEntity(
     state.economy,
     request.faction,
     deploymentCostForRace(request.kind, race),
+    runtime.mode.economyPolicy,
   );
   // previewDeployment already checked this. Keeping the guard here makes the
   // transaction fail closed if economy validation ever becomes stricter.
@@ -258,7 +270,7 @@ export function deployBattleSessionEntity(
   let squads = state.squads;
   let successDetails: DeploymentSuccessDetails;
   if (isBuildingDeployable(request.kind)) {
-    const placement = requestBuildingPlacement(BATTLEFIELD_MAP, occupancy, {
+    const placement = requestBuildingPlacement(runtime.map, occupancy, {
       buildingId: deploymentId,
       kind: request.kind,
       faction: request.faction,
@@ -276,7 +288,7 @@ export function deployBattleSessionEntity(
       faction: request.faction,
       coordinate: preview.coordinate,
       createdAt: state.matchElapsed,
-    })];
+    }, runtime.mode.buildingLifecyclePolicy)];
     successDetails = {
       entityType: "building",
       kind: request.kind,
@@ -378,11 +390,12 @@ function planTroopPositions(
   coordinate: HexCoordinate,
   occupiedBuildings: ReadonlySet<string>,
   race: BattleRace,
+  map: BattlefieldMap,
 ): { readonly ok: true; readonly positions: readonly WorldPoint[] }
   | { readonly ok: false; readonly reason: DeploymentFailureReason } {
   const center = axialToWorld(coordinate);
   const destination = axialToWorld(
-    BATTLEFIELD_MAP.castleApproaches[faction === "verdant" ? "crimson" : "verdant"],
+    map.castleApproaches[faction === "verdant" ? "crimson" : "verdant"],
   );
   const facing = faction === "verdant" ? Math.PI : 0;
   const positions = createFormationSlots(
@@ -391,9 +404,9 @@ function planTroopPositions(
     facing,
   );
   for (const position of positions) {
-    const memberCoordinate = resolveWorldHex(BATTLEFIELD_MAP, position);
+    const memberCoordinate = resolveWorldHex(map, position);
     if (!memberCoordinate) return { ok: false, reason: "outside-battlefield" };
-    const cell = getMapCell(BATTLEFIELD_MAP, memberCoordinate);
+    const cell = getMapCell(map, memberCoordinate);
     if (!cell) return { ok: false, reason: "outside-battlefield" };
     if (cell.territory !== null && cell.territory !== faction) {
       return { ok: false, reason: "enemy-territory" };
@@ -401,7 +414,7 @@ function planTroopPositions(
     if (cell.territory !== faction || !cell.walkable) {
       return { ok: false, reason: "unwalkable-hex" };
     }
-    if (!areWorldPointsConnected(BATTLEFIELD_MAP, position, destination)) {
+    if (!areWorldPointsConnected(map, position, destination)) {
       return { ok: false, reason: "unwalkable-hex" };
     }
     if (occupiedBuildings.has(coordinateKey(memberCoordinate))) {
@@ -425,8 +438,9 @@ function occupiedBuildingKeys(
 function invalidPreview(
   reason: DeploymentFailureReason,
   point: WorldPoint,
+  map: BattlefieldMap,
 ): DeploymentPreview {
-  const coordinate = resolveWorldHex(BATTLEFIELD_MAP, point);
+  const coordinate = resolveWorldHex(map, point);
   return {
     valid: false,
     reason,

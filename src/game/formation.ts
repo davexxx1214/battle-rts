@@ -1,6 +1,11 @@
 import type { BattleUnit } from "./battle";
 import type { WorldPoint } from "./types";
-import { getBattlefieldCell, worldToAxial } from "../map/battlefield";
+import {
+  BATTLEFIELD_MAP,
+  getMapCell,
+  worldToAxial,
+  type BattlefieldMap,
+} from "../map/battlefield";
 
 export function createFormationSlots(
   count: number,
@@ -29,6 +34,7 @@ export function createFormationSlots(
 export function separateLivingAllies(
   units: readonly BattleUnit[],
   minimumDistance = 0.65,
+  map: BattlefieldMap = BATTLEFIELD_MAP,
 ): BattleUnit[] {
   const positions = units.map((unit) => ({ ...unit.position }));
 
@@ -59,8 +65,8 @@ export function separateLivingAllies(
         x: positions[second]!.x + normalX * correction,
         z: positions[second]!.z + normalZ * correction,
       };
-      if (getBattlefieldCell(worldToAxial(firstCandidate))?.walkable) positions[first] = firstCandidate;
-      if (getBattlefieldCell(worldToAxial(secondCandidate))?.walkable) positions[second] = secondCandidate;
+      if (getMapCell(map, worldToAxial(firstCandidate))?.walkable) positions[first] = firstCandidate;
+      if (getMapCell(map, worldToAxial(secondCandidate))?.walkable) positions[second] = secondCandidate;
     }
   }
 

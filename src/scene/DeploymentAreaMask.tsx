@@ -11,9 +11,10 @@ import {
 
 import {
   axialToWorld,
-  terrainHeightAt,
+  terrainHeightAtMap,
   type HexCoordinate,
 } from "../map/battlefield";
+import { useBattlefieldDefinition } from "./battlefieldSceneContext";
 
 export const VALID_DEPLOYMENT_COLOR = "#168a55";
 export const VALID_DEPLOYMENT_EDGE_COLOR = "#0b6f43";
@@ -23,6 +24,7 @@ export function DeploymentAreaMask({
 }: {
   readonly coordinates: readonly HexCoordinate[];
 }) {
+  const { map } = useBattlefieldDefinition();
   const instances = useRef<InstancedMesh>(null);
   const edges = useRef<InstancedMesh>(null);
   const geometry = useMemo(() => {
@@ -69,7 +71,7 @@ export function DeploymentAreaMask({
       const world = axialToWorld(coordinate);
       transform.position.set(
         world.x,
-        terrainHeightAt(world) + 0.065,
+        terrainHeightAtMap(map, world) + 0.065,
         world.z,
       );
       transform.rotation.set(0, 0, 0);
@@ -80,7 +82,7 @@ export function DeploymentAreaMask({
     });
     mesh.instanceMatrix.needsUpdate = true;
     edgeMesh.instanceMatrix.needsUpdate = true;
-  }, [coordinates]);
+  }, [coordinates, map]);
 
   if (coordinates.length === 0) return null;
   return (

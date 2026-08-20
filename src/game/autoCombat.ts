@@ -3,6 +3,7 @@ import {
   BATTLEFIELD_MAP,
   coordinateKey,
   worldToAxial,
+  type BattlefieldMap,
   type HexCoordinate,
 } from "../map/battlefield";
 import type { BattleBuilding } from "./buildings";
@@ -27,14 +28,19 @@ export interface AutomaticTargetSelectionInput {
   readonly unit: AutomaticCombatUnit;
   readonly units: readonly AutomaticCombatUnit[];
   readonly buildings: readonly BattleBuilding[];
+  readonly map?: BattlefieldMap;
 }
 
 const POSITION_EPSILON = 1e-9;
-const castleRouteCache = new Map<string, readonly HexCoordinate[]>();
+const castleRouteCache = new WeakMap<
+  BattlefieldMap,
+  Map<string, readonly HexCoordinate[]>
+>();
 
 export function selectAutomaticTarget(
   input: AutomaticTargetSelectionInput,
 ): AutomaticCombatTarget | null {
+  const map = input.map ?? BATTLEFIELD_MAP;
   const targets: AutomaticCombatTarget[] = [
     ...input.units.filter((candidate) => (
       candidate.id !== input.unit.id
@@ -54,12 +60,13 @@ export function selectAutomaticTarget(
       )) ?? null
     : null;
   const destination = axialToWorld(
-    BATTLEFIELD_MAP.castleApproaches[oppositeFaction(input.unit.faction)],
+    map.castleApproaches[oppositeFaction(input.unit.faction)],
   );
   const aggroRange = unitSpecFor(input.unit.role, input.unit.combatProfile).aggroRange;
   const eligible = targets.filter((target) => (
     distance(input.unit.position, target.position) <= aggroRange + POSITION_EPSILON
-    && forwardProgress(input.unit.faction, input.unit.position, target.position) >= -POSITION_EPSILON
+    && forwardProgress(input.unit.faction, input.unit.position, target.position, map)
+      >= -POSITION_EPSILON
     && distanceToSegment(target.position, input.unit.position, destination)
       <= GAME_RULES.targeting.routeCorridorWidth + POSITION_EPSILON
   ));
@@ -67,11 +74,11 @@ export function selectAutomaticTarget(
     target.targetType === "building"
     && target.kind !== "castle"
     && distance(input.unit.position, target.position) <= aggroRange + POSITION_EPSILON
-    && forwardProgress(input.unit.faction, input.unit.position, target.position)
+    && forwardProgress(input.unit.faction, input.unit.position, target.position, map)
       >= -POSITION_EPSILON
   ));
   if (potentialBlockingBuildings.length > 0) {
-    const attackRoute = new Set(castleAttackRoute(input.unit).map(coordinateKey));
+    const attackRoute = new Set(castleAttackRoute(input.unit, map).map(coordinateKey));
     const blockingBuildings = potentialBlockingBuildings.filter((target) => (
       attackRoute.has(coordinateKey(target.coordinate))
     ));
@@ -104,7 +111,7 @@ export function selectAutomaticTarget(
   ))[0] ?? null;
 }
 
-function castleAttackRoute(unit: AutomaticCombatUnit) {
+function castleAttackRoute(unit: AutomaticCombatUnit, map: BattlefieldMap) {
   const enemyFaction = oppositeFaction(unit.faction);
   const chargeNavigationKey = castleChargeNavigationKey(enemyFaction);
   if (unit.navigationKey === chargeNavigationKey && unit.waypoints.length > 0) {
@@ -112,14 +119,19 @@ function castleAttackRoute(unit: AutomaticCombatUnit) {
   }
   const start = worldToAxial(unit.position);
   const cacheKey = `${unit.faction}:${coordinateKey(start)}`;
-  const cached = castleRouteCache.get(cacheKey);
+  let mapCache = castleRouteCache.get(map);
+  if (!mapCache) {
+    mapCache = new Map<string, readonly HexCoordinate[]>();
+    castleRouteCache.set(map, mapCache);
+  }
+  const cached = mapCache.get(cacheKey);
   if (cached) return cached;
   const route = findHexPath(
-    BATTLEFIELD_MAP,
+    map,
     start,
-    BATTLEFIELD_MAP.castleApproaches[enemyFaction],
+    map.castleApproaches[enemyFaction],
   );
-  castleRouteCache.set(cacheKey, route);
+  mapCache.set(cacheKey, route);
   return route;
 }
 
@@ -127,8 +139,9 @@ export function forwardProgress(
   faction: Faction,
   origin: WorldPoint,
   destination: WorldPoint,
+  map: BattlefieldMap = BATTLEFIELD_MAP,
 ): number {
-  const axis = attackAxis(faction);
+  const axis = attackAxis(faction, map);
   return (destination.x - origin.x) * axis.x + (destination.z - origin.z) * axis.z;
 }
 
@@ -136,20 +149,21 @@ export function clampToForwardProgress(
   faction: Faction,
   origin: WorldPoint,
   requested: WorldPoint,
+  map: BattlefieldMap = BATTLEFIELD_MAP,
 ): WorldPoint {
   if (!isFinitePoint(origin) || !isFinitePoint(requested)) return { ...origin };
-  const progress = forwardProgress(faction, origin, requested);
+  const progress = forwardProgress(faction, origin, requested, map);
   if (progress >= 0) return { ...requested };
-  const axis = attackAxis(faction);
+  const axis = attackAxis(faction, map);
   return {
     x: requested.x - axis.x * progress,
     z: requested.z - axis.z * progress,
   };
 }
 
-function attackAxis(faction: Faction): WorldPoint {
-  const origin = axialToWorld(BATTLEFIELD_MAP.castles[faction]);
-  const destination = axialToWorld(BATTLEFIELD_MAP.castles[oppositeFaction(faction)]);
+function attackAxis(faction: Faction, map: BattlefieldMap): WorldPoint {
+  const origin = axialToWorld(map.castles[faction]);
+  const destination = axialToWorld(map.castles[oppositeFaction(faction)]);
   const dx = destination.x - origin.x;
   const dz = destination.z - origin.z;
   const length = Math.hypot(dx, dz);

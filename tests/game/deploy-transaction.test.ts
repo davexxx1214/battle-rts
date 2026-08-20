@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { createBattleState, createBattleUnit } from "../../src/game/battle";
+import {
+  createBattleState,
+  createBattleUnit,
+  createInitialBattle,
+} from "../../src/game/battle";
 import {
   deployBattleSessionEntity,
   getDeployableAvailability,
@@ -101,6 +105,38 @@ function undeadOpponentSession(gold = 1000) {
 }
 
 describe("atomic battle deployment", () => {
+  it("rejects legacy direct deployment in sandbox without spending gold", () => {
+    const session = {
+      battle: createInitialBattle({ modeId: "sandbox" }),
+      phase: "engaged" as const,
+    };
+    const request = {
+      faction: "verdant" as const,
+      kind: "gold-mine" as const,
+      worldPosition: axialToWorld(VERDANT_BUILDING_CELL),
+    };
+
+    expect(getDeployableAvailability(session, "verdant", "gold-mine"))
+      .toEqual({ enabled: false, reason: "direct-deployment-disabled" });
+    expect(getDeployableAvailability(session, "verdant", "swordsman"))
+      .toEqual({ enabled: false, reason: "direct-deployment-disabled" });
+    expect(previewDeployment(session, request)).toMatchObject({
+      valid: false,
+      reason: "direct-deployment-disabled",
+    });
+
+    const result = deployBattleSessionEntity(session, request);
+
+    expect(result).toEqual({
+      ok: false,
+      state: session,
+      reason: "direct-deployment-disabled",
+    });
+    expect(result.state).toBe(session);
+    expect(result.state.battle.economy.accounts.verdant.gold).toBe(1_000);
+    expect(result.state.battle.nextDeploymentSequence).toBe(0);
+  });
+
   it("keeps deployment open beyond five minutes for an unlimited match", () => {
     const base = unresolvedSession();
     const session = {

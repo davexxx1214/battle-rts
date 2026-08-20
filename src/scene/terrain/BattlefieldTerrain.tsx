@@ -17,22 +17,14 @@ import { legacyUndeadOpponentRaces } from "../../game/factions";
 import type { BattleRace, Faction, FactionRaces } from "../../game/types";
 
 import {
-  BATTLEFIELD_DECORATIONS,
-  BATTLEFIELD_MAP,
-  BATTLEFIELD_STATIC_STRUCTURES,
-  BATTLEFIELD_STRUCTURES,
   axialToWorld,
-  terrainHeightAt,
+  terrainHeightAtMap,
   type BattlefieldCell,
   type BattlefieldDecoration,
   type BattlefieldStructure,
 } from "../../map/battlefield";
+import type { BattlefieldCloud } from "../../map/battlefieldAtmosphere";
 import {
-  BATTLEFIELD_CLOUDS,
-  type BattlefieldCloud,
-} from "../../map/battlefieldAtmosphere";
-import {
-  BATTLEFIELD_SCENERY,
   BATTLEFIELD_SCENERY_KINDS,
   type BattlefieldScenery,
   type BattlefieldSceneryKind,
@@ -67,6 +59,7 @@ import {
   type TerrainTileAssetKey,
   type TerrainTilePresentation,
 } from "./tilePresentation";
+import { useBattlefieldDefinition } from "../battlefieldSceneContext";
 
 const EMPTY_HIDDEN_NODES: readonly string[] = [];
 const EMPTY_NODE_ROTATIONS: Readonly<Record<string, number>> = {};
@@ -118,9 +111,10 @@ export function BattlefieldTerrain({
 }
 
 function BattlefieldCloudLayer() {
+  const { clouds } = useBattlefieldDefinition();
   return (
     <group>
-      {BATTLEFIELD_CLOUDS.map((cloud) => (
+      {clouds.map((cloud) => (
         <BattlefieldCloudAsset cloud={cloud} key={cloud.id} />
       ))}
     </group>
@@ -143,6 +137,7 @@ function BattlefieldCloudAsset({ cloud }: { readonly cloud: BattlefieldCloud }) 
 }
 
 function HexArena({ factionRaces }: { readonly factionRaces: FactionRaces }) {
+  const { map } = useBattlefieldDefinition();
   const tileGltfs = useLoader(
     GLTFLoader,
     TERRAIN_TILE_ASSET_KEYS.map((key) => TERRAIN_TILE_ASSETS[key].url),
@@ -154,8 +149,8 @@ function HexArena({ factionRaces }: { readonly factionRaces: FactionRaces }) {
     ]),
   ), [tileGltfs]);
   const tilePlan = useMemo<readonly TerrainTilePresentation[]>(() => [
-    ...createTerrainTilePlan(BATTLEFIELD_MAP),
-    ...createOuterWaterRing(BATTLEFIELD_MAP.radius + 1).map((cell) => ({
+    ...createTerrainTilePlan(map),
+    ...createOuterWaterRing(map.radius + 1).map((cell) => ({
       cell,
       assetKey: "water" as const,
       renderHeight: cell.height,
@@ -163,7 +158,7 @@ function HexArena({ factionRaces }: { readonly factionRaces: FactionRaces }) {
       tint: "#caeff8",
       connections: [],
     })),
-  ], []);
+  ], [map]);
   const undeadFactions = useMemo(() => (
     (["verdant", "crimson"] as const).filter((faction) => (
       mapModuleForFaction(factionRaces, faction).race === "undead"
@@ -304,7 +299,8 @@ function DetailedSceneryAssets({
   readonly kind: BattlefieldSceneryKind;
   readonly factionRaces: FactionRaces;
 }) {
-  const items = BATTLEFIELD_SCENERY.filter((item) => (
+  const { map, scenery } = useBattlefieldDefinition();
+  const items = scenery.filter((item) => (
     item.kind === kind
     && sceneryVisibleForMode(item, factionRaces)
   ));
@@ -317,7 +313,7 @@ function DetailedSceneryAssets({
         url={asset.url}
         position={[
           world.x + item.offset.x,
-          terrainHeightAt(world) + 0.02,
+          terrainHeightAtMap(map, world) + 0.02,
           world.z + item.offset.z,
         ]}
         scale={asset.scale * item.scale}
@@ -400,12 +396,18 @@ function undeadRoadTile(tile: TerrainTilePresentation, faction: Faction): boolea
 }
 
 function BattlefieldProps({ factionRaces }: { readonly factionRaces: FactionRaces }) {
+  const {
+    decorations,
+    map,
+    staticStructures,
+    structures,
+  } = useBattlefieldDefinition();
   const structuresById = new Map(
-    BATTLEFIELD_STRUCTURES.map((structure) => [structure.id, structure] as const),
+    structures.map((structure) => [structure.id, structure] as const),
   );
   return (
     <group>
-      {BATTLEFIELD_STATIC_STRUCTURES.map((structure) => {
+      {staticStructures.map((structure) => {
         const race = factionRaces[structure.faction];
         const world = axialToWorld(structure.coordinate);
         const asset = sceneAssetForStructure(structure, race);
@@ -418,7 +420,7 @@ function BattlefieldProps({ factionRaces }: { readonly factionRaces: FactionRace
           <StaticAsset
             key={structure.id}
             url={asset.url}
-            position={[world.x, terrainHeightAt(world) + 0.02, world.z]}
+            position={[world.x, terrainHeightAtMap(map, world) + 0.02, world.z]}
             scale={asset.scale}
             rotationY={race === "undead"
               ? fromCrimsonModuleRotation(
@@ -431,7 +433,7 @@ function BattlefieldProps({ factionRaces }: { readonly factionRaces: FactionRace
           />
         );
       })}
-      {BATTLEFIELD_DECORATIONS.map((decoration) => (
+      {decorations.map((decoration) => (
         <BattlefieldDecorationAsset
           key={decoration.id}
           decoration={decoration}
@@ -709,6 +711,7 @@ export const UNDEAD_SHIPWRECK_DRESSING = {
 };
 
 function UndeadBattlefieldDressing({ faction }: { readonly faction: Faction }) {
+  const { map } = useBattlefieldDefinition();
   const wreck = UNDEAD_SHIPWRECK_DRESSING;
   const wreckCoordinate = fromCrimsonModuleCoordinate(wreck.coordinate, faction);
   const wreckOffset = fromCrimsonModuleOffset(wreck.offset, faction);
@@ -738,7 +741,7 @@ function UndeadBattlefieldDressing({ faction }: { readonly faction: Faction }) {
             url={asset.url}
             position={[
               world.x + offset[0],
-              terrainHeightAt(world) + 0.025,
+              terrainHeightAtMap(map, world) + 0.025,
               world.z + offset[1],
             ]}
             scale={scale}
@@ -751,7 +754,7 @@ function UndeadBattlefieldDressing({ faction }: { readonly faction: Faction }) {
         url={wreckAsset.url}
         position={[
           wreckWorld.x + wreckOffset[0],
-          terrainHeightAt(wreckWorld) + wreck.heightOffset,
+          terrainHeightAtMap(map, wreckWorld) + wreck.heightOffset,
           wreckWorld.z + wreckOffset[1],
         ]}
         scale={wreck.scale}
@@ -789,15 +792,16 @@ function SceneryInstances({
   readonly kind: BattlefieldSceneryKind;
   readonly factionRaces: FactionRaces;
 }) {
+  const { map, scenery } = useBattlefieldDefinition();
   const asset = SCENERY_SCENE_ASSETS[kind];
   const gltf = useLoader(GLTFLoader, asset.url);
   const template = useMemo(() => extractGroundedMeshTemplate(gltf.scene), [gltf.scene]);
   const items = useMemo(
-    () => BATTLEFIELD_SCENERY.filter((item) => (
+    () => scenery.filter((item) => (
       item.kind === kind
       && sceneryVisibleForMode(item, factionRaces)
     )),
-    [factionRaces, kind],
+    [factionRaces, kind, scenery],
   );
   const instances = useRef<InstancedMesh>(null);
   useLayoutEffect(() => {
@@ -809,7 +813,7 @@ function SceneryInstances({
       const scale = asset.scale * item.scale;
       transform.position.set(
         center.x + item.offset.x,
-        terrainHeightAt(center) + 0.02,
+        terrainHeightAtMap(map, center) + 0.02,
         center.z + item.offset.z,
       );
       transform.rotation.set(0, item.rotationY, 0);
@@ -818,7 +822,7 @@ function SceneryInstances({
       mesh.setMatrixAt(index, transform.matrix);
     }
     mesh.instanceMatrix.needsUpdate = true;
-  }, [asset.scale, items]);
+  }, [asset.scale, items, map]);
   return (
     <instancedMesh
       ref={instances}
@@ -876,13 +880,14 @@ function BattlefieldDecorationAsset({
   readonly decoration: BattlefieldDecoration;
   readonly structuresById: ReadonlyMap<string, BattlefieldStructure>;
 }) {
+  const { map } = useBattlefieldDefinition();
   const world = axialToWorld(decoration.coordinate);
   const asset = STRUCTURE_SCENE_ASSETS.neutral[decoration.kind];
   if (decoration.kind === "ore-pile") {
     return (
       <StaticAsset
         url={asset.url}
-        position={[world.x, terrainHeightAt(world) + 0.02, world.z]}
+        position={[world.x, terrainHeightAtMap(map, world) + 0.02, world.z]}
         scale={asset.scale}
         rotationY={decoration.rotationY}
       />
@@ -896,10 +901,10 @@ function BattlefieldDecorationAsset({
   return (
     <MiningCart
       url={asset.url}
-      start={[world.x, terrainHeightAt(world) + 0.02, world.z]}
+      start={[world.x, terrainHeightAtMap(map, world) + 0.02, world.z]}
       destination={[
         MathUtils.lerp(world.x, mineWorld.x, 0.55),
-        terrainHeightAt(mineWorld) + 0.02,
+        terrainHeightAtMap(map, mineWorld) + 0.02,
         MathUtils.lerp(world.z, mineWorld.z, 0.55),
       ]}
       scale={asset.scale}

@@ -10,6 +10,11 @@ import {
   removeBuildingFromOccupancy,
   type BuildingOccupancy,
 } from "./deployment";
+import type {
+  BattleEconomyPolicy,
+  BuildingLifecyclePolicy,
+  ProductionPolicy,
+} from "./battleMode";
 import type { CombatDamageIntent, CombatTarget } from "./combat";
 import { grantGold, type EconomyState } from "./economy";
 import {
@@ -133,6 +138,8 @@ export interface AdvanceBuildingsInput {
   readonly elapsedSeconds: number;
   readonly deltaSeconds: number;
   readonly damageIntents: readonly CombatDamageIntent[];
+  readonly economyPolicy?: BattleEconomyPolicy;
+  readonly productionPolicy?: ProductionPolicy;
   readonly factionRaces?: FactionRaces;
   readonly undeadOpponent?: boolean;
 }
@@ -152,6 +159,7 @@ export interface SettleBuildingHealthInput {
   readonly elapsedSeconds: number;
   readonly deltaSeconds: number;
   readonly damageIntents: readonly CombatDamageIntent[];
+  readonly productionPolicy?: ProductionPolicy;
   readonly factionRaces?: FactionRaces;
   readonly undeadOpponent?: boolean;
 }
@@ -168,6 +176,8 @@ export interface AdvanceBuildingProductionInput {
   readonly economy: EconomyState;
   readonly map: BattlefieldMap;
   readonly units: readonly BuildingSpawnBlocker[];
+  readonly economyPolicy?: BattleEconomyPolicy;
+  readonly productionPolicy?: ProductionPolicy;
   readonly factionRaces?: FactionRaces;
   readonly undeadOpponent?: boolean;
 }
@@ -218,6 +228,7 @@ const VERDANT_SPAWN_DIRECTIONS: readonly HexCoordinate[] = [
 
 export function createBattleBuilding(
   input: CreateBattleBuildingInput,
+  lifecyclePolicy?: BuildingLifecyclePolicy,
 ): BattleBuilding {
   if (input.id.trim().length === 0) {
     throw new Error("Building requires a non-empty id.");
@@ -241,7 +252,9 @@ export function createBattleBuilding(
     position: axialToWorld(input.coordinate),
     maxHealth: spec.maxHealth,
     health: spec.maxHealth,
-    lifetimeSeconds: spec.lifetimeSeconds,
+    lifetimeSeconds: lifecyclePolicy?.naturalDecay === "disabled"
+      ? null
+      : spec.lifetimeSeconds,
     productionSequence: 0,
     castleCombat: input.kind === "castle"
       ? { activatedAt: null, cooldownRemaining: 0 }
@@ -264,6 +277,7 @@ export function advanceBuildings(
     elapsedSeconds: input.elapsedSeconds,
     deltaSeconds: input.deltaSeconds,
     damageIntents: input.damageIntents,
+    productionPolicy: input.productionPolicy,
     factionRaces: input.factionRaces,
     undeadOpponent: input.undeadOpponent,
   });
@@ -272,6 +286,8 @@ export function advanceBuildings(
     economy: input.economy,
     map: input.map,
     units: input.units,
+    economyPolicy: input.economyPolicy,
+    productionPolicy: input.productionPolicy,
     factionRaces: input.factionRaces,
     undeadOpponent: input.undeadOpponent,
   });
@@ -303,6 +319,7 @@ export function settleBuildingHealth(
       end,
       damageByBuildingId.get(building.id) ?? 0,
       race,
+      input.productionPolicy,
     );
   });
   const actions = settlements
@@ -335,11 +352,19 @@ export function advanceBuildingProduction(
   let economy = input.economy;
   const sequenceByBuildingId = new Map<string, number>();
 
-  for (const action of input.settlement.pendingProduction) {
+  const pendingProduction = usesLegacyAutomaticProduction(input.productionPolicy)
+    ? input.settlement.pendingProduction
+    : [];
+  for (const action of pendingProduction) {
     sequenceByBuildingId.set(action.building.id, action.sequence);
     if (action.type === "produce-gold") {
       const producedAmount = GAME_RULES.buildings.goldMine.goldPerProduction;
-      const grant = grantGold(economy, action.building.faction, producedAmount);
+      const grant = grantGold(
+        economy,
+        action.building.faction,
+        producedAmount,
+        input.economyPolicy,
+      );
       economy = grant.state;
       if (grant.becameFull) newlyFullFactions.add(action.building.faction);
       events.push({
@@ -444,6 +469,7 @@ function settleBuilding(
   end: number,
   directDamage: number,
   race: BattleRace,
+  productionPolicy?: ProductionPolicy,
 ): BuildingSettlement {
   if (building.status === "destroyed" || building.health <= 0 || end <= building.createdAt) {
     return { building, actions: [] };
@@ -456,7 +482,12 @@ function settleBuilding(
     ? activeStart + building.health / naturalDamageRate
     : Number.POSITIVE_INFINITY;
   const productionCutoff = Math.min(end, naturalDeathAt);
-  const production = collectProductionActions(building, productionCutoff, race);
+  const production = collectProductionActions(
+    building,
+    productionCutoff,
+    race,
+    productionPolicy,
+  );
   const activeEnd = Math.min(end, naturalDeathAt);
   const naturalDamage = naturalDamageRate * Math.max(0, activeEnd - activeStart);
   const healthAfterNatural = Math.max(0, building.health - naturalDamage);
@@ -495,7 +526,9 @@ function collectProductionActions(
   building: BattleBuilding,
   cutoff: number,
   race: BattleRace,
+  productionPolicy?: ProductionPolicy,
 ): readonly BuildingProductionAction[] {
+  if (!usesLegacyAutomaticProduction(productionPolicy)) return [];
   if (
     building.kind === "castle"
     || building.kind === "arrow-tower"
@@ -530,6 +563,12 @@ function collectProductionActions(
     sequence = nextSequence;
   }
   return actions;
+}
+
+function usesLegacyAutomaticProduction(
+  policy: ProductionPolicy | undefined,
+): boolean {
+  return policy === undefined || policy.kind === "legacy-auto-spawn";
 }
 
 function resolveSpawnPosition(

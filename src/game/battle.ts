@@ -24,11 +24,11 @@ import {
   resolveWalkableWorldPoint,
 } from "./navigation";
 import {
-  BATTLEFIELD_MAP,
-  BATTLEFIELD_BATTLE_STRUCTURES,
   axialToWorld,
-  getBattlefieldCell,
+  getMapCell,
   worldToAxial,
+  type BattlefieldMap,
+  type BattlefieldStructure,
 } from "../map/battlefield";
 import type {
   Faction,
@@ -43,10 +43,12 @@ import {
 } from "./factions";
 import { BattleSpatialIndex } from "./spatialIndex";
 import {
-  MATCH_POLICIES,
   unitSpecFor,
   type MatchPolicy,
 } from "./rules";
+import { battleModeDefinitionFor, type BattleModeId } from "./battleMode";
+import { battlefieldDefinitionFor } from "../map/battlefieldDefinition";
+import { resolveBattleRuntimeContext } from "./battleRuntime";
 import {
   advanceEconomy,
   createEconomyState,
@@ -122,6 +124,8 @@ export interface BattleUnit extends CombatTarget {
 }
 
 export interface BattleState {
+  readonly modeId: BattleModeId;
+  readonly mapId: string;
   readonly units: readonly BattleUnit[];
   readonly squads: readonly BattleSquad[];
   readonly projectiles: readonly BattleProjectile[];
@@ -153,6 +157,8 @@ export interface CreateBattleUnitInput {
 }
 
 export interface CreateBattleStateOptions {
+  readonly modeId?: BattleModeId;
+  readonly mapId?: string;
   readonly factionRaces?: Partial<FactionRaces>;
   readonly undeadOpponent?: boolean;
   readonly matchPolicy?: MatchPolicy;
@@ -197,19 +203,28 @@ export function createBattleState(
   units: readonly BattleUnit[],
   options: CreateBattleStateOptions = {},
 ): BattleState {
+  const modeId = resolveModeId(options.modeId, options.matchPolicy);
+  const mode = battleModeDefinitionFor(modeId);
+  const mapId = options.mapId ?? mode.defaultMapId;
+  const battlefield = battlefieldDefinitionFor(mapId);
   const clonedUnits = units.map(cloneUnit);
   const factionRaces = options.factionRaces
     ? createFactionRaces(options.factionRaces)
     : legacyUndeadOpponentRaces(options.undeadOpponent);
   return {
+    modeId,
+    mapId,
     units: clonedUnits,
     squads: buildSquads(clonedUnits),
     projectiles: [],
     events: [],
-    economy: createEconomyState(),
-    matchPolicy: options.matchPolicy ?? MATCH_POLICIES.normal,
+    economy: createEconomyState(mode.economyPolicy),
+    matchPolicy: options.matchPolicy ?? mode.clockPolicy,
     matchElapsed: 0,
-    buildings: createInitialDefensiveBuildings(),
+    buildings: createInitialDefensiveBuildings(
+      battlefield.battleStructures,
+      mode.buildingLifecyclePolicy,
+    ),
     buildingOccupancy: createBuildingOccupancy(),
     deploymentCounts: createDeploymentCounts(),
     nextDeploymentSequence: 0,
@@ -235,6 +250,8 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
   if (!Number.isFinite(requestedDeltaSeconds) || requestedDeltaSeconds <= 0) {
     return state;
   }
+  const runtime = resolveBattleRuntimeContext(state);
+  const { map, mode } = runtime;
   const requestedStepSeconds = Math.min(MAX_STEP_SECONDS, requestedDeltaSeconds);
   if (state.resolvedAt !== null) {
     if (state.elapsed - state.resolvedAt >= POST_BATTLE_PRESENTATION_SECONDS) return state;
@@ -324,12 +341,16 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
   const spawnedProjectiles: BattleProjectile[] = [];
   const combatantsAtStart = livingAtStart;
   const spatialIndex = new BattleSpatialIndex(combatantsAtStart);
+  const automaticControl = mode.controlAuthority.kind === "automatic";
   const targetsByUnitId = new Map(
-    combatantsAtStart.map((unit) => [unit.id, selectAutomaticTarget({
-      unit,
-      units: nearbyEnemyUnits(unit, spatialIndex),
-      buildings: activeBuildingsAtStart,
-    })] as const),
+    automaticControl
+      ? combatantsAtStart.map((unit) => [unit.id, selectAutomaticTarget({
+          unit,
+          units: nearbyEnemyUnits(unit, spatialIndex),
+          buildings: activeBuildingsAtStart,
+          map,
+        })] as const)
+      : [],
   );
   const engagementSlots = assignMeleeEngagementSlots(
     combatantsAtStart
@@ -348,34 +369,38 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       })
       .filter((request): request is NonNullable<typeof request> => request !== null),
     (position, request) => (
-      Boolean(getBattlefieldCell(worldToAxial(position))?.walkable)
-      && areWorldPointsConnected(BATTLEFIELD_MAP, request.attacker.position, position)
+      Boolean(getMapCell(map, worldToAxial(position))?.walkable)
+      && areWorldPointsConnected(map, request.attacker.position, position)
     ),
   );
   const engagementByAttackerId = new Map(
     engagementSlots.map((slot) => [slot.attackerId, slot] as const),
   );
-  const advancedUnits = unitsAtStart.map((unit) => advanceUnit(
-    unit,
-    targetsByUnitId.get(unit.id) ?? null,
-    combatTargetsAtStart,
-    engagementByAttackerId.get(unit.id) ?? null,
-    deltaSeconds,
-    damage,
-    statusEffectIntents,
-    spawnedProjectiles,
-    emit,
-  ));
-  const separatedUnits = separateLivingAllies(advancedUnits).map((unit, index) => {
+  const advancedUnits = automaticControl
+    ? unitsAtStart.map((unit) => advanceUnit(
+        unit,
+        targetsByUnitId.get(unit.id) ?? null,
+        combatTargetsAtStart,
+        engagementByAttackerId.get(unit.id) ?? null,
+        deltaSeconds,
+        damage,
+        statusEffectIntents,
+        spawnedProjectiles,
+        emit,
+        map,
+      ))
+    : unitsAtStart;
+  const separatedUnits = separateLivingAllies(advancedUnits, 0.65, map).map((unit, index) => {
     const position = clampToForwardProgress(
       unit.faction,
       advancedUnits[index]!.position,
       unit.position,
+      map,
     );
     return {
       ...unit,
       position: unitSpecFor(unit.role, unit.combatProfile).movementMode === "flying"
-        || getBattlefieldCell(worldToAxial(position))?.walkable
+        || getMapCell(map, worldToAxial(position))?.walkable
         ? position
         : advancedUnits[index]!.position,
     };
@@ -403,6 +428,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
         elapsedSeconds: state.matchElapsed,
         deltaSeconds: activeMatchDeltaSeconds,
         damageIntents: damage,
+        productionPolicy: mode.productionPolicy,
         factionRaces: state.factionRaces,
         undeadOpponent: state.undeadOpponent,
       })
@@ -421,14 +447,17 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
         state.matchElapsed,
         activeMatchDeltaSeconds,
         state.matchPolicy,
+        mode.economyPolicy,
       )
     : { state: state.economy, newlyFullFactions: [] };
   const buildingStep = castleWinnerAfterBuildingHealth === null
     ? advanceBuildingProduction({
         settlement: buildingHealthSettlement,
         economy: economyStep.state,
-        map: BATTLEFIELD_MAP,
+        map,
         units: damagedUnits,
+        economyPolicy: mode.economyPolicy,
+        productionPolicy: mode.productionPolicy,
         factionRaces: state.factionRaces,
         undeadOpponent: state.undeadOpponent,
       })
@@ -558,6 +587,8 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
         : null
     );
   return {
+    modeId: state.modeId,
+    mapId: state.mapId,
     units,
     squads: appendUnitsToSquads(state.squads, producedUnits),
     projectiles: winner
@@ -594,6 +625,7 @@ function advanceUnit(
   statusEffectIntents: CombatStatusEffectIntent[],
   spawnedProjectiles: BattleProjectile[],
   emit: EmitBattleEvent,
+  map: BattlefieldMap,
 ): BattleUnit {
   if (unit.health <= 0 || unit.status === "dead") {
     return {
@@ -622,13 +654,13 @@ function advanceUnit(
   };
   if (!target) {
     const destination = axialToWorld(
-      BATTLEFIELD_MAP.castleApproaches[oppositeFaction(next.faction)],
+      map.castleApproaches[oppositeFaction(next.faction)],
     );
     return advanceTowardDestination({
       ...next,
       behavior: next.behavior === "castle-locked" ? "castle-locked" : "charging",
       engagementSlot: null,
-    }, destination, deltaSeconds);
+    }, destination, deltaSeconds, map);
   }
   next = {
     ...next,
@@ -640,7 +672,7 @@ function advanceUnit(
   const requiresCenteredPath = spec.attackMode === "cone"
     && spec.movementMode === "ground";
   const attackLineClear = !requiresCenteredPath
-    || hasWalkableAttackLine(next.position, target);
+    || hasWalkableAttackLine(next.position, target, map);
   if (
     spec.attackMode === "melee"
     && targetDistance > spec.attackRange
@@ -653,11 +685,12 @@ function advanceUnit(
         `slot:${engagementSlot.targetType}:${engagementSlot.targetId}:${engagementSlot.index}`,
         facing,
         deltaSeconds,
+        map,
       );
     }
   }
   if (targetDistance > spec.attackRange || !attackLineClear) {
-    return advanceTowardTarget(next, target, facing, deltaSeconds, requiresCenteredPath);
+    return advanceTowardTarget(next, target, facing, deltaSeconds, map, requiresCenteredPath);
   }
   if (next.cooldownRemaining > 0) return { ...next, facing, status: "attacking" };
 
@@ -693,6 +726,7 @@ function advanceUnit(
       combatTargets,
       spec.attackRange,
       spec.coneAngleDegrees ?? 0,
+      map,
     );
     for (const coneTarget of coneTargets) {
       damage.push({
@@ -760,6 +794,7 @@ function combatTargetsInCone(
   candidates: readonly CombatTarget[],
   range: number,
   coneAngleDegrees: number,
+  map: BattlefieldMap,
 ): CombatTarget[] {
   const aimX = primaryTarget.position.x - attacker.position.x;
   const aimZ = primaryTarget.position.z - attacker.position.z;
@@ -774,7 +809,7 @@ function combatTargetsInCone(
     const offsetZ = candidate.position.z - attacker.position.z;
     const candidateDistance = Math.hypot(offsetX, offsetZ);
     if (candidateDistance > range + 1e-9) return false;
-    if (!hasWalkableAttackLine(attacker.position, candidate)) return false;
+    if (!hasWalkableAttackLine(attacker.position, candidate, map)) return false;
     if (candidateDistance <= 1e-9) return true;
     return (
       offsetX / candidateDistance * directionX
@@ -787,6 +822,7 @@ function advanceTowardDestination(
   unit: BattleUnit,
   destination: WorldPoint,
   deltaSeconds: number,
+  map: BattlefieldMap,
 ): BattleUnit {
   const spec = unitSpecFor(unit.role, unit.combatProfile);
   const moveSpeed = spec.moveSpeed * unitStatusModifiers(unit.statusEffects).moveSpeedMultiplier;
@@ -799,6 +835,7 @@ function advanceTowardDestination(
       unit.faction,
       unit.position,
       moveToward(unit.position, destination, moveSpeed * deltaSeconds),
+      map,
     );
     return {
       ...unit,
@@ -812,7 +849,7 @@ function advanceTowardDestination(
   const navigationKey = castleChargeNavigationKey(oppositeFaction(unit.faction));
   const waypoints = unit.navigationKey === navigationKey && unit.waypoints.length > 0
     ? unit.waypoints
-    : findWorldPath(BATTLEFIELD_MAP, unit.position, destination);
+    : findWorldPath(map, unit.position, destination);
   const waypoint = waypoints[0];
   if (!waypoint) {
     return {
@@ -828,7 +865,7 @@ function advanceTowardDestination(
     : ARRIVAL_DISTANCE;
   if (remaining <= arrivalDistance) {
     const remainingWaypoints = waypoints.slice(1);
-    const position = walkableForwardPosition(unit.faction, unit.position, waypoint)
+    const position = walkableForwardPosition(unit.faction, unit.position, waypoint, map)
       ?? unit.position;
     if (remainingWaypoints.length > 0) {
       return {
@@ -841,7 +878,7 @@ function advanceTowardDestination(
     }
     return {
       ...unit,
-      position: walkableForwardPosition(unit.faction, unit.position, destination)
+      position: walkableForwardPosition(unit.faction, unit.position, destination, map)
         ?? unit.position,
       status: "idle",
       waypoints: [],
@@ -854,11 +891,12 @@ function advanceTowardDestination(
     waypoint,
     moveSpeed * deltaSeconds,
   );
-  const position = walkableForwardPosition(unit.faction, unit.position, requested);
+  const position = walkableForwardPosition(unit.faction, unit.position, requested, map);
   if (!position) {
     const recovery = recoverBlockedGroundPosition(
       unit.position,
       moveSpeed * deltaSeconds,
+      map,
     );
     if (recovery) {
       return {
@@ -1134,6 +1172,7 @@ function advanceTowardTarget(
   target: CombatTarget,
   facing: number,
   deltaSeconds: number,
+  map: BattlefieldMap,
   forcePath = false,
 ): BattleUnit {
   const spec = unitSpecFor(unit.role, unit.combatProfile);
@@ -1152,6 +1191,7 @@ function advanceTowardTarget(
         unit.faction,
         unit.position,
         moveToward(unit.position, target.position, maximumDistance),
+        map,
       ),
       facing,
       status: "moving",
@@ -1163,7 +1203,7 @@ function advanceTowardTarget(
   if (waypoints.length === 0) {
     if (!forcePath) {
       const proposed = moveToward(unit.position, target.position, maximumDistance);
-      const position = walkableForwardPosition(unit.faction, unit.position, proposed);
+      const position = walkableForwardPosition(unit.faction, unit.position, proposed, map);
       if (position) {
         return {
           ...unit,
@@ -1175,16 +1215,16 @@ function advanceTowardTarget(
         };
       }
     }
-    const route = findWorldPath(BATTLEFIELD_MAP, unit.position, target.position);
+    const route = findWorldPath(map, unit.position, target.position);
     const waypoint = route[0];
     if (!waypoint) return { ...unit, facing, status: "idle", waypoints: [] };
     waypoints = route;
   }
   const waypoint = waypoints[0] ?? target.position;
   const requested = moveToward(unit.position, waypoint, maximumDistance);
-  const moved = walkableForwardPosition(unit.faction, unit.position, requested);
+  const moved = walkableForwardPosition(unit.faction, unit.position, requested, map);
   if (!moved) {
-    const recovery = recoverBlockedGroundPosition(unit.position, maximumDistance);
+    const recovery = recoverBlockedGroundPosition(unit.position, maximumDistance, map);
     if (recovery) {
       return {
         ...unit,
@@ -1203,7 +1243,7 @@ function advanceTowardTarget(
   if (distance(moved, waypoint) <= arrivalDistance) waypoints = waypoints.slice(1);
   return {
     ...unit,
-    position: clampToForwardProgress(unit.faction, unit.position, moved),
+    position: clampToForwardProgress(unit.faction, unit.position, moved, map),
     waypoints,
     navigationKey,
     facing,
@@ -1217,6 +1257,7 @@ function advanceTowardCombatPosition(
   navigationKey: string,
   facing: number,
   deltaSeconds: number,
+  map: BattlefieldMap,
 ): BattleUnit {
   const spec = unitSpecFor(unit.role, unit.combatProfile);
   const maximumDistance = spec.moveSpeed
@@ -1226,7 +1267,7 @@ function advanceTowardCombatPosition(
     let waypoints = unit.waypoints;
     const waypoint = waypoints[0]!;
     const requested = moveToward(unit.position, waypoint, maximumDistance);
-    const position = walkableForwardPosition(unit.faction, unit.position, requested);
+    const position = walkableForwardPosition(unit.faction, unit.position, requested, map);
     if (position) {
       if (distance(position, waypoint) <= NAVIGATION_WAYPOINT_ARRIVAL_DISTANCE) {
         waypoints = waypoints.slice(1);
@@ -1242,7 +1283,7 @@ function advanceTowardCombatPosition(
     }
   }
   const requestedDirect = moveToward(unit.position, destination, maximumDistance);
-  const direct = walkableForwardPosition(unit.faction, unit.position, requestedDirect);
+  const direct = walkableForwardPosition(unit.faction, unit.position, requestedDirect, map);
   if (direct) {
     return {
       ...unit,
@@ -1253,16 +1294,17 @@ function advanceTowardCombatPosition(
       navigationKey,
     };
   }
-  const route = findWorldPath(BATTLEFIELD_MAP, unit.position, destination);
+  const route = findWorldPath(map, unit.position, destination);
   const waypoint = route[0];
   if (!waypoint) return { ...unit, facing, status: "idle", waypoints: [] };
   const position = walkableForwardPosition(
     unit.faction,
     unit.position,
     moveToward(unit.position, waypoint, maximumDistance),
+    map,
   );
   if (!position) {
-    const recovery = recoverBlockedGroundPosition(unit.position, maximumDistance);
+    const recovery = recoverBlockedGroundPosition(unit.position, maximumDistance, map);
     if (recovery) {
       return {
         ...unit,
@@ -1312,8 +1354,11 @@ export function appendUnitsToSquads(
   return [...next.values()];
 }
 
-function createInitialDefensiveBuildings(): BattleBuilding[] {
-  return BATTLEFIELD_BATTLE_STRUCTURES.flatMap((structure) => {
+function createInitialDefensiveBuildings(
+  structures: readonly BattlefieldStructure[],
+  lifecyclePolicy: Parameters<typeof createBattleBuilding>[1],
+): BattleBuilding[] {
+  return structures.flatMap((structure) => {
     if (
       (structure.kind !== "castle" && structure.kind !== "arrow-tower")
       || structure.faction === null
@@ -1324,8 +1369,21 @@ function createInitialDefensiveBuildings(): BattleBuilding[] {
       faction: structure.faction,
       coordinate: structure.coordinate,
       createdAt: 0,
-    })];
+    }, lifecyclePolicy)];
   });
+}
+
+function resolveModeId(
+  requestedModeId: BattleModeId | undefined,
+  matchPolicy: MatchPolicy | undefined,
+): BattleModeId {
+  const modeId = requestedModeId ?? matchPolicy?.mode ?? "normal";
+  if (requestedModeId && matchPolicy && requestedModeId !== matchPolicy.mode) {
+    throw new Error(
+      `Battle mode ${requestedModeId} conflicts with match policy ${matchPolicy.mode}.`,
+    );
+  }
+  return modeId;
 }
 
 function moveToward(origin: WorldPoint, destination: WorldPoint, maximumDistance: number): WorldPoint {
@@ -1345,30 +1403,33 @@ function walkableForwardPosition(
   faction: Faction,
   origin: WorldPoint,
   requested: WorldPoint,
+  map: BattlefieldMap,
 ): WorldPoint | null {
-  const position = clampToForwardProgress(faction, origin, requested);
-  return getBattlefieldCell(worldToAxial(position))?.walkable ? position : null;
+  const position = clampToForwardProgress(faction, origin, requested, map);
+  return getMapCell(map, worldToAxial(position))?.walkable ? position : null;
 }
 
 function moveTowardWalkableCellCenter(
   origin: WorldPoint,
   maximumDistance: number,
+  map: BattlefieldMap,
 ): WorldPoint | null {
   const coordinate = worldToAxial(origin);
-  if (!getBattlefieldCell(coordinate)?.walkable) return null;
+  if (!getMapCell(map, coordinate)?.walkable) return null;
   const center = axialToWorld(coordinate);
   if (distance(origin, center) <= 1e-9) return null;
   const position = moveToward(origin, center, maximumDistance);
-  return getBattlefieldCell(worldToAxial(position))?.walkable ? position : null;
+  return getMapCell(map, worldToAxial(position))?.walkable ? position : null;
 }
 
 function recoverBlockedGroundPosition(
   origin: WorldPoint,
   maximumDistance: number,
+  map: BattlefieldMap,
 ): { readonly position: WorldPoint; readonly resetNavigation: boolean } | null {
-  const recentered = moveTowardWalkableCellCenter(origin, maximumDistance);
+  const recentered = moveTowardWalkableCellCenter(origin, maximumDistance, map);
   if (recentered) return { position: recentered, resetNavigation: false };
-  const resolved = resolveWalkableWorldPoint(BATTLEFIELD_MAP, origin);
+  const resolved = resolveWalkableWorldPoint(map, origin);
   return resolved && distance(resolved, origin) > 1e-9
     ? { position: resolved, resetNavigation: true }
     : null;
@@ -1377,6 +1438,7 @@ function recoverBlockedGroundPosition(
 function hasWalkableAttackLine(
   origin: WorldPoint,
   target: CombatTarget,
+  map: BattlefieldMap,
 ): boolean {
   const dx = target.position.x - origin.x;
   const dz = target.position.z - origin.z;
@@ -1393,7 +1455,7 @@ function hasWalkableAttackLine(
       x: origin.x + dx * ratio,
       z: origin.z + dz * ratio,
     };
-    if (!getBattlefieldCell(worldToAxial(point))?.walkable) return false;
+    if (!getMapCell(map, worldToAxial(point))?.walkable) return false;
   }
   return true;
 }

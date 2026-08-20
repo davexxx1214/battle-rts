@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  advanceBuildingProduction,
   advanceBuildings,
   createBattleBuilding,
+  settleBuildingHealth,
   type BattleBuilding,
 } from "../../src/game/buildings";
+import { battleModeDefinitionFor } from "../../src/game/battleMode";
 import type { BuildingOccupancy } from "../../src/game/deployment";
 import { createEconomyState } from "../../src/game/economy";
 import { barracksRulesForRace, GAME_RULES } from "../../src/game/rules";
@@ -18,6 +21,10 @@ import {
 
 const MINE_COORDINATE = findBuildingCoordinate(2);
 const BARRACKS_COORDINATE = findBuildingCoordinate(4);
+const SANDBOX_MODE = battleModeDefinitionFor("sandbox");
+const NO_DECAY_LIFECYCLE = SANDBOX_MODE.buildingLifecyclePolicy;
+const QUEUED_PRODUCTION = SANDBOX_MODE.productionPolicy;
+const LARGE_CAP_ECONOMY = SANDBOX_MODE.economyPolicy;
 
 describe("building simulation", () => {
   it("rejects non-finite building identity coordinates and creation time", () => {
@@ -42,6 +49,154 @@ describe("building simulation", () => {
       coordinate: BARRACKS_COORDINATE,
       createdAt: 0,
     })).toThrow("non-empty id");
+  });
+
+  it("disables natural decay without making buildings immune to combat damage", () => {
+    const mine = createBattleBuilding({
+      id: "permanent-sandbox-mine",
+      kind: "gold-mine",
+      faction: "verdant",
+      coordinate: MINE_COORDINATE,
+      createdAt: 0,
+    }, NO_DECAY_LIFECYCLE);
+    const idle = advanceBuildings({
+      buildings: [mine],
+      economy: createEconomyState(),
+      occupancy: occupy(mine),
+      map: BATTLEFIELD_MAP,
+      units: [],
+      elapsedSeconds: 0,
+      deltaSeconds: 30 * 60,
+      damageIntents: [],
+      productionPolicy: QUEUED_PRODUCTION,
+    });
+
+    expect(idle.buildings[0]).toMatchObject({
+      health: mine.maxHealth,
+      lifetimeSeconds: null,
+      status: "active",
+    });
+    expect(idle.events).toEqual([]);
+
+    const destroyed = advanceBuildings({
+      buildings: idle.buildings,
+      economy: idle.economy,
+      occupancy: idle.occupancy,
+      map: BATTLEFIELD_MAP,
+      units: [],
+      elapsedSeconds: 30 * 60,
+      deltaSeconds: 0.1,
+      damageIntents: [{
+        targetType: "building",
+        targetId: mine.id,
+        amount: mine.maxHealth,
+        sourceId: "enemy",
+        sourceType: "unit",
+      }],
+      productionPolicy: QUEUED_PRODUCTION,
+    });
+
+    expect(destroyed.buildings[0]).toMatchObject({ health: 0, status: "destroyed" });
+    expect(destroyed.events).toContainEqual(expect.objectContaining({
+      type: "building-destroyed",
+      buildingId: mine.id,
+      cause: "damage",
+    }));
+  });
+
+  it("does not run legacy mine or barracks timers for queued production", () => {
+    const mine = createBattleBuilding({
+      id: "queued-mine",
+      kind: "gold-mine",
+      faction: "verdant",
+      coordinate: MINE_COORDINATE,
+      createdAt: 0,
+    }, NO_DECAY_LIFECYCLE);
+    const barracks = createBattleBuilding({
+      id: "queued-barracks",
+      kind: "barracks",
+      faction: "verdant",
+      coordinate: BARRACKS_COORDINATE,
+      createdAt: 0,
+    }, NO_DECAY_LIFECYCLE);
+    const economy = createEconomyState();
+
+    const result = advanceBuildings({
+      buildings: [mine, barracks],
+      economy,
+      occupancy: { ...occupy(mine), ...occupy(barracks) },
+      map: BATTLEFIELD_MAP,
+      units: [],
+      elapsedSeconds: 0,
+      deltaSeconds: 10 * 60,
+      damageIntents: [],
+      economyPolicy: LARGE_CAP_ECONOMY,
+      productionPolicy: QUEUED_PRODUCTION,
+    });
+
+    expect(result.economy).toBe(economy);
+    expect(result.unitSpawns).toEqual([]);
+    expect(result.events).toEqual([]);
+    expect(result.buildings.map(({ productionSequence }) => productionSequence)).toEqual([0, 0]);
+  });
+
+  it("also rejects precomputed legacy production actions at the production boundary", () => {
+    const mine = createBattleBuilding({
+      id: "precomputed-mine-tick",
+      kind: "gold-mine",
+      faction: "verdant",
+      coordinate: MINE_COORDINATE,
+      createdAt: 0,
+    });
+    const settlement = settleBuildingHealth({
+      buildings: [mine],
+      occupancy: occupy(mine),
+      elapsedSeconds: 0,
+      deltaSeconds: 4,
+      damageIntents: [],
+    });
+    expect(settlement.pendingProduction).toHaveLength(1);
+
+    const economy = createEconomyState();
+    const result = advanceBuildingProduction({
+      settlement,
+      economy,
+      map: BATTLEFIELD_MAP,
+      units: [],
+      productionPolicy: QUEUED_PRODUCTION,
+    });
+
+    expect(result.economy).toBe(economy);
+    expect(result.events).toEqual([]);
+    expect(result.buildings[0]?.productionSequence).toBe(0);
+  });
+
+  it("credits legacy mine production against the injected economy cap", () => {
+    const mine = createBattleBuilding({
+      id: "large-cap-mine",
+      kind: "gold-mine",
+      faction: "verdant",
+      coordinate: MINE_COORDINATE,
+      createdAt: 0,
+    });
+    const result = advanceBuildings({
+      buildings: [mine],
+      economy: createEconomyState(LARGE_CAP_ECONOMY),
+      occupancy: occupy(mine),
+      map: BATTLEFIELD_MAP,
+      units: [],
+      elapsedSeconds: 0,
+      deltaSeconds: 4,
+      damageIntents: [],
+      economyPolicy: LARGE_CAP_ECONOMY,
+    });
+
+    expect(result.economy.accounts.verdant.gold).toBe(1_100);
+    expect(result.events).toContainEqual(expect.objectContaining({
+      type: "building-gold-produced",
+      creditedAmount: 100,
+      wastedAmount: 0,
+    }));
   });
 
   it("produces nine mine ticks before expiring at 36 seconds", () => {

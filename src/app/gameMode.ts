@@ -1,17 +1,15 @@
 import { DEFAULT_FACTION_RACES } from "../game/factions";
-import {
-  MATCH_POLICIES,
-  type BattleMatchMode,
-  type MatchPolicy,
-} from "../game/rules";
+import { battleModeDefinitionFor } from "../game/battleMode";
+import type { MatchPolicy } from "../game/rules";
 import type { FactionRaces } from "../game/types";
 
-export type GameMode = Exclude<BattleMatchMode, "infinite">;
+export const VISIBLE_GAME_MODES = ["campaign", "normal", "arena"] as const;
+export type GameMode = typeof VISIBLE_GAME_MODES[number];
 
 export const DEFAULT_GAME_MODE: GameMode = "normal";
 
 export function matchPolicyForGameMode(mode: GameMode): MatchPolicy {
-  return MATCH_POLICIES[mode];
+  return battleModeDefinitionFor(mode).clockPolicy;
 }
 
 export function factionRacesForGameMode(mode: GameMode): FactionRaces {

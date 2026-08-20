@@ -1,5 +1,9 @@
 import type { WorldPoint } from "../game/types";
-import { terrainHeightAt } from "../map/battlefield";
+import {
+  BATTLEFIELD_MAP,
+  terrainHeightAtMap,
+  type BattlefieldMap,
+} from "../map/battlefield";
 
 const SUPPORT_SAMPLES = [
   { side: 0, forward: 0 },
@@ -16,12 +20,13 @@ const SUPPORT_SAMPLES = [
 export function boneDragonTerrainSupportHeight(
   position: WorldPoint,
   facing: number,
+  map: BattlefieldMap = BATTLEFIELD_MAP,
 ): number {
   const forwardX = Math.sin(facing);
   const forwardZ = Math.cos(facing);
   const sideX = Math.cos(facing);
   const sideZ = -Math.sin(facing);
-  return Math.max(...SUPPORT_SAMPLES.map((sample) => terrainHeightAt({
+  return Math.max(...SUPPORT_SAMPLES.map((sample) => terrainHeightAtMap(map, {
     x: position.x + sideX * sample.side + forwardX * sample.forward,
     z: position.z + sideZ * sample.side + forwardZ * sample.forward,
   })));

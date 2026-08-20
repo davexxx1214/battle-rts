@@ -3,10 +3,8 @@ import { MathUtils, OrthographicCamera, Vector3 } from "three";
 import { useEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
 import {
-  axialToWorld,
-  BATTLEFIELD_MAP,
-  BATTLEFIELD_WORLD_BOUNDS,
-} from "../../map/battlefield";
+  LEGACY_BATTLEFIELD_DEFINITION,
+} from "../../map/battlefieldDefinition";
 import type { CameraViewSnapshot } from "./cameraViewStore";
 import { clampCameraTarget, screenPanWorldDelta } from "./cameraPan";
 import {
@@ -16,16 +14,12 @@ import {
   isPortraitCameraViewport,
 } from "./cameraZoom";
 import type { SceneInteractionBridge } from "../sceneInteractionBridge";
+import { useBattlefieldDefinition } from "../battlefieldSceneContext";
 
 const CAMERA_HEIGHT = 18;
 const CAMERA_GROUND_DISTANCE = 25;
-const VERDANT_CASTLE_POSITION = axialToWorld(BATTLEFIELD_MAP.castles.verdant);
-
-export const DESKTOP_CAMERA_YAW = 0.68;
-export const PORTRAIT_CAMERA_YAW = Math.atan2(
-  VERDANT_CASTLE_POSITION.x,
-  VERDANT_CASTLE_POSITION.z,
-);
+export const DESKTOP_CAMERA_YAW = LEGACY_BATTLEFIELD_DEFINITION.cameraPreset.desktopYaw;
+export const PORTRAIT_CAMERA_YAW = LEGACY_BATTLEFIELD_DEFINITION.cameraPreset.portraitYaw;
 
 export interface CameraShakeImpulse {
   readonly sequence: number;
@@ -35,8 +29,8 @@ export interface CameraShakeImpulse {
 export function BattleCamera({
   resetToken,
   shake,
-  initialTargetZ = 0,
-  initialZoom = 32,
+  initialTargetZ,
+  initialZoom,
   onViewChange,
   bridgeRef,
 }: {
@@ -47,10 +41,15 @@ export function BattleCamera({
   readonly onViewChange?: (view: CameraViewSnapshot) => void;
   readonly bridgeRef: MutableRefObject<SceneInteractionBridge>;
 }) {
+  const battlefield = useBattlefieldDefinition();
+  const resolvedInitialTargetZ = initialTargetZ
+    ?? battlefield.cameraPreset.initialTarget.z;
+  const resolvedInitialZoom = initialZoom
+    ?? battlefield.cameraPreset.defaultZoom;
   const { camera, size } = useThree();
   const portraitViewport = isPortraitCameraViewport(size);
-  const startingZoom = initialCameraZoom(size, initialZoom);
-  const zoomBounds = cameraZoomBounds(size, initialZoom);
+  const startingZoom = initialCameraZoom(size, resolvedInitialZoom);
+  const zoomBounds = cameraZoomBounds(size, resolvedInitialZoom);
   const target = useRef(new Vector3(0, 0, 0));
   const keys = useRef(new Set<string>());
   const yaw = useRef(DESKTOP_CAMERA_YAW);
@@ -62,16 +61,33 @@ export function BattleCamera({
   const lastViewSignature = useRef("");
 
   useEffect(() => {
-    target.current.set(0, 0, portraitViewport ? 0 : initialTargetZ);
-    yaw.current = portraitViewport ? PORTRAIT_CAMERA_YAW : DESKTOP_CAMERA_YAW;
+    target.current.set(
+      battlefield.cameraPreset.initialTarget.x,
+      0,
+      portraitViewport
+        ? battlefield.cameraPreset.initialTarget.z
+        : resolvedInitialTargetZ,
+    );
+    yaw.current = portraitViewport
+      ? battlefield.cameraPreset.portraitYaw
+      : battlefield.cameraPreset.desktopYaw;
     shakeEnergy.current = 0;
     if (camera instanceof OrthographicCamera) {
       camera.zoom = startingZoom;
+      camera.near = battlefield.cameraPreset.near;
+      camera.far = battlefield.cameraPreset.far;
       camera.updateProjectionMatrix();
     }
     viewReportDelay.current = 0.1;
     lastViewSignature.current = "";
-  }, [camera, initialTargetZ, portraitViewport, resetToken, startingZoom]);
+  }, [
+    battlefield,
+    camera,
+    portraitViewport,
+    resetToken,
+    resolvedInitialTargetZ,
+    startingZoom,
+  ]);
 
   useEffect(() => {
     if (!shake) return;
@@ -141,7 +157,7 @@ export function BattleCamera({
       : 1;
     const clampedTarget = clampCameraTarget(
       target.current,
-      BATTLEFIELD_WORLD_BOUNDS,
+      battlefield.worldBounds,
       yaw.current,
       panProgress,
     );

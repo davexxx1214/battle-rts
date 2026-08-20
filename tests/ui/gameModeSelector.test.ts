@@ -24,6 +24,8 @@ describe("game mode selector", () => {
     expect(markup).toContain("战役模式");
     expect(markup).toContain("自由对战");
     expect(markup).toContain("竞技场模式");
+    expect(markup).not.toContain("沙盒");
+    expect(markup).not.toContain('value="sandbox"');
     expect(markup).not.toContain("人类对亡灵");
     expect(markup.match(/<button/g)).toHaveLength(3);
     expect(markup).toContain('aria-label="游戏模式"');

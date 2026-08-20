@@ -490,6 +490,7 @@ export function deploymentReasonLabel(reason: DeploymentFailureReason): string {
     case "insufficient-gold": return "金币不足";
     case "building-limit": return "数量已达上限";
     case "no-buildable-hex": return "没有完整空格";
+    case "direct-deployment-disabled": return "该模式需从生产建筑训练兵种";
     case "outside-battlefield": return "超出战场";
     case "enemy-territory": return "仅限己方势力范围";
     case "unbuildable-hex": return "此格不可建造";

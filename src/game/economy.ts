@@ -1,5 +1,10 @@
 import { getMatchClock } from "./matchClock";
 import {
+  LEGACY_ECONOMY_POLICY,
+  type BattleEconomyPolicy,
+  type PeriodicPassiveIncomePolicy,
+} from "./battleMode";
+import {
   GAME_RULES,
   MATCH_POLICIES,
   type MatchPolicy,
@@ -45,11 +50,13 @@ export interface GrantGoldResult {
 const FACTIONS: readonly Faction[] = ["verdant", "crimson"];
 const PROGRESS_EPSILON = 1e-10;
 
-export function createEconomyState(): EconomyState {
+export function createEconomyState(
+  policy: BattleEconomyPolicy = LEGACY_ECONOMY_POLICY,
+): EconomyState {
   const createAccount = (): FactionEconomyState => ({
-    gold: GAME_RULES.economy.initialGold,
+    gold: policy.initialGold,
     recoveryProgress: 0,
-    isFull: GAME_RULES.economy.initialGold >= GAME_RULES.economy.maximumGold,
+    isFull: policy.initialGold >= policy.maximumGold,
     fullPromptSequence: 0,
   });
   return {
@@ -64,27 +71,33 @@ export function advanceEconomy(
   state: EconomyState,
   elapsedSeconds: number,
   deltaSeconds: number,
-  policy: MatchPolicy = MATCH_POLICIES.normal,
+  clockPolicy: MatchPolicy = MATCH_POLICIES.normal,
+  economyPolicy: BattleEconomyPolicy = LEGACY_ECONOMY_POLICY,
 ): EconomyAdvanceResult {
   if (!Number.isFinite(elapsedSeconds) || !Number.isFinite(deltaSeconds) || deltaSeconds <= 0) {
     return { state, newlyFullFactions: [] };
   }
+  if (economyPolicy.passiveIncome.kind === "disabled") {
+    return { state, newlyFullFactions: [] };
+  }
 
-  const start = getMatchClock(elapsedSeconds, policy).elapsedSeconds;
-  const end = getMatchClock(elapsedSeconds + deltaSeconds, policy).elapsedSeconds;
+  const start = getMatchClock(elapsedSeconds, clockPolicy).elapsedSeconds;
+  const end = getMatchClock(elapsedSeconds + deltaSeconds, clockPolicy).elapsedSeconds;
   if (end <= start) {
     return { state, newlyFullFactions: [] };
   }
 
   let accounts = state.accounts;
   const newlyFull = new Set<Faction>();
-  for (const segment of splitRecoverySegments(start, end, policy)) {
+  for (const segment of splitRecoverySegments(start, end, clockPolicy)) {
     const nextAccounts = { ...accounts };
     for (const faction of FACTIONS) {
       const advanced = advanceAccount(
         accounts[faction],
         segment.seconds,
-        GAME_RULES.economy.normalRecoverySeconds / segment.multiplier,
+        economyPolicy.passiveIncome.normalRecoverySeconds / segment.multiplier,
+        economyPolicy,
+        economyPolicy.passiveIncome,
       );
       nextAccounts[faction] = advanced.account;
       if (advanced.becameFull) newlyFull.add(faction);
@@ -104,11 +117,12 @@ export function trySpendGold(
   state: EconomyState,
   faction: Faction,
   amount: number,
+  policy: BattleEconomyPolicy = LEGACY_ECONOMY_POLICY,
 ): SpendGoldResult {
   if (
     !Number.isInteger(amount)
     || amount <= 0
-    || amount % 100 !== 0
+    || amount % policy.goldStep !== 0
     || state.accounts[faction].gold < amount
   ) {
     return { state, spent: false };
@@ -124,7 +138,7 @@ export function trySpendGold(
         [faction]: {
           ...account,
           gold,
-          isFull: gold >= GAME_RULES.economy.maximumGold,
+          isFull: gold >= policy.maximumGold,
         },
       },
     },
@@ -135,8 +149,9 @@ export function grantGold(
   state: EconomyState,
   faction: Faction,
   amount: number,
+  policy: BattleEconomyPolicy = LEGACY_ECONOMY_POLICY,
 ): GrantGoldResult {
-  if (!Number.isInteger(amount) || amount <= 0 || amount % 100 !== 0) {
+  if (!Number.isInteger(amount) || amount <= 0 || amount % policy.goldStep !== 0) {
     return {
       state,
       creditedAmount: 0,
@@ -145,11 +160,11 @@ export function grantGold(
     };
   }
   const account = state.accounts[faction];
-  const availableCapacity = Math.max(0, GAME_RULES.economy.maximumGold - account.gold);
+  const availableCapacity = Math.max(0, policy.maximumGold - account.gold);
   const creditedAmount = Math.min(amount, availableCapacity);
   const wastedAmount = amount - creditedAmount;
   const gold = account.gold + creditedAmount;
-  const isFull = gold >= GAME_RULES.economy.maximumGold;
+  const isFull = gold >= policy.maximumGold;
   const becameFull = isFull && !account.isFull;
   return {
     creditedAmount,
@@ -220,16 +235,18 @@ function advanceAccount(
   account: FactionEconomyState,
   seconds: number,
   interval: number,
+  economyPolicy: BattleEconomyPolicy,
+  passiveIncome: PeriodicPassiveIncomePolicy,
 ): { readonly account: FactionEconomyState; readonly becameFull: boolean } {
   const accumulated = account.recoveryProgress + seconds / interval;
   const recoveryCount = Math.floor(accumulated + PROGRESS_EPSILON);
   let recoveryProgress = accumulated - recoveryCount;
   if (Math.abs(recoveryProgress) < PROGRESS_EPSILON) recoveryProgress = 0;
   const gold = Math.min(
-    GAME_RULES.economy.maximumGold,
-    account.gold + recoveryCount * GAME_RULES.economy.goldPerRecovery,
+    economyPolicy.maximumGold,
+    account.gold + recoveryCount * passiveIncome.goldPerRecovery,
   );
-  const isFull = gold >= GAME_RULES.economy.maximumGold;
+  const isFull = gold >= economyPolicy.maximumGold;
   const becameFull = isFull && !account.isFull;
   return {
     becameFull,

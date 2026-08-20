@@ -29,7 +29,8 @@ import {
   type DeployableKind,
   type TroopKind,
 } from "../game/rules";
-import { terrainHeightAt } from "../map/battlefield";
+import { terrainHeightAtMap } from "../map/battlefield";
+import { battlefieldDefinitionFor } from "../map/battlefieldDefinition";
 import {
   BattleCamera,
   type CameraShakeImpulse,
@@ -60,6 +61,7 @@ import {
 } from "./SceneAssetPreloader";
 import type { SceneAssetLoadProgress } from "./loadingProgress";
 import type { SceneInteractionBridge } from "./sceneInteractionBridge";
+import { BattlefieldSceneProvider, useBattlefieldDefinition } from "./battlefieldSceneContext";
 
 export { createSceneInteractionBridge } from "./sceneInteractionBridge";
 export type { SceneInteractionBridge } from "./sceneInteractionBridge";
@@ -100,11 +102,14 @@ export function BattlefieldCanvas({
   onAssetError,
   onBenchmarkUpdate,
 }: BattlefieldCanvasProps) {
+  const battlefield = battlefieldDefinitionFor(battle.mapId);
   const resolvedFactionRaces = factionRaces
     ?? (undeadOpponent ? legacyUndeadOpponentRaces(true) : battle.factionRaces)
     ?? legacyUndeadOpponentRaces(undeadOpponent);
   const hasUndeadTerritory = hasRace(resolvedFactionRaces, "undead");
-  const initialZoom = hasUndeadTerritory ? 31 : 32;
+  const initialZoom = hasUndeadTerritory
+    ? battlefield.cameraPreset.defaultZoom - 1
+    : battlefield.cameraPreset.defaultZoom;
   const attackPresentations = useAttackPresentationCache(battle);
   const deploymentMaskCoordinates = useMemo(() => (
     deploymentKind
@@ -120,7 +125,12 @@ export function BattlefieldCanvas({
       orthographic
       shadows="basic"
       dpr={onBenchmarkUpdate ? 1 : [1, 1.5]}
-      camera={{ position: [16, 18, 20], zoom: 32, near: 0.1, far: 140 }}
+      camera={{
+        position: battlefield.cameraPreset.initialPosition,
+        zoom: battlefield.cameraPreset.defaultZoom,
+        near: battlefield.cameraPreset.near,
+        far: battlefield.cameraPreset.far,
+      }}
       gl={{ antialias: true, alpha: false }}
       resize={{ offsetSize: true }}
       style={{
@@ -129,6 +139,7 @@ export function BattlefieldCanvas({
         background: hasUndeadTerritory ? "#777381" : "#aeb9ad",
       }}
     >
+      <BattlefieldSceneProvider definition={battlefield}>
       {onAssetProgress && onAssetsReady && onAssetError && (
         <SceneAssetErrorBoundary onError={onAssetError}>
           <SceneAssetPreloader
@@ -160,7 +171,9 @@ export function BattlefieldCanvas({
       <BattleCamera
         resetToken={cameraResetToken}
         shake={latestShakeImpulse(battle)}
-        initialTargetZ={resolvedFactionRaces.crimson === "undead" ? -2.4 : 0}
+        initialTargetZ={resolvedFactionRaces.crimson === "undead"
+          ? battlefield.cameraPreset.initialTarget.z - 2.4
+          : battlefield.cameraPreset.initialTarget.z}
         initialZoom={initialZoom}
         onViewChange={cameraViewStore.publish}
         bridgeRef={bridgeRef}
@@ -205,6 +218,7 @@ export function BattlefieldCanvas({
           race={resolvedFactionRaces.verdant}
         />
       )}
+      </BattlefieldSceneProvider>
     </Canvas>
   );
 }
@@ -216,11 +230,12 @@ function DeploymentPreviewVisual({
   readonly preview: DeploymentPreview & { readonly kind: DeployableKind };
   readonly race: FactionRaces["verdant"];
 }) {
+  const { map } = useBattlefieldDefinition();
   const anchor = preview.position ?? preview.requestedPosition;
   const building = isBuildingDeployable(preview.kind);
   const placementRing = deploymentPreviewRingGeometry(preview.kind);
   const color = preview.valid ? VALID_DEPLOYMENT_COLOR : "#ef625e";
-  const y = terrainHeightAt(anchor) + 0.075;
+  const y = terrainHeightAtMap(map, anchor) + 0.075;
   const troopPositions = preview.valid && preview.unitPositions.length > 0
     ? preview.unitPositions
     : [anchor];
@@ -343,6 +358,7 @@ function createInvalidDeploymentTexture(): CanvasTexture {
 }
 
 function UnitShadowInstances({ battle }: { readonly battle: BattleState }) {
+  const { map } = useBattlefieldDefinition();
   const mesh = useRef<InstancedMesh>(null);
   const dummy = useMemo(() => new Object3D(), []);
   useFrame(() => {
@@ -353,7 +369,7 @@ function UnitShadowInstances({ battle }: { readonly battle: BattleState }) {
       );
       dummy.position.set(
         unit.position.x + 0.12,
-        terrainHeightAt(unit.position) + 0.018,
+        terrainHeightAtMap(map, unit.position) + 0.018,
         unit.position.z + 0.14,
       );
       dummy.rotation.set(-Math.PI / 2, 0, 0);

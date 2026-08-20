@@ -18,7 +18,7 @@ import { useEffect, useMemo, useRef } from "react";
 
 import type { BattleUnit, WorldPoint } from "../../game/battle";
 import type { BattleRace } from "../../game/types";
-import { terrainHeightAt } from "../../map/battlefield";
+import { terrainHeightAtMap } from "../../map/battlefield";
 import {
   MOBILE_CATAPULT_PARTS,
   SCENE_MODEL_URLS,
@@ -36,6 +36,7 @@ import {
   faceHealthBarToCamera,
   shouldShowUnitHealthBar,
 } from "./unitHealthPresentation";
+import { useBattlefieldDefinition } from "../battlefieldSceneContext";
 
 interface PreparedCatapult {
   readonly model: Object3D;
@@ -64,6 +65,7 @@ export function CatapultUnitModel({
   readonly race?: BattleRace;
   readonly ghostValid?: boolean;
 }) {
+  const { map } = useBattlefieldDefinition();
   const isUndead = race === "undead";
   const catapultGltf = useLoader(GLTFLoader, SCENE_MODEL_URLS.mobileCatapult);
   const operatorGltf = useLoader(
@@ -210,7 +212,7 @@ export function CatapultUnitModel({
       if (ghostValid !== undefined) {
         root.current.position.set(
           unit.position.x,
-          terrainHeightAt(unit.position) + 0.08,
+          terrainHeightAtMap(map, unit.position) + 0.08,
           unit.position.z,
         );
         root.current.rotation.y = unit.facing;
@@ -223,7 +225,7 @@ export function CatapultUnitModel({
         );
         root.current.position.y = MathUtils.damp(
           root.current.position.y,
-          terrainHeightAt(unit.position) + 0.08,
+          terrainHeightAtMap(map, unit.position) + 0.08,
           10,
           delta,
         );
@@ -253,7 +255,7 @@ export function CatapultUnitModel({
   return (
     <group
       ref={root}
-      position={[unit.position.x, terrainHeightAt(unit.position) + 0.08, unit.position.z]}
+      position={[unit.position.x, terrainHeightAtMap(map, unit.position) + 0.08, unit.position.z]}
       rotation={[0, unit.facing, 0]}
     >
       <group ref={animatedRig}>

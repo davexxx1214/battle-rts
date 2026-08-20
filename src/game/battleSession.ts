@@ -1,6 +1,7 @@
 import { stepBattle, type BattleState } from "./battle";
 import type { BattlePhase, BattleSessionState } from "./battleSessionState";
 import { advanceOpponentAi } from "./opponentAi";
+import { resolveBattleRuntimeContext } from "./battleRuntime";
 import {
   DEFAULT_AI_DIFFICULTY,
   GAME_RULES,
@@ -28,7 +29,7 @@ export function beginBattleSession(
 ): BattleSessionState {
   if (session.phase === "engaged") return session;
   return {
-    battle: session.battle,
+    ...session,
     phase: "engaged",
   };
 }
@@ -42,14 +43,14 @@ export function advanceBattleSession(
 ): BattleState {
   if (phase !== "engaged") return state;
   let next = state;
+  const usesLegacyOpponentAi = resolveBattleRuntimeContext(state).mode.opponentPolicy.kind
+    === "legacy-deployment-ai";
   for (let index = 0; index < steps; index += 1) {
     const previousMatchElapsed = next.matchElapsed;
     next = stepBattle(next, stepSeconds);
-    const decisionCount = crossedDecisionCount(
-      previousMatchElapsed,
-      next.matchElapsed,
-      aiDifficulty,
-    );
+    const decisionCount = usesLegacyOpponentAi
+      ? crossedDecisionCount(previousMatchElapsed, next.matchElapsed, aiDifficulty)
+      : 0;
     for (let decision = 0; decision < decisionCount; decision += 1) {
       next = advanceOpponentAi({ battle: next, phase }, aiDifficulty).battle;
     }

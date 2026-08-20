@@ -20,6 +20,7 @@ export const BATTLE_MATCH_MODES = [
   "normal",
   "arena",
   "infinite",
+  "sandbox",
 ] as const;
 export type BattleMatchMode = typeof BATTLE_MATCH_MODES[number];
 export type MatchBonusResource = "gold" | "experience";
@@ -563,6 +564,12 @@ export const MATCH_POLICIES = {
   },
   infinite: {
     mode: "infinite",
+    durationSeconds: null,
+    finalBonus: null,
+    timeoutResolution: null,
+  },
+  sandbox: {
+    mode: "sandbox",
     durationSeconds: null,
     finalBonus: null,
     timeoutResolution: null,

@@ -198,7 +198,14 @@ export function getMapCell(
 }
 
 export function terrainHeightAt(point: WorldPoint): number {
-  return getBattlefieldCell(worldToAxial(point))?.height ?? HEIGHT_LOW;
+  return terrainHeightAtMap(BATTLEFIELD_MAP, point);
+}
+
+export function terrainHeightAtMap(
+  map: BattlefieldMap,
+  point: WorldPoint,
+): number {
+  return getMapCell(map, worldToAxial(point))?.height ?? HEIGHT_LOW;
 }
 
 export function hexDistance(first: HexCoordinate, second: HexCoordinate): number {

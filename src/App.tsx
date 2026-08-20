@@ -1218,6 +1218,7 @@ function createAppState(
             : mode === "arena"
               ? createArenaBattle(factionRaces)
               : createInitialBattle({
+                  modeId: mode,
                   factionRaces,
                   matchPolicy: matchPolicyForGameMode(mode),
                 }),

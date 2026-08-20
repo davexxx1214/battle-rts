@@ -12,7 +12,7 @@ import { useMemo, useRef } from "react";
 
 import type { BattleUnit } from "../../game/battle";
 import type { UnitStatusEffect } from "../../game/unitStatusEffects";
-import { terrainHeightAt } from "../../map/battlefield";
+import { terrainHeightAtMap } from "../../map/battlefield";
 import { FROST_BREATH_PARTICLES } from "./effectPresentation";
 import {
   BURNING_STATUS_COLORS,
@@ -22,6 +22,7 @@ import {
   unitStatusEffectVisualRadius,
   visibleUnitStatusEffects,
 } from "./statusEffectPresentation";
+import { useBattlefieldDefinition } from "../battlefieldSceneContext";
 
 interface UnitStatusEffectLayerProps {
   readonly units: readonly BattleUnit[];
@@ -71,8 +72,9 @@ function UnitStatusAnchor({
   readonly elapsed: number;
   readonly textures: StatusEffectTextures;
 }) {
+  const { map } = useBattlefieldDefinition();
   const root = useRef<Group>(null);
-  const groundY = terrainHeightAt(unit.position) + 0.08;
+  const groundY = terrainHeightAtMap(map, unit.position) + 0.08;
   const radius = unitStatusEffectVisualRadius(unit.role);
   const phase = unitStatusEffectPhase(unit.id);
   useFrame((_, delta) => {
