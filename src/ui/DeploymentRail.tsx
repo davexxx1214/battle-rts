@@ -32,12 +32,8 @@ import {
   deployableIconForRace,
   deployableLabelForRace,
 } from "./deployablePresentation";
-import {
-  DEPLOYMENT_DRAG_THRESHOLD_PX,
-  DEPLOYMENT_LONG_PRESS_MS,
-  deploymentGestureIntent,
-} from "./deploymentDrag";
-import { fieldPointerDistance, type FieldPoint } from "./fieldInput";
+import { deploymentGestureIntent } from "./deploymentDrag";
+import type { FieldPoint } from "./fieldInput";
 import styles from "./DeploymentRail.module.css";
 
 export type DeploymentDragEvent =
@@ -80,9 +76,7 @@ interface CardPointerGesture {
   readonly kind: DeployableKind;
   readonly element: HTMLButtonElement;
   readonly start: FieldPoint;
-  latest: FieldPoint;
   mode: "pending" | "dragging" | "scrolling";
-  timer: number | null;
 }
 
 const HUMAN_BARRACKS = barracksDesignForRace("human");
@@ -231,17 +225,9 @@ function DeployableGroup({
     onDragDeployRef.current = onDragDeploy;
   }, [onDragDeploy]);
 
-  const clearGestureTimer = (gesture: CardPointerGesture) => {
-    if (gesture.timer === null) return;
-    window.clearTimeout(gesture.timer);
-    gesture.timer = null;
-  };
-
   const startDeploymentDrag = (gesture: CardPointerGesture, client: FieldPoint) => {
     if (gesture.mode !== "pending") return;
-    clearGestureTimer(gesture);
     gesture.mode = "dragging";
-    gesture.latest = client;
     suppressClickUntilRef.current = performance.now() + 700;
     setDraggingKind(gesture.kind);
     onDragDeployRef.current?.({
@@ -253,7 +239,6 @@ function DeployableGroup({
   };
 
   const resetGesture = (gesture: CardPointerGesture, cancelDrag: boolean) => {
-    clearGestureTimer(gesture);
     if (cancelDrag && gesture.mode === "dragging") {
       onDragDeployRef.current?.({ phase: "cancel", pointerId: gesture.pointerId });
     }
@@ -266,17 +251,9 @@ function DeployableGroup({
     const finishWindowGesture = (event: PointerEvent, cancelled: boolean) => {
       const gesture = gestureRef.current;
       if (!gesture || gesture.pointerId !== event.pointerId) return;
-      if (gesture.timer !== null) {
-        window.clearTimeout(gesture.timer);
-        gesture.timer = null;
-      }
-      const movedBeforeLongPress = gesture.mode === "pending"
-        && fieldPointerDistance(gesture.start, gesture.latest)
-          >= DEPLOYMENT_DRAG_THRESHOLD_PX;
       if (
         gesture.mode === "dragging"
         || gesture.mode === "scrolling"
-        || movedBeforeLongPress
       ) {
         if (event.cancelable) event.preventDefault();
         suppressClickUntilRef.current = performance.now() + 700;
@@ -310,7 +287,6 @@ function DeployableGroup({
       window.removeEventListener("pointercancel", handleWindowPointerCancel, true);
       const gesture = gestureRef.current;
       if (!gesture) return;
-      if (gesture.timer !== null) window.clearTimeout(gesture.timer);
       if (gesture.mode === "dragging") {
         onDragDeployRef.current?.({ phase: "cancel", pointerId: gesture.pointerId });
       }
@@ -336,31 +312,21 @@ function DeployableGroup({
       kind,
       element: event.currentTarget,
       start: client,
-      latest: client,
       mode: "pending",
-      timer: null,
     };
     gestureRef.current = gesture;
     gestureOwnerRef.current = event.pointerId;
     event.currentTarget.setPointerCapture(event.pointerId);
-    gesture.timer = window.setTimeout(() => {
-      if (gestureRef.current !== gesture || gesture.mode !== "pending") return;
-      if (deploymentGestureIntent(gesture.start, gesture.latest, true) === "drag") {
-        startDeploymentDrag(gesture, gesture.latest);
-      }
-    }, DEPLOYMENT_LONG_PRESS_MS);
   };
 
   const handleCardPointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const gesture = gestureRef.current;
     if (!gesture || gesture.pointerId !== event.pointerId) return;
     const client = { x: event.clientX, y: event.clientY };
-    gesture.latest = client;
     if (gesture.mode === "pending") {
-      const intent = deploymentGestureIntent(gesture.start, client, false);
+      const intent = deploymentGestureIntent(gesture.start, client);
       if (intent === "pending") return;
       if (intent === "scroll") {
-        clearGestureTimer(gesture);
         gesture.mode = "scrolling";
         suppressClickUntilRef.current = performance.now() + 700;
         return;
@@ -374,7 +340,6 @@ function DeployableGroup({
   const handleCardPointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const gesture = gestureRef.current;
     if (!gesture || gesture.pointerId !== event.pointerId) return;
-    clearGestureTimer(gesture);
     if (gesture.mode === "dragging" || gesture.mode === "scrolling") {
       event.preventDefault();
       suppressClickUntilRef.current = performance.now() + 700;
