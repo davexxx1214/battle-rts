@@ -1,5 +1,6 @@
 import type { CombatTarget, CombatTargetType } from "./combat";
 import type { AttackVisualKind, UnitRole, WorldPoint } from "./types";
+import type { UnitStatusEffectApplication } from "./unitStatusEffects";
 
 export interface BattleProjectile {
   readonly id: string;
@@ -9,6 +10,7 @@ export interface BattleProjectile {
   readonly targetType: CombatTargetType;
   readonly role: UnitRole;
   readonly visualKind?: AttackVisualKind;
+  readonly onHitStatusEffects?: readonly UnitStatusEffectApplication[];
   readonly origin: WorldPoint;
   readonly position: WorldPoint;
   readonly destination: WorldPoint;

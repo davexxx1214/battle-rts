@@ -16,6 +16,12 @@ describe("mobile camera pan range", () => {
     expect(normalizedPanProgress(80, 11, 56)).toBe(1);
   });
 
+  it("keeps the desktop overview fixed until the camera zooms in", () => {
+    expect(normalizedPanProgress(32, 32, 56)).toBe(0);
+    expect(normalizedPanProgress(40, 32, 56)).toBeGreaterThan(0);
+    expect(normalizedPanProgress(56, 32, 56)).toBe(1);
+  });
+
   it("maps touch movement to the camera's screen axes at an isometric yaw", () => {
     const yaw = 0.68;
     const axes = cameraGroundAxes(yaw);

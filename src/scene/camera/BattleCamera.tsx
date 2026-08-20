@@ -5,6 +5,12 @@ import type { MutableRefObject } from "react";
 import { BATTLEFIELD_WORLD_BOUNDS } from "../../map/battlefield";
 import type { CameraViewSnapshot } from "./cameraViewStore";
 import { clampCameraTarget, screenPanWorldDelta } from "./cameraPan";
+import {
+  CAMERA_MAXIMUM_ZOOM,
+  cameraZoomBounds,
+  COMPACT_CAMERA_INITIAL_ZOOM,
+  isCompactCameraViewport,
+} from "./cameraZoom";
 import type { SceneInteractionBridge } from "../sceneInteractionBridge";
 
 const CAMERA_HEIGHT = 18;
@@ -31,7 +37,8 @@ export function BattleCamera({
   readonly bridgeRef: MutableRefObject<SceneInteractionBridge>;
 }) {
   const { camera, size } = useThree();
-  const compactViewport = Math.min(size.width, size.height) <= 520;
+  const compactViewport = isCompactCameraViewport(size);
+  const zoomBounds = cameraZoomBounds(size, initialZoom);
   const target = useRef(new Vector3(0, 0, 0));
   const keys = useRef(new Set<string>());
   const yaw = useRef(0.68);
@@ -47,7 +54,7 @@ export function BattleCamera({
     yaw.current = 0.68;
     shakeEnergy.current = 0;
     if (camera instanceof OrthographicCamera) {
-      camera.zoom = compactViewport ? 13 : initialZoom;
+      camera.zoom = compactViewport ? COMPACT_CAMERA_INITIAL_ZOOM : initialZoom;
       camera.updateProjectionMatrix();
     }
     viewReportDelay.current = 0.1;
@@ -118,7 +125,7 @@ export function BattleCamera({
     if (keys.current.has("arrowup")) target.current.z -= speed;
     if (keys.current.has("arrowdown")) target.current.z += speed;
     const panProgress = camera instanceof OrthographicCamera
-      ? normalizedPanProgress(camera.zoom, compactViewport ? 11 : 22, 56)
+      ? normalizedPanProgress(camera.zoom, zoomBounds.minimum, CAMERA_MAXIMUM_ZOOM)
       : 1;
     const clampedTarget = clampCameraTarget(
       target.current,

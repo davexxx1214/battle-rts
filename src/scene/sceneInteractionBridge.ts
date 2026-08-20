@@ -2,7 +2,7 @@ import type { WorldPoint } from "../game/battle";
 
 export interface SceneInteractionBridge {
   screenToWorld: (x: number, y: number) => WorldPoint | null;
-  zoomBy: (deltaY: number) => void;
+  zoomBy: (deltaY: number, deltaMode?: number) => void;
   zoomByFactor: (factor: number) => void;
   panByScreenDelta: (deltaX: number, deltaY: number) => void;
 }

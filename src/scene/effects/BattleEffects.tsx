@@ -27,6 +27,7 @@ import { FixedObjectPool } from "./effectPool";
 import {
   BATTLE_FX_SEQUENCES,
   BATTLE_FX_URLS,
+  FIREBALL_COLORS,
   FROST_BREATH_DURATION_SECONDS,
   FROST_BREATH_MOUTH_HEIGHT,
   FROST_BREATH_PARTICLES,
@@ -1152,11 +1153,13 @@ function ProjectilePool({
           ref={(mesh) => { magicFrames.current[index] = mesh; }}
           args={[undefined, undefined, PROJECTILE_POOL_CAPACITY]}
           frustumCulled={false}
+          renderOrder={30}
           key={texture.uuid}
         >
           <planeGeometry args={[0.67, 0.8]} />
           <meshBasicMaterial
             map={texture}
+            color={FIREBALL_COLORS.flame}
             transparent
             depthWrite={false}
             toneMapped={false}
@@ -1340,7 +1343,7 @@ function ImpactFlash({
       <ringGeometry args={[0.28, 0.42, role === "mage" ? 20 : role === "catapult" ? 12 : 7]} />
       <meshBasicMaterial
         ref={material}
-        color="#ffd688"
+        color={role === "mage" ? FIREBALL_COLORS.impact : "#ffd688"}
         transparent
         depthWrite={false}
       />

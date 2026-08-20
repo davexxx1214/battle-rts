@@ -78,6 +78,15 @@ import {
   advanceCastleAttacks,
 } from "./castleCombat";
 import { advanceArrowTowerAttacks } from "./arrowTowerCombat";
+import {
+  applyUnitStatusEffect,
+  periodicStatusDamageForInterval,
+  pruneUnitStatusEffects,
+  unitStatusModifiers,
+  type CombatStatusEffectIntent,
+  type UnitStatusEffect,
+  type UnitStatusEffectApplication,
+} from "./unitStatusEffects";
 
 export type { BattleRace, Faction, FactionRaces, UnitRole, WorldPoint } from "./types";
 export { UNIT_SPECS } from "./rules";
@@ -100,6 +109,7 @@ export interface BattleUnit extends CombatTarget {
   readonly navigationKey: string | null;
   readonly behavior: UnitBehavior;
   readonly status: UnitStatus;
+  readonly statusEffects: readonly UnitStatusEffect[];
   readonly cooldownRemaining: number;
   readonly facing: number;
   readonly currentTarget: CombatTargetRef | null;
@@ -168,6 +178,7 @@ export function createBattleUnit(input: CreateBattleUnitInput): BattleUnit {
     health: spec.maxHealth,
     behavior: "charging",
     status: "idle",
+    statusEffects: [],
     cooldownRemaining: 0,
     facing: input.faction === "verdant" ? Math.PI : 0,
     currentTarget: null,
@@ -231,6 +242,10 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     );
     return {
       ...state,
+      units: state.units.map((unit) => ({
+        ...unit,
+        statusEffects: pruneUnitStatusEffects(unit.statusEffects, elapsed),
+      })),
       buildings: cleanup.buildings,
       buildingOccupancy: cleanup.occupancy,
       projectiles: [],
@@ -240,8 +255,13 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     };
   }
   const elapsed = state.elapsed + deltaSeconds;
-  const livingAtStart = state.units.filter((unit) => unit.health > 0);
+  const unitsAtStart = state.units.map((unit) => ({
+    ...unit,
+    statusEffects: pruneUnitStatusEffects(unit.statusEffects, state.elapsed),
+  }));
+  const livingAtStart = unitsAtStart.filter((unit) => unit.health > 0);
   const damage: CombatDamageIntent[] = [];
+  const statusEffectIntents: CombatStatusEffectIntent[] = [];
   const emitted: BattleEvent[] = [];
   let nextEventSequence = state.nextEventSequence;
   const emit: EmitBattleEvent = (input) => {
@@ -274,6 +294,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       livingAtStart,
       activeBuildingsAtStart,
       damage,
+      statusEffectIntents,
       emit,
     );
   }
@@ -311,13 +332,14 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
   const engagementByAttackerId = new Map(
     engagementSlots.map((slot) => [slot.attackerId, slot] as const),
   );
-  const advancedUnits = state.units.map((unit) => advanceUnit(
+  const advancedUnits = unitsAtStart.map((unit) => advanceUnit(
     unit,
     targetsByUnitId.get(unit.id) ?? null,
     combatTargetsAtStart,
     engagementByAttackerId.get(unit.id) ?? null,
     deltaSeconds,
     damage,
+    statusEffectIntents,
     spawnedProjectiles,
     emit,
   ));
@@ -335,9 +357,14 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
         : advancedUnits[index]!.position,
     };
   });
+  const periodicStatusDamage = periodicStatusDamageIntents(
+    unitsAtStart,
+    state.elapsed,
+    elapsed,
+  );
   const damagedUnits = applyDamageIntents(
     separatedUnits,
-    damage,
+    [...damage, ...periodicStatusDamage],
     elapsed,
     emit,
     state.buildings,
@@ -465,6 +492,11 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     emit,
     castleAttackStep.buildings,
   );
+  const statusSettledUnits = settleUnitStatusEffects(
+    unitsAfterCastleAttacks,
+    statusEffectIntents,
+    elapsed,
+  );
   const newlyFullFactions = new Set([
     ...economyStep.newlyFullFactions,
     ...buildingStep.newlyFullFactions,
@@ -489,7 +521,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     buildingStep.occupancy,
     elapsed,
   );
-  const units = [...unitsAfterCastleAttacks, ...producedUnits];
+  const units = [...statusSettledUnits, ...producedUnits];
   const matchTimedOut = getMatchClock(matchElapsed).remainingSeconds <= 0;
   const winner = castleWinnerAfterBuildingHealth
     ?? (matchTimedOut ? resolveTimeoutWinner(buildingCleanup.buildings) : null);
@@ -526,6 +558,7 @@ function advanceUnit(
   engagementSlot: MeleeEngagementSlot | null,
   deltaSeconds: number,
   damage: CombatDamageIntent[],
+  statusEffectIntents: CombatStatusEffectIntent[],
   spawnedProjectiles: BattleProjectile[],
   emit: EmitBattleEvent,
 ): BattleUnit {
@@ -534,6 +567,7 @@ function advanceUnit(
       ...unit,
       health: 0,
       status: "dead",
+      statusEffects: [],
       waypoints: [],
       currentTarget: null,
       engagementSlot: null,
@@ -541,7 +575,11 @@ function advanceUnit(
   }
   let next: BattleUnit = {
     ...unit,
-    cooldownRemaining: Math.max(0, unit.cooldownRemaining - deltaSeconds),
+    cooldownRemaining: Math.max(
+      0,
+      unit.cooldownRemaining
+        - deltaSeconds * unitStatusModifiers(unit.statusEffects).attackSpeedMultiplier,
+    ),
     currentTarget: target
       ? { targetType: target.targetType, targetId: target.id }
       : null,
@@ -596,6 +634,7 @@ function advanceUnit(
     targetId: target.id,
     targetType: target.targetType,
     role: next.role,
+    ...(spec.attackVisualKind ? { visualKind: spec.attackVisualKind } : {}),
     origin: { ...next.position },
     targetPosition: { ...target.position },
   });
@@ -607,6 +646,13 @@ function advanceUnit(
       targetType: target.targetType,
       amount: spec.damage,
     });
+    queueStatusEffectIntents(
+      next.id,
+      "unit",
+      target,
+      spec.onHitStatusEffects,
+      statusEffectIntents,
+    );
   } else if (spec.attackMode === "cone") {
     const coneTargets = combatTargetsInCone(
       next,
@@ -623,6 +669,13 @@ function advanceUnit(
         targetType: coneTarget.targetType,
         amount: spec.damage,
       });
+      queueStatusEffectIntents(
+        next.id,
+        "unit",
+        coneTarget,
+        spec.onHitStatusEffects,
+        statusEffectIntents,
+      );
     }
   } else {
     const projectileId = `projectile-${attackEvent.sequence}`;
@@ -633,6 +686,10 @@ function advanceUnit(
       targetId: target.id,
       targetType: target.targetType,
       role: next.role,
+      ...(spec.attackVisualKind ? { visualKind: spec.attackVisualKind } : {}),
+      ...(spec.onHitStatusEffects
+        ? { onHitStatusEffects: spec.onHitStatusEffects.map((effect) => ({ ...effect })) }
+        : {}),
       origin: { ...next.position },
       position: { ...next.position },
       destination: { ...target.position },
@@ -648,6 +705,7 @@ function advanceUnit(
       targetId: target.id,
       targetType: target.targetType,
       role: next.role,
+      ...(spec.attackVisualKind ? { visualKind: spec.attackVisualKind } : {}),
       origin: { ...next.position },
       destination: { ...target.position },
     });
@@ -698,6 +756,7 @@ function advanceTowardDestination(
   deltaSeconds: number,
 ): BattleUnit {
   const spec = unitSpecFor(unit.role, unit.combatProfile);
+  const moveSpeed = spec.moveSpeed * unitStatusModifiers(unit.statusEffects).moveSpeedMultiplier;
   if (spec.movementMode === "flying") {
     const facing = Math.atan2(
       destination.x - unit.position.x,
@@ -706,7 +765,7 @@ function advanceTowardDestination(
     const position = clampToForwardProgress(
       unit.faction,
       unit.position,
-      moveToward(unit.position, destination, spec.moveSpeed * deltaSeconds),
+      moveToward(unit.position, destination, moveSpeed * deltaSeconds),
     );
     return {
       ...unit,
@@ -760,13 +819,13 @@ function advanceTowardDestination(
   const requested = moveToward(
     unit.position,
     waypoint,
-    spec.moveSpeed * deltaSeconds,
+    moveSpeed * deltaSeconds,
   );
   const position = walkableForwardPosition(unit.faction, unit.position, requested);
   if (!position) {
     const recovery = recoverBlockedGroundPosition(
       unit.position,
-      spec.moveSpeed * deltaSeconds,
+      moveSpeed * deltaSeconds,
     );
     if (recovery) {
       return {
@@ -795,6 +854,7 @@ function resolveProjectileImpact(
   units: readonly BattleUnit[],
   buildings: readonly BattleBuilding[],
   damage: CombatDamageIntent[],
+  statusEffectIntents: CombatStatusEffectIntent[],
   emit: EmitBattleEvent,
 ): void {
   const { projectile, position } = impact;
@@ -825,6 +885,13 @@ function resolveProjectileImpact(
     targetType: projectile.targetType,
     amount: projectile.damage,
   });
+  queueStatusEffectIntents(
+    projectile.attackerId,
+    projectile.sourceType,
+    target,
+    projectile.onHitStatusEffects,
+    statusEffectIntents,
+  );
   if (projectile.splashRadius <= 0 || projectile.targetType !== "unit") return;
   for (const candidate of units) {
     if (
@@ -840,7 +907,83 @@ function resolveProjectileImpact(
       targetType: "unit",
       amount: projectile.damage * 0.55,
     });
+    queueStatusEffectIntents(
+      projectile.attackerId,
+      projectile.sourceType,
+      candidate,
+      projectile.onHitStatusEffects,
+      statusEffectIntents,
+    );
   }
+}
+
+function queueStatusEffectIntents(
+  sourceId: string,
+  sourceType: CombatStatusEffectIntent["sourceType"],
+  target: CombatTarget,
+  applications: readonly UnitStatusEffectApplication[] | undefined,
+  intents: CombatStatusEffectIntent[],
+): void {
+  if (target.targetType !== "unit" || !applications || applications.length === 0) return;
+  for (const application of applications) {
+    intents.push({
+      sourceId,
+      sourceType,
+      targetId: target.id,
+      application,
+    });
+  }
+}
+
+function periodicStatusDamageIntents(
+  units: readonly BattleUnit[],
+  fromTime: number,
+  toTime: number,
+): CombatDamageIntent[] {
+  const intents: CombatDamageIntent[] = [];
+  for (const unit of units) {
+    if (unit.health <= 0) continue;
+    for (const effect of unit.statusEffects) {
+      const amount = periodicStatusDamageForInterval(effect, fromTime, toTime);
+      if (amount <= 0) continue;
+      intents.push({
+        sourceId: effect.sourceId,
+        sourceType: effect.sourceType,
+        targetId: unit.id,
+        targetType: "unit",
+        amount,
+      });
+    }
+  }
+  return intents;
+}
+
+function settleUnitStatusEffects(
+  units: readonly BattleUnit[],
+  intents: readonly CombatStatusEffectIntent[],
+  elapsed: number,
+): BattleUnit[] {
+  const intentsByTargetId = new Map<string, CombatStatusEffectIntent[]>();
+  for (const intent of intents) {
+    const targetIntents = intentsByTargetId.get(intent.targetId);
+    if (targetIntents) targetIntents.push(intent);
+    else intentsByTargetId.set(intent.targetId, [intent]);
+  }
+  return units.map((unit) => {
+    if (unit.health <= 0 || unit.status === "dead") {
+      return unit.statusEffects.length === 0 ? unit : { ...unit, statusEffects: [] };
+    }
+    let statusEffects = pruneUnitStatusEffects(unit.statusEffects, elapsed);
+    for (const intent of intentsByTargetId.get(unit.id) ?? []) {
+      statusEffects = applyUnitStatusEffect(
+        statusEffects,
+        intent.application,
+        { id: intent.sourceId, targetType: intent.sourceType },
+        elapsed,
+      );
+    }
+    return statusEffects === unit.statusEffects ? unit : { ...unit, statusEffects };
+  });
 }
 
 function applyDamageIntents(
@@ -945,6 +1088,7 @@ function applyDamage(unit: BattleUnit, amount: number, elapsed: number): BattleU
         ...unit,
         health,
         status: "dead",
+        statusEffects: [],
         diedAt: elapsed,
         waypoints: [],
         currentTarget: null,
@@ -960,10 +1104,11 @@ function advanceTowardTarget(
   forcePath = false,
 ): BattleUnit {
   const spec = unitSpecFor(unit.role, unit.combatProfile);
+  const moveSpeed = spec.moveSpeed * unitStatusModifiers(unit.statusEffects).moveSpeedMultiplier;
   const maximumDistance = forcePath
-    ? spec.moveSpeed * deltaSeconds
+    ? moveSpeed * deltaSeconds
     : Math.min(
-        spec.moveSpeed * deltaSeconds,
+        moveSpeed * deltaSeconds,
         Math.max(0, distance(unit.position, target.position) - spec.attackRange),
       );
   const navigationKey = `target:${target.targetType}:${target.id}`;
@@ -1040,7 +1185,10 @@ function advanceTowardCombatPosition(
   facing: number,
   deltaSeconds: number,
 ): BattleUnit {
-  const maximumDistance = unitSpecFor(unit.role, unit.combatProfile).moveSpeed * deltaSeconds;
+  const spec = unitSpecFor(unit.role, unit.combatProfile);
+  const maximumDistance = spec.moveSpeed
+    * unitStatusModifiers(unit.statusEffects).moveSpeedMultiplier
+    * deltaSeconds;
   if (unit.navigationKey === navigationKey && unit.waypoints.length > 0) {
     let waypoints = unit.waypoints;
     const waypoint = waypoints[0]!;
@@ -1223,6 +1371,7 @@ function cloneUnit(unit: BattleUnit): BattleUnit {
     position: { ...unit.position },
     formationSlot: { ...unit.formationSlot },
     waypoints: unit.waypoints.map((waypoint) => ({ ...waypoint })),
+    statusEffects: unit.statusEffects.map((effect) => ({ ...effect })),
     engagementSlot: unit.engagementSlot
       ? { ...unit.engagementSlot, position: { ...unit.engagementSlot.position } }
       : null,

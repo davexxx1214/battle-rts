@@ -1,4 +1,15 @@
-import type { BattleRace, Faction, UnitCombatProfile, UnitRole } from "./types";
+import type {
+  AttackVisualKind,
+  BattleRace,
+  Faction,
+  UnitCombatProfile,
+  UnitRole,
+} from "./types";
+import {
+  BONE_DRAGON_FROST_SLOW,
+  HUMAN_MAGE_BURNING,
+  type UnitStatusEffectApplication,
+} from "./unitStatusEffects";
 
 export const AI_DIFFICULTIES = ["easy", "normal", "hard"] as const;
 export type AiDifficulty = typeof AI_DIFFICULTIES[number];
@@ -44,6 +55,8 @@ export const TROOP_KINDS: readonly TroopKind[] = (
 export interface UnitSpec {
   readonly attackMode: "melee" | "projectile" | "cone";
   readonly movementMode: "ground" | "flying";
+  readonly attackVisualKind?: AttackVisualKind;
+  readonly onHitStatusEffects?: readonly UnitStatusEffectApplication[];
   readonly coneAngleDegrees?: number;
   readonly maxHealth: number;
   readonly damage: number;
@@ -168,6 +181,8 @@ export const UNIT_SPECS = {
   mage: {
     attackMode: "projectile",
     movementMode: "ground",
+    attackVisualKind: "fireball",
+    onHitStatusEffects: [HUMAN_MAGE_BURNING],
     maxHealth: 180,
     damage: 11.75,
     damageReduction: 0.08,
@@ -194,6 +209,7 @@ export const UNIT_SPECS = {
   "bone-dragon": {
     attackMode: "cone",
     movementMode: "ground",
+    onHitStatusEffects: [BONE_DRAGON_FROST_SLOW],
     coneAngleDegrees: 52,
     maxHealth: 480,
     damage: 34,

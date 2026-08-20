@@ -1,6 +1,5 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
-  MathUtils,
   InstancedMesh,
   Object3D,
   OrthographicCamera,
@@ -26,7 +25,13 @@ import {
   type CameraShakeImpulse,
 } from "./camera/BattleCamera";
 import type { CameraViewStore } from "./camera/cameraViewStore";
+import {
+  cameraZoomBounds,
+  clampedCameraZoom,
+  wheelZoomFactor,
+} from "./camera/cameraZoom";
 import { BattleEffects } from "./effects/BattleEffects";
+import { UnitStatusEffectLayer } from "./effects/UnitStatusEffectLayer";
 import { BattleBuildingLayer } from "./buildings/BattleBuildingLayer";
 import {
   DeploymentAreaMask,
@@ -86,6 +91,7 @@ export function BattlefieldCanvas({
     ?? (undeadOpponent ? legacyUndeadOpponentRaces(true) : battle.factionRaces)
     ?? legacyUndeadOpponentRaces(undeadOpponent);
   const hasUndeadTerritory = hasRace(resolvedFactionRaces, "undead");
+  const initialZoom = hasUndeadTerritory ? 31 : 32;
   const attackPresentations = useAttackPresentationCache(battle);
   const deploymentMaskCoordinates = useMemo(() => (
     deploymentKind
@@ -142,11 +148,11 @@ export function BattlefieldCanvas({
         resetToken={cameraResetToken}
         shake={latestShakeImpulse(battle)}
         initialTargetZ={resolvedFactionRaces.crimson === "undead" ? -2.4 : 0}
-        initialZoom={hasUndeadTerritory ? 31 : 32}
+        initialZoom={initialZoom}
         onViewChange={cameraViewStore.publish}
         bridgeRef={bridgeRef}
       />
-      <SceneBridge bridgeRef={bridgeRef} />
+      <SceneBridge bridgeRef={bridgeRef} desktopInitialZoom={initialZoom} />
       {onBenchmarkUpdate && <BenchmarkProbe onUpdate={onBenchmarkUpdate} />}
       <Suspense fallback={<ArenaFallback />}>
         <BattlefieldTerrain factionRaces={resolvedFactionRaces} />
@@ -174,6 +180,9 @@ export function BattlefieldCanvas({
           </Suspense>
         );
       })}
+      <Suspense fallback={null}>
+        <UnitStatusEffectLayer units={battle.units} elapsed={battle.elapsed} />
+      </Suspense>
       <Suspense fallback={null}>
         <BattleEffects battle={battle} />
       </Suspense>
@@ -296,8 +305,10 @@ function BenchmarkProbe({ onUpdate }: {
 
 function SceneBridge({
   bridgeRef,
+  desktopInitialZoom,
 }: {
   readonly bridgeRef: MutableRefObject<SceneInteractionBridge>;
+  readonly desktopInitialZoom: number;
 }) {
   const { camera, size } = useThree();
   const raycaster = useMemo(() => new Raycaster(), []);
@@ -314,17 +325,17 @@ function SceneBridge({
     };
     bridgeRef.current.zoomByFactor = (factor) => {
       if (!(camera instanceof OrthographicCamera)) return;
-      if (!Number.isFinite(factor) || factor <= 0) return;
-      const minimumZoom = Math.min(size.width, size.height) <= 520 ? 11 : 22;
-      camera.zoom = MathUtils.clamp(
-        camera.zoom * factor,
-        minimumZoom,
-        56,
+      const nextZoom = clampedCameraZoom(
+        camera.zoom,
+        factor,
+        cameraZoomBounds(size, desktopInitialZoom),
       );
+      if (nextZoom === camera.zoom) return;
+      camera.zoom = nextZoom;
       camera.updateProjectionMatrix();
     };
-    bridgeRef.current.zoomBy = (deltaY) => {
-      bridgeRef.current.zoomByFactor(deltaY > 0 ? 0.9 : 1.1);
+    bridgeRef.current.zoomBy = (deltaY, deltaMode) => {
+      bridgeRef.current.zoomByFactor(wheelZoomFactor(deltaY, deltaMode));
     };
   });
   return null;

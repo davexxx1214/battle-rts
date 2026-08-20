@@ -10,6 +10,11 @@ import {
 } from "../../src/game/battle";
 import { GAME_RULES, unitSpecFor } from "../../src/game/rules";
 import {
+  BONE_DRAGON_FROST_SLOW,
+  HUMAN_MAGE_BURNING,
+  applyUnitStatusEffect,
+} from "../../src/game/unitStatusEffects";
+import {
   axialToWorld,
 } from "../../src/map/battlefield";
 
@@ -118,6 +123,12 @@ describe("automatic battle simulation", () => {
     expect(health(inside.id)).toBeLessThan(inside.health);
     expect(health(outside.id)).toBe(outside.health);
     expect(health(behind.id)).toBe(behind.health);
+    expect(next.units.find((unit) => unit.id === primary.id)?.statusEffects)
+      .toEqual([expect.objectContaining({ kind: "frost-slow", expiresAt: 1.1 })]);
+    expect(next.units.find((unit) => unit.id === inside.id)?.statusEffects)
+      .toEqual([expect.objectContaining({ kind: "frost-slow", expiresAt: 1.1 })]);
+    expect(next.units.find((unit) => unit.id === outside.id)?.statusEffects).toEqual([]);
+    expect(next.units.find((unit) => unit.id === behind.id)?.statusEffects).toEqual([]);
     expect(next.projectiles).toHaveLength(0);
     expect(next.events).toContainEqual(expect.objectContaining({
       type: "attack-started",
@@ -271,12 +282,128 @@ describe("automatic battle simulation", () => {
     const distant = createBattleUnit({
       id: "c-3", faction: "crimson", role: "mage", position: { x: 4, z: 0 },
     });
-    const state = runSteps(createBattleState([mage, primary, nearby, distant]), 10);
+    const fired = stepBattle(createBattleState([mage, primary, nearby, distant]), 0.1);
+    const state = runSteps(fired, 9);
 
+    expect(fired.projectiles[0]).toMatchObject({
+      visualKind: "fireball",
+      onHitStatusEffects: [expect.objectContaining({ kind: "burning" })],
+    });
     expect(state.units.find((unit) => unit.id === primary.id)?.health).toBeLessThan(primary.health);
     expect(state.units.find((unit) => unit.id === nearby.id)?.health).toBeLessThan(nearby.health);
     expect(state.units.find((unit) => unit.id === distant.id)?.health).toBe(distant.health);
+    expect(state.units.find((unit) => unit.id === primary.id)?.statusEffects)
+      .toEqual([expect.objectContaining({ kind: "burning" })]);
+    expect(state.units.find((unit) => unit.id === nearby.id)?.statusEffects)
+      .toEqual([expect.objectContaining({ kind: "burning" })]);
+    expect(state.units.find((unit) => unit.id === distant.id)?.statusEffects).toEqual([]);
     expect(UNIT_SPECS.mage.splashRadius).toBeGreaterThan(0);
+  });
+
+  it("slows both movement and attack recovery by thirty percent for one second", () => {
+    const origin = axialToWorld({ q: 2, r: 2 });
+    const mover = {
+      ...createBattleUnit({
+        id: "v-slow-probe",
+        faction: "verdant",
+        role: "knight",
+        position: origin,
+      }),
+      cooldownRemaining: 1,
+    };
+    const enemy = createBattleUnit({
+      id: "c-slow-probe-target",
+      faction: "crimson",
+      role: "knight",
+      position: axialToWorld({ q: 2, r: 0 }),
+    });
+    const slowedMover = {
+      ...mover,
+      statusEffects: applyUnitStatusEffect(
+        [],
+        BONE_DRAGON_FROST_SLOW,
+        { id: "c-slow-source", targetType: "unit" },
+        0,
+      ),
+    };
+    const normal = stepBattle(createBattleState([mover, enemy]), 0.1)
+      .units.find(({ id }) => id === mover.id)!;
+    const slowed = stepBattle(createBattleState([slowedMover, enemy]), 0.1)
+      .units.find(({ id }) => id === mover.id)!;
+    const normalDistance = Math.hypot(
+      normal.position.x - origin.x,
+      normal.position.z - origin.z,
+    );
+    const slowedDistance = Math.hypot(
+      slowed.position.x - origin.x,
+      slowed.position.z - origin.z,
+    );
+
+    expect(slowedDistance).toBeCloseTo(normalDistance * 0.7);
+    expect(normal.cooldownRemaining).toBeCloseTo(0.9);
+    expect(slowed.cooldownRemaining).toBeCloseTo(0.93);
+    expect(slowed.statusEffects).toHaveLength(1);
+  });
+
+  it("applies two burn damage ticks over half a second and then removes burning", () => {
+    const mage = createBattleUnit({
+      id: "v-burn-source",
+      faction: "verdant",
+      role: "mage",
+      position: { x: 0, z: 1 },
+    });
+    const deadMage = { ...mage, health: 0, status: "dead" as const, diedAt: 0 };
+    const target = createBattleUnit({
+      id: "c-burn-target",
+      faction: "crimson",
+      role: "spearman",
+      position: { x: 0, z: 0 },
+    });
+    const burningTarget = {
+      ...target,
+      statusEffects: applyUnitStatusEffect(
+        [],
+        HUMAN_MAGE_BURNING,
+        { id: mage.id, targetType: "unit" },
+        0,
+      ),
+    };
+    const burned = runSteps(createBattleState([deadMage, burningTarget]), 5);
+    const resolvedTarget = burned.units.find(({ id }) => id === target.id)!;
+    const burnDamageEvents = burned.events.filter((event) => (
+      event.type === "damage-applied"
+      && event.sourceId === mage.id
+      && event.targetId === target.id
+    ));
+
+    expect(resolvedTarget.health).toBeCloseTo(target.health - 2);
+    expect(resolvedTarget.statusEffects).toEqual([]);
+    expect(burnDamageEvents).toHaveLength(2);
+    expect(burnDamageEvents.every((event) => (
+      event.type === "damage-applied" && event.amount === 1
+    ))).toBe(true);
+  });
+
+  it("does not give the undead mage fireball burning", () => {
+    const mage = createBattleUnit({
+      id: "c-undead-mage",
+      faction: "crimson",
+      role: "mage",
+      combatProfile: "undead",
+      position: { x: 0, z: 0 },
+    });
+    const target = createBattleUnit({
+      id: "v-undead-mage-target",
+      faction: "verdant",
+      role: "spearman",
+      position: { x: 0, z: 5 },
+    });
+    const state = runSteps(createBattleState([mage, target], { undeadOpponent: true }), 16);
+    const resolvedTarget = state.units.find(({ id }) => id === target.id)!;
+
+    expect(resolvedTarget.health).toBeLessThan(target.health);
+    expect(resolvedTarget.statusEffects).toEqual([]);
+    expect(unitSpecFor("mage", "undead").onHitStatusEffects).toBeUndefined();
   });
 
   it("does not resolve on army elimination and draws at five minutes when castle health is tied", () => {

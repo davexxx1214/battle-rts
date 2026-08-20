@@ -8,6 +8,12 @@ export const BATTLE_FX_SEQUENCES: Readonly<{
 
 export type BattleFxSequenceName = keyof typeof BATTLE_FX_SEQUENCES;
 
+export const FIREBALL_COLORS = {
+  core: "#fff0a3",
+  flame: "#ff6329",
+  impact: "#ffb13b",
+} as const;
+
 export const FROST_BREATH_PARTICLES = {
   muzzle: "/assets/fx/kenney-particles/muzzle_03_rotated.png",
   burst: "/assets/fx/kenney-particles/muzzle_01_rotated.png",
@@ -161,7 +167,7 @@ const PROJECTILE_IMPACT_LIFETIMES = {
   knight: 0,
   spearman: 0,
   ranger: 0.3,
-  mage: 0,
+  mage: 0.24,
   catapult: 0.24,
   "bone-dragon": 0,
 } as const satisfies Readonly<Record<UnitRole, number>>;

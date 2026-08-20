@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   BATTLE_FX_SEQUENCES,
   BATTLE_FX_URLS,
+  FIREBALL_COLORS,
   FROST_BREATH_PARTICLES,
   FROST_BREATH_DURATION_SECONDS,
   FROST_BREATH_MOUTH_HEIGHT,
@@ -172,8 +173,9 @@ describe("battle effect presentation", () => {
     expect(projectileArcSlope("ranger", 1, 8)).toBeLessThan(0);
   });
 
-  it("keeps magic launch-only while retaining arrow impact feedback", () => {
-    expect(projectileImpactLifetime("mage")).toBe(0);
+  it("gives human fireballs and arrows readable impact feedback", () => {
+    expect(FIREBALL_COLORS.flame).toBe("#ff6329");
+    expect(projectileImpactLifetime("mage")).toBe(0.24);
     expect(projectileImpactLifetime("ranger")).toBe(0.3);
   });
 });

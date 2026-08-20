@@ -2,7 +2,6 @@ import {
   type Dispatch,
   type PointerEvent as ReactPointerEvent,
   type SetStateAction,
-  type WheelEvent as ReactWheelEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -59,6 +58,10 @@ import {
   createFrostBreathPreviewBattle,
   isFrostBreathPreviewRequest,
 } from "./game/frostBreathPreview";
+import {
+  createFireballPreviewBattle,
+  isFireballPreviewRequest,
+} from "./game/fireballPreview";
 import { getMatchClock } from "./game/economy";
 import {
   DEFAULT_AI_DIFFICULTY,
@@ -129,6 +132,9 @@ export function App() {
   const frostPreview = useMemo(() => (
     isFrostBreathPreviewRequest(window.location.search)
   ), []);
+  const fireballPreview = useMemo(() => (
+    isFireballPreviewRequest(window.location.search)
+  ), []);
   const initialMode = DEFAULT_GAME_MODE;
   const initialFactionRaces = frostPreview
     ? createFactionRaces({ crimson: "undead" })
@@ -141,7 +147,14 @@ export function App() {
   const [activeCampaignMissionId, setActiveCampaignMissionId] = useState<string | null>(null);
   const [mobileMatchSetupOpen, setMobileMatchSetupOpen] = useState(false);
   const [app, setApp] = useState<AppState>(() => (
-    createAppState(benchmarkMode, initialMode, null, frostPreview, initialFactionRaces)
+    createAppState(
+      benchmarkMode,
+      initialMode,
+      null,
+      frostPreview,
+      initialFactionRaces,
+      fireballPreview,
+    )
   ));
   const { battle, phase: battlePhase } = app.session;
   const undeadOpponent = factionRaces.crimson === "undead";
@@ -165,6 +178,7 @@ export function App() {
   });
   const [assetLoadError, setAssetLoadError] = useState<string | null>(null);
   const bridgeRef = useRef(createSceneInteractionBridge());
+  const battlefieldRef = useRef<HTMLDivElement>(null);
   const activeTouchPointersRef = useRef(new Map<number, FieldPoint>());
   const singleTouchDragRef = useRef<TouchDragState | null>(null);
   const previousPinchDistanceRef = useRef<number | null>(null);
@@ -196,6 +210,19 @@ export function App() {
     ? "briefing"
     : assetsReady ? battlePhase : "briefing";
   const opponentDifficulty = activeCampaignMission?.aiDifficulty ?? difficulty;
+
+  useEffect(() => {
+    const battlefield = battlefieldRef.current;
+    if (!battlefield) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey) return;
+      event.preventDefault();
+      bridgeRef.current.zoomBy(event.deltaY, event.deltaMode);
+    };
+    battlefield.addEventListener("wheel", handleWheel, { passive: false });
+    return () => battlefield.removeEventListener("wheel", handleWheel);
+  }, [activeCampaignMissionId, mode]);
   const campaignResult = activeCampaignMission && battle.winner
     ? evaluateCampaignMission(activeCampaignMission, battle)
     : null;
@@ -251,12 +278,21 @@ export function App() {
       activeCampaignMission,
       frostPreview,
       factionRaces,
+      fireballPreview,
     ));
     setCursorWorld(null);
     setCameraResetToken((current) => current + 1);
     cameraViewStore.publish(DEFAULT_CAMERA_VIEW);
     setBattleInstanceRevision((current) => current + 1);
-  }, [activeCampaignMission, benchmarkMode, cameraViewStore, factionRaces, frostPreview, mode]);
+  }, [
+    activeCampaignMission,
+    benchmarkMode,
+    cameraViewStore,
+    factionRaces,
+    fireballPreview,
+    frostPreview,
+    mode,
+  ]);
 
   const changeMode = useCallback((nextMode: GameMode) => {
     if (nextMode === mode) return;
@@ -542,11 +578,6 @@ export function App() {
       : current);
   }, []);
 
-  const handleWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    bridgeRef.current.zoomBy(event.deltaY);
-  }, []);
-
   const fieldFeedback = deploymentPreview && !deploymentPreview.valid
     ? { tone: "error" as const, message: deploymentReasonLabel(deploymentPreview.reason) }
     : app.feedback;
@@ -696,6 +727,7 @@ export function App() {
         )}
 
         <div
+          ref={battlefieldRef}
           className={styles.battlefield}
           data-deploying={app.selectedDeployable !== null}
           onPointerDown={handlePointerDown}
@@ -707,7 +739,6 @@ export function App() {
             event.preventDefault();
             cancelDeployment();
           }}
-          onWheel={handleWheel}
         >
           <BattlefieldCanvas
             battle={battle}
@@ -910,6 +941,7 @@ function createAppState(
   campaignMission: CampaignMission | null = null,
   frostPreview = false,
   factionRaces: FactionRaces = factionRacesForGameMode(mode),
+  fireballPreview = false,
 ): AppState {
   return {
     session: {
@@ -917,12 +949,14 @@ function createAppState(
         ? createBenchmarkBattle(80)
         : frostPreview
           ? createFrostBreathPreviewBattle()
+          : fireballPreview
+            ? createFireballPreviewBattle()
           : campaignMission
             ? createCampaignBattle(campaignMission)
             : mode === "arena"
               ? createArenaBattle(factionRaces)
               : createInitialBattle({ factionRaces }),
-      phase: benchmarkMode || frostPreview ? "engaged" : "briefing",
+      phase: benchmarkMode || frostPreview || fireballPreview ? "engaged" : "briefing",
     },
     selectedDeployable: null,
     feedback: null,

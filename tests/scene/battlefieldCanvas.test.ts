@@ -6,6 +6,7 @@ const suspension = vi.hoisted(() => ({
   buildings: false,
   effects: false,
   pending: new Promise<never>(() => undefined),
+  statuses: false,
   unit: false,
 }));
 
@@ -44,6 +45,13 @@ vi.mock("../../src/scene/effects/BattleEffects", () => ({
   },
 }));
 
+vi.mock("../../src/scene/effects/UnitStatusEffectLayer", () => ({
+  UnitStatusEffectLayer: () => {
+    if (suspension.statuses) throw suspension.pending;
+    return "statuses-stable";
+  },
+}));
+
 import {
   BattlefieldCanvas,
   createSceneInteractionBridge,
@@ -55,6 +63,7 @@ describe("battlefield asset loading boundaries", () => {
   beforeEach(() => {
     suspension.buildings = false;
     suspension.effects = false;
+    suspension.statuses = false;
     suspension.unit = false;
   });
 
@@ -71,6 +80,7 @@ describe("battlefield asset loading boundaries", () => {
     expect(rendered).toContain("terrain-stable");
     expect(rendered).toContain("buildings-stable");
     expect(rendered).toContain("effects-stable");
+    expect(rendered).toContain("statuses-stable");
     expect(rendered).not.toContain("unit-stable");
   });
 
@@ -81,6 +91,17 @@ describe("battlefield asset loading boundaries", () => {
     expect(rendered).toContain("terrain-stable");
     expect(rendered).toContain("buildings-stable");
     expect(rendered).not.toContain("effects-stable");
+  });
+
+  it("keeps the terrain and units visible while status-effect textures load", () => {
+    suspension.statuses = true;
+    const rendered = renderBattlefield();
+
+    expect(rendered).toContain("terrain-stable");
+    expect(rendered).toContain("buildings-stable");
+    expect(rendered).toContain("unit-stable");
+    expect(rendered).toContain("effects-stable");
+    expect(rendered).not.toContain("statuses-stable");
   });
 });
 
