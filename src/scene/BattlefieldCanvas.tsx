@@ -36,11 +36,6 @@ import {
   type CameraShakeImpulse,
 } from "./camera/BattleCamera";
 import type { CameraViewStore } from "./camera/cameraViewStore";
-import {
-  cameraZoomBounds,
-  clampedCameraZoom,
-  wheelZoomFactor,
-} from "./camera/cameraZoom";
 import { BattleEffects } from "./effects/BattleEffects";
 import { UnitStatusEffectLayer } from "./effects/UnitStatusEffectLayer";
 import {
@@ -64,6 +59,7 @@ import {
 import type { SceneAssetLoadProgress } from "./loadingProgress";
 import type { SceneInteractionBridge } from "./sceneInteractionBridge";
 import { BattlefieldSceneProvider, useBattlefieldDefinition } from "./battlefieldSceneContext";
+import { createBattlefieldScenePresentation } from "./battlefieldScenePresentation";
 
 export { createSceneInteractionBridge } from "./sceneInteractionBridge";
 export type { SceneInteractionBridge } from "./sceneInteractionBridge";
@@ -109,13 +105,17 @@ export function BattlefieldCanvas({
     () => createSandboxGrayboxPresentation(battlefield),
     [battlefield],
   );
+  const scenePresentation = useMemo(
+    () => createBattlefieldScenePresentation(battlefield),
+    [battlefield],
+  );
   const resolvedFactionRaces = factionRaces
     ?? (undeadOpponent ? legacyUndeadOpponentRaces(true) : battle.factionRaces)
     ?? legacyUndeadOpponentRaces(undeadOpponent);
   const hasUndeadTerritory = hasRace(resolvedFactionRaces, "undead");
   const initialZoom = hasUndeadTerritory
-    ? battlefield.cameraPreset.defaultZoom - 1
-    : battlefield.cameraPreset.defaultZoom;
+    ? battlefield.cameraPreset.startZoom - 1
+    : battlefield.cameraPreset.startZoom;
   const attackPresentations = useAttackPresentationCache(battle);
   const deploymentMaskCoordinates = useMemo(() => (
     deploymentKind
@@ -155,7 +155,11 @@ export function BattlefieldCanvas({
         </SceneAssetErrorBoundary>
       )}
       <color attach="background" args={[hasUndeadTerritory ? "#777381" : "#aeb9ad"]} />
-      <fog attach="fog" args={[hasUndeadTerritory ? "#777381" : "#aeb9ad", 34, 72]} />
+      <fog attach="fog" args={[
+        hasUndeadTerritory ? "#777381" : "#aeb9ad",
+        scenePresentation.fog.near,
+        scenePresentation.fog.far,
+      ]} />
       <ambientLight intensity={1.15} />
       <hemisphereLight args={[
         hasUndeadTerritory ? "#d8d2e8" : "#dbe8e2",
@@ -164,15 +168,15 @@ export function BattlefieldCanvas({
       ]} />
       <directionalLight
         castShadow
-        position={[9, 18, 7]}
+        position={scenePresentation.directionalLightPosition}
         intensity={2.35}
         color={hasUndeadTerritory ? "#e6dcff" : "#fff0c7"}
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
-        shadow-camera-left={-20}
-        shadow-camera-right={20}
-        shadow-camera-top={20}
-        shadow-camera-bottom={-20}
+        shadow-camera-left={-scenePresentation.shadowCameraExtent}
+        shadow-camera-right={scenePresentation.shadowCameraExtent}
+        shadow-camera-top={scenePresentation.shadowCameraExtent}
+        shadow-camera-bottom={-scenePresentation.shadowCameraExtent}
       />
       <BattleCamera
         resetToken={cameraResetToken}
@@ -184,9 +188,9 @@ export function BattlefieldCanvas({
         onViewChange={cameraViewStore.publish}
         bridgeRef={bridgeRef}
       />
-      <SceneBridge bridgeRef={bridgeRef} desktopInitialZoom={initialZoom} />
+      <SceneBridge bridgeRef={bridgeRef} />
       {onBenchmarkUpdate && <BenchmarkProbe onUpdate={onBenchmarkUpdate} />}
-      <Suspense fallback={<ArenaFallback />}>
+      <Suspense fallback={<ArenaFallback presentation={scenePresentation} />}>
         {sandboxGrayboxPlan
           ? <SandboxGrayboxOverlay plan={sandboxGrayboxPlan} />
           : <BattlefieldTerrain factionRaces={resolvedFactionRaces} />}
@@ -428,10 +432,8 @@ function BenchmarkProbe({ onUpdate }: {
 
 function SceneBridge({
   bridgeRef,
-  desktopInitialZoom,
 }: {
   readonly bridgeRef: MutableRefObject<SceneInteractionBridge>;
-  readonly desktopInitialZoom: number;
 }) {
   const { camera, size } = useThree();
   const raycaster = useMemo(() => new Raycaster(), []);
@@ -446,28 +448,22 @@ function SceneBridge({
       const point = raycaster.ray.intersectPlane(ground, hit);
       return point ? { x: point.x, z: point.z } : null;
     };
-    bridgeRef.current.zoomByFactor = (factor) => {
-      if (!(camera instanceof OrthographicCamera)) return;
-      const nextZoom = clampedCameraZoom(
-        camera.zoom,
-        factor,
-        cameraZoomBounds(size, desktopInitialZoom),
-      );
-      if (nextZoom === camera.zoom) return;
-      camera.zoom = nextZoom;
-      camera.updateProjectionMatrix();
-    };
-    bridgeRef.current.zoomBy = (deltaY, deltaMode) => {
-      bridgeRef.current.zoomByFactor(wheelZoomFactor(deltaY, deltaMode));
-    };
   });
   return null;
 }
 
-function ArenaFallback() {
+function ArenaFallback({
+  presentation,
+}: {
+  readonly presentation: ReturnType<typeof createBattlefieldScenePresentation>;
+}) {
   return (
-    <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
-      <circleGeometry args={[17, 6]} />
+    <mesh
+      receiveShadow
+      position={[presentation.center.x, 0, presentation.center.z]}
+      rotation={[-Math.PI / 2, 0, 0]}
+    >
+      <circleGeometry args={[presentation.fallbackRadius, 54]} />
       <meshStandardMaterial color="#748462" roughness={1} />
     </mesh>
   );

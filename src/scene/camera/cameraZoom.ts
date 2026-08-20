@@ -1,8 +1,17 @@
+import {
+  BATTLEFIELD_HEX_CENTER_SPACING,
+  type BattlefieldWorldBounds,
+} from "../../map/battlefield";
+
 export const COMPACT_CAMERA_INITIAL_ZOOM = 13;
+/** @deprecated Overview zoom is now derived from the active battlefield. */
 export const COMPACT_CAMERA_MINIMUM_ZOOM = 11;
 export const PORTRAIT_CAMERA_MINIMUM_INITIAL_ZOOM = 16;
 export const PORTRAIT_CAMERA_MAXIMUM_INITIAL_ZOOM = 37;
 export const CAMERA_MAXIMUM_ZOOM = 56;
+export const BATTLE_CAMERA_HEIGHT = 18;
+export const BATTLE_CAMERA_GROUND_DISTANCE = 25;
+export const BATTLEFIELD_CELL_CENTER_SPACING = BATTLEFIELD_HEX_CENTER_SPACING;
 
 const COMPACT_VIEWPORT_MAXIMUM_EDGE = 520;
 const PORTRAIT_VERTICAL_HUD_RESERVE_PX = 150;
@@ -21,6 +30,14 @@ export interface CameraViewportSize {
 export interface CameraZoomBounds {
   readonly minimum: number;
   readonly maximum: number;
+}
+
+export interface BattlefieldCameraZoomInput {
+  readonly size: CameraViewportSize;
+  readonly worldBounds: BattlefieldWorldBounds;
+  readonly yaw: number;
+  readonly overviewPaddingCells: number;
+  readonly maximumZoom: number;
 }
 
 export function isCompactCameraViewport(size: CameraViewportSize): boolean {
@@ -50,16 +67,50 @@ export function initialCameraZoom(
     : desktopInitialZoom;
 }
 
-export function cameraZoomBounds(
-  size: CameraViewportSize,
-  desktopInitialZoom: number,
-): CameraZoomBounds {
+export function cameraZoomBounds(input: BattlefieldCameraZoomInput): CameraZoomBounds {
+  const maximum = positiveFiniteOr(input.maximumZoom, CAMERA_MAXIMUM_ZOOM);
   return {
-    minimum: isCompactCameraViewport(size) || isPortraitCameraViewport(size)
-      ? COMPACT_CAMERA_MINIMUM_ZOOM
-      : desktopInitialZoom,
-    maximum: CAMERA_MAXIMUM_ZOOM,
+    minimum: Math.min(maximum, Math.max(
+      Number.EPSILON,
+      overviewMinimumCameraZoom(input),
+    )),
+    maximum,
   };
+}
+
+/**
+ * Returns the closest orthographic zoom that still contains every map-cell
+ * center plus the requested number of whole hex-neighbour steps.
+ */
+export function overviewMinimumCameraZoom({
+  size,
+  worldBounds,
+  yaw,
+  overviewPaddingCells,
+}: Omit<BattlefieldCameraZoomInput, "maximumZoom">): number {
+  if (
+    !Number.isFinite(size.width)
+    || !Number.isFinite(size.height)
+    || size.width <= 0
+    || size.height <= 0
+  ) return 0;
+
+  const padding = Math.max(0, overviewPaddingCells)
+    * BATTLEFIELD_CELL_CENTER_SPACING;
+  const xSpan = Math.max(0, worldBounds.maxX - worldBounds.minX) + padding * 2;
+  const zSpan = Math.max(0, worldBounds.maxZ - worldBounds.minZ) + padding * 2;
+  const cosine = Math.abs(Math.cos(yaw));
+  const sine = Math.abs(Math.sin(yaw));
+  const horizontalSpan = cosine * xSpan + sine * zSpan;
+  const groundVerticalSpan = sine * xSpan + cosine * zSpan;
+  const groundVerticalProjection = BATTLE_CAMERA_HEIGHT
+    / Math.hypot(BATTLE_CAMERA_HEIGHT, BATTLE_CAMERA_GROUND_DISTANCE);
+  const projectedVerticalSpan = groundVerticalSpan * groundVerticalProjection;
+
+  return Math.min(
+    size.width / Math.max(Number.EPSILON, horizontalSpan),
+    size.height / Math.max(Number.EPSILON, projectedVerticalSpan),
+  );
 }
 
 export function clampedCameraZoom(
@@ -89,4 +140,8 @@ export function wheelZoomFactor(deltaY: number, deltaMode = 0): number {
     ),
   );
   return Math.exp(logarithmicChange);
+}
+
+function positiveFiniteOr(value: number, fallback: number): number {
+  return Number.isFinite(value) && value > 0 ? value : fallback;
 }

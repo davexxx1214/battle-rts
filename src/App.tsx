@@ -71,6 +71,7 @@ import {
   type DeployableKind,
 } from "./game/rules";
 import { createBenchmarkBattle, type BenchmarkSnapshot } from "./game/benchmark";
+import { battlefieldDefinitionFor } from "./map/battlefieldDefinition";
 import {
   BattlefieldCanvas,
   createSceneInteractionBridge,
@@ -100,6 +101,7 @@ import {
   shouldStartFieldPointerInteraction,
   type FieldPoint,
 } from "./ui/fieldInput";
+import { SandboxMinimap } from "./ui/minimap";
 
 interface AppState {
   readonly session: BattleSessionState;
@@ -164,6 +166,10 @@ export function App() {
     )
   ));
   const { battle, phase: battlePhase } = app.session;
+  const battlefieldDefinition = useMemo(
+    () => battlefieldDefinitionFor(battle.mapId),
+    [battle.mapId],
+  );
   const undeadOpponent = factionRaces.crimson === "undead";
   const undeadPlayer = factionRaces.verdant === "undead";
   const hasUndeadTerritory = hasRace(factionRaces, "undead");
@@ -1023,6 +1029,13 @@ export function App() {
             onAssetsReady={handleAssetsReady}
             onAssetError={handleAssetError}
             onBenchmarkUpdate={benchmarkMode ? setBenchmark : undefined}
+          />
+          <SandboxMinimap
+            battle={battle}
+            battlefield={battlefieldDefinition}
+            cameraViewStore={cameraViewStore}
+            className={styles.sandboxMinimap}
+            onCameraTargetRequest={(target) => bridgeRef.current.centerOn(target)}
           />
           {benchmarkMode && (
             <output className={styles.benchmarkPanel} data-complete={benchmark?.complete ?? false}>

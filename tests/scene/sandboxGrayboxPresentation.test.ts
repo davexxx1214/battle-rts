@@ -5,11 +5,22 @@ import {
   SANDBOX_LARGE_BATTLEFIELD_DEFINITION,
 } from "../../src/map/battlefieldDefinition";
 import {
+  BATTLEFIELD_HEX_CENTER_SPACING,
+  BATTLEFIELD_HEX_CIRCUMRADIUS,
+} from "../../src/map/battlefield";
+import {
+  SANDBOX_GRAYBOX_HEX_ROTATION_Y,
   SANDBOX_GRAYBOX_MAP_ID,
   createSandboxGrayboxPresentation,
 } from "../../src/scene/terrain/sandboxGrayboxPresentation";
 
 describe("sandbox graybox presentation", () => {
+  it("tessellates pointy-top hexes without triangular gaps", () => {
+    expect(SANDBOX_GRAYBOX_HEX_ROTATION_Y).toBe(0);
+    expect(BATTLEFIELD_HEX_CIRCUMRADIUS * Math.cos(Math.PI / 6) * 2)
+      .toBeCloseTo(BATTLEFIELD_HEX_CENTER_SPACING, 12);
+  });
+
   it("leaves the legacy battlefield presentation unchanged", () => {
     expect(createSandboxGrayboxPresentation(LEGACY_BATTLEFIELD_DEFINITION)).toBeNull();
   });
@@ -30,6 +41,12 @@ describe("sandbox graybox presentation", () => {
     expect(definition.id).toBe(SANDBOX_GRAYBOX_MAP_ID);
     expect(plan.terrainCells).toHaveLength(871);
     expect(plan.terrainCells).toHaveLength(definition.map.cells.length);
+    expect(plan.boundary.waterCells.length).toBeGreaterThan(0);
+    expect(plan.boundary.waterCells.every(({ coordinate }) => (
+      !definition.map.cells.some((cell) => (
+        cell.q === coordinate.q && cell.r === coordinate.r
+      ))
+    ))).toBe(true);
     expect(plan.routes.map(({ id }) => id)).toEqual(["center", "west", "east"]);
     expect(new Set(plan.routes.map(({ color }) => color)).size).toBe(3);
     expect(plan.routes.every(({ cells }) => cells.length > 0)).toBe(true);

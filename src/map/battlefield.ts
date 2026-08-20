@@ -114,6 +114,10 @@ export const HEX_NEIGHBOR_OFFSETS: readonly HexCoordinate[] = Object.freeze([
   Object.freeze({ q: 0, r: 1 }),
 ]);
 
+/** Geometry shared by the axial grid and its pointy-top rendered hexagons. */
+export const BATTLEFIELD_HEX_CENTER_SPACING = 2;
+export const BATTLEFIELD_HEX_CIRCUMRADIUS = BATTLEFIELD_HEX_CENTER_SPACING / Math.sqrt(3);
+
 const battlefieldMapIndexes = new WeakMap<BattlefieldMap, {
   readonly cells: readonly BattlefieldCell[];
   readonly index: BattlefieldMapIndex;

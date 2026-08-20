@@ -1,0 +1,89 @@
+.root {
+  display: block;
+  width: min(180px, 100%);
+  height: auto;
+  aspect-ratio: 180 / 234;
+  overflow: hidden;
+  border: 1px solid rgb(211 184 112 / 72%);
+  border-radius: 10px;
+  background: rgb(8 18 28 / 92%);
+  box-shadow: 0 8px 22px rgb(0 0 0 / 42%);
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.boundary {
+  fill: rgb(54 79 66 / 82%);
+  stroke: rgb(215 201 153 / 78%);
+  stroke-width: 1.2;
+}
+
+.route {
+  fill: none;
+  stroke: rgb(217 190 128 / 70%);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.2;
+}
+
+.buildZone {
+  fill: rgb(255 255 255 / 10%);
+  stroke-width: 0.8;
+}
+
+.buildZone[data-faction="verdant"] {
+  stroke: rgb(116 239 166 / 58%);
+}
+
+.buildZone[data-faction="crimson"] {
+  stroke: rgb(255 126 126 / 58%);
+}
+
+.minePit {
+  fill: rgb(58 48 38);
+  stroke: rgb(241 199 82);
+  stroke-width: 1.1;
+}
+
+.minePit[data-status="occupied"] {
+  fill: rgb(241 199 82);
+}
+
+.castle,
+.building,
+.squad {
+  stroke: rgb(245 241 218 / 88%);
+  stroke-width: 0.8;
+}
+
+.castle[data-faction="verdant"],
+.building[data-faction="verdant"],
+.squad[data-faction="verdant"] {
+  fill: rgb(62 204 118);
+}
+
+.castle[data-faction="crimson"],
+.building[data-faction="crimson"],
+.squad[data-faction="crimson"] {
+  fill: rgb(231 77 88);
+}
+
+.castle[data-status="destroyed"] {
+  opacity: 0.3;
+}
+
+.viewport {
+  fill: rgb(255 255 255 / 7%);
+  stroke: rgb(255 255 255 / 92%);
+  stroke-dasharray: 3 2;
+  stroke-width: 1.2;
+  pointer-events: none;
+}
+
+@media (max-width: 430px) {
+  .root {
+    width: min(132px, 34vw);
+    border-radius: 8px;
+  }
+}

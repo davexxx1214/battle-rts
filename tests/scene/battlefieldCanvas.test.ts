@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const suspension = vi.hoisted(() => ({
   buildings: false,
   effects: false,
+  grayboxBoundaryCells: null as number | null,
   pending: new Promise<never>(() => undefined),
   statuses: false,
   unit: false,
@@ -25,7 +26,12 @@ vi.mock("../../src/scene/terrain/BattlefieldTerrain", () => ({
 }));
 
 vi.mock("../../src/scene/terrain/SandboxGrayboxOverlay", () => ({
-  SandboxGrayboxOverlay: () => "graybox-stable",
+  SandboxGrayboxOverlay: ({ plan }: {
+    readonly plan: { readonly boundary: { readonly waterCells: readonly unknown[] } };
+  }) => {
+    suspension.grayboxBoundaryCells = plan.boundary.waterCells.length;
+    return "graybox-stable";
+  },
 }));
 
 vi.mock("../../src/scene/buildings/BattleBuildingLayer", () => ({
@@ -67,6 +73,7 @@ describe("battlefield asset loading boundaries", () => {
   beforeEach(() => {
     suspension.buildings = false;
     suspension.effects = false;
+    suspension.grayboxBoundaryCells = null;
     suspension.statuses = false;
     suspension.unit = false;
   });
@@ -79,10 +86,12 @@ describe("battlefield asset loading boundaries", () => {
 
   it("keeps legacy terrain unchanged and mounts the graybox only for the sandbox map", () => {
     const legacy = renderBattlefield();
-    const sandbox = renderBattlefield(createBattleState([], { modeId: "sandbox" }));
-
     expect(legacy).toContain("terrain-stable");
     expect(legacy).not.toContain("graybox-stable");
+    expect(suspension.grayboxBoundaryCells).toBeNull();
+
+    const sandbox = renderBattlefield(createBattleState([], { modeId: "sandbox" }));
+    expect(suspension.grayboxBoundaryCells).toBeGreaterThan(0);
     expect(sandbox).toContain("graybox-stable");
     expect(sandbox).not.toContain("terrain-stable");
   });

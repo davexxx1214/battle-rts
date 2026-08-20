@@ -66,19 +66,41 @@ export function clampCameraTarget(
   const axes = cameraGroundAxes(yaw);
   const alignedBounds = cameraAlignedBounds(bounds, axes);
   const travel = clamp(progress, 0, 1);
+  const horizontalCenter = (alignedBounds.minHorizontal + alignedBounds.maxHorizontal) / 2;
+  const verticalCenter = (alignedBounds.minVertical + alignedBounds.maxVertical) / 2;
+  const horizontalRadius = (alignedBounds.maxHorizontal - alignedBounds.minHorizontal) / 2;
+  const verticalRadius = (alignedBounds.maxVertical - alignedBounds.minVertical) / 2;
   const horizontal = clamp(
     dot(target, axes.right),
-    alignedBounds.minHorizontal * travel,
-    alignedBounds.maxHorizontal * travel,
+    horizontalCenter - horizontalRadius * travel,
+    horizontalCenter + horizontalRadius * travel,
   );
   const vertical = clamp(
     dot(target, axes.up),
-    alignedBounds.minVertical * travel,
-    alignedBounds.maxVertical * travel,
+    verticalCenter - verticalRadius * travel,
+    verticalCenter + verticalRadius * travel,
   );
-  return {
+  const clampedTarget = {
     x: axes.right.x * horizontal + axes.up.x * vertical,
     z: axes.right.z * horizontal + axes.up.z * vertical,
+  };
+  return {
+    x: snapFloatingBoundary(clampedTarget.x, bounds.minX, bounds.maxX),
+    z: snapFloatingBoundary(clampedTarget.z, bounds.minZ, bounds.maxZ),
+  };
+}
+
+/** A direct camera jump uses the active map's current zoom-dependent range. */
+export function cameraCenterForWorldPoint(
+  point: GroundPoint,
+  bounds: GroundBounds,
+  yaw: number,
+  panProgress = 1,
+): GroundPoint {
+  const centered = clampCameraTarget(point, bounds, yaw, panProgress);
+  return {
+    x: clamp(centered.x, bounds.minX, bounds.maxX),
+    z: clamp(centered.z, bounds.minZ, bounds.maxZ),
   };
 }
 
@@ -108,4 +130,11 @@ function dot(first: GroundPoint, second: GroundPoint): number {
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
+}
+
+function snapFloatingBoundary(value: number, minimum: number, maximum: number): number {
+  const epsilon = 1e-10;
+  if (value < minimum && minimum - value <= epsilon) return minimum;
+  if (value > maximum && value - maximum <= epsilon) return maximum;
+  return value;
 }

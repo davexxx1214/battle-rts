@@ -61,6 +61,8 @@ export type BattlefieldId = string;
 export interface BattlefieldCameraPreset {
   readonly initialPosition: readonly [x: number, y: number, z: number];
   readonly initialTarget: Readonly<{ x: number; z: number }>;
+  /** Runtime reset/start framing. Kept separate from the Canvas construction zoom. */
+  readonly startZoom: number;
   readonly defaultZoom: number;
   readonly maximumZoom: number;
   readonly overviewPaddingCells: number;
@@ -114,6 +116,7 @@ export const LEGACY_BATTLEFIELD_DEFINITION: BattlefieldDefinition = Object.freez
   cameraPreset: Object.freeze({
     initialPosition: [16, 18, 20] as const,
     initialTarget: Object.freeze({ x: 0, z: 0 }),
+    startZoom: 32,
     defaultZoom: 32,
     maximumZoom: 56,
     overviewPaddingCells: 1,
@@ -146,6 +149,7 @@ export const SANDBOX_LARGE_BATTLEFIELD_DEFINITION: BattlefieldDefinition = Objec
   cameraPreset: Object.freeze({
     initialPosition: Object.freeze([34, 38, 49] as const),
     initialTarget: Object.freeze(SANDBOX_INITIAL_TARGET),
+    startZoom: 32,
     defaultZoom: 32,
     maximumZoom: 56,
     overviewPaddingCells: 1,

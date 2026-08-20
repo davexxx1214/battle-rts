@@ -1,8 +1,10 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { CanvasTexture, InstancedMesh, Object3D } from "three";
 
+import { BATTLEFIELD_HEX_CIRCUMRADIUS } from "../../map/battlefield";
 import {
   SANDBOX_GRAYBOX_COLORS,
+  SANDBOX_GRAYBOX_HEX_ROTATION_Y,
   type SandboxGrayboxCellPresentation,
   type SandboxGrayboxPresentation,
 } from "./sandboxGrayboxPresentation";
@@ -22,10 +24,36 @@ export const SandboxGrayboxOverlay = memo(function SandboxGrayboxOverlay({
   );
   return (
     <group name="sandbox-graybox-overlay">
+      <mesh
+        receiveShadow
+        position={[
+          plan.boundary.underlay.center.x,
+          plan.boundary.underlay.y,
+          plan.boundary.underlay.center.z,
+        ]}
+      >
+        <cylinderGeometry args={[
+          plan.boundary.underlay.topRadius,
+          plan.boundary.underlay.bottomRadius,
+          plan.boundary.underlay.height,
+          54,
+        ]} />
+        <meshStandardMaterial
+          color={SANDBOX_GRAYBOX_COLORS.water}
+          roughness={0.62}
+          metalness={0.04}
+        />
+      </mesh>
+      <HexInstances
+        markers={plan.boundary.waterCells}
+        color={SANDBOX_GRAYBOX_COLORS.water}
+        radius={BATTLEFIELD_HEX_CIRCUMRADIUS}
+        thickness={0.16}
+      />
       <HexInstances
         markers={plan.terrainCells}
         color={plan.terrainColor}
-        radius={1.13}
+        radius={BATTLEFIELD_HEX_CIRCUMRADIUS}
         thickness={0.16}
       />
       {plan.routes.map((route, index) => (
@@ -115,7 +143,7 @@ function HexInstances({
         marker.height + topOffset - thickness / 2,
         marker.position.z,
       );
-      transform.rotation.set(0, Math.PI / 6, 0);
+      transform.rotation.set(0, SANDBOX_GRAYBOX_HEX_ROTATION_Y, 0);
       transform.scale.setScalar(1);
       transform.updateMatrix();
       mesh.setMatrixAt(index, transform.matrix);

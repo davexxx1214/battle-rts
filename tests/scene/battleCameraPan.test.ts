@@ -1,28 +1,32 @@
 import { describe, expect, it } from "vitest";
 
 import { axialToWorld, BATTLEFIELD_MAP, BATTLEFIELD_WORLD_BOUNDS } from "../../src/map/battlefield";
+import { SANDBOX_LARGE_BATTLEFIELD_DEFINITION } from "../../src/map/battlefieldDefinition";
 import {
   normalizedPanProgress,
   PORTRAIT_CAMERA_YAW,
 } from "../../src/scene/camera/BattleCamera";
 import {
+  cameraCenterForWorldPoint,
   cameraGroundAxes,
   clampCameraTarget,
   screenPanWorldDelta,
 } from "../../src/scene/camera/cameraPan";
 
 describe("mobile camera pan range", () => {
-  it("unlocks travel as the camera zooms in from the overview", () => {
-    expect(normalizedPanProgress(11, 11, 56)).toBe(0);
-    expect(normalizedPanProgress(22, 11, 56)).toBeGreaterThan(0.5);
+  it("unlocks travel as the camera zooms in from a map-derived overview", () => {
+    expect(normalizedPanProgress(14.61860365, 14.61860365, 56)).toBe(0);
+    expect(normalizedPanProgress(32, 14.61860365, 56)).toBeGreaterThan(0.5);
     expect(normalizedPanProgress(56, 11, 56)).toBe(1);
     expect(normalizedPanProgress(80, 11, 56)).toBe(1);
   });
 
-  it("keeps the desktop overview fixed until the camera zooms in", () => {
-    expect(normalizedPanProgress(32, 32, 56)).toBe(0);
-    expect(normalizedPanProgress(40, 32, 56)).toBeGreaterThan(0);
-    expect(normalizedPanProgress(56, 32, 56)).toBe(1);
+  it("does not use the start zoom as the pan-progress origin", () => {
+    const overview = 14.61860365;
+
+    expect(normalizedPanProgress(overview, overview, 56)).toBe(0);
+    expect(normalizedPanProgress(32, overview, 56)).toBeGreaterThan(0);
+    expect(normalizedPanProgress(56, overview, 56)).toBe(1);
   });
 
   it("maps touch movement to the camera's screen axes at an isometric yaw", () => {
@@ -59,6 +63,36 @@ describe("mobile camera pan range", () => {
 
     expect(clamped.x).toBeCloseTo(enemyCastle.x, 8);
     expect(clamped.z).toBeCloseTo(enemyCastle.z, 8);
+  });
+
+  it("jumps to an in-bounds sandbox point without changing it at full travel", () => {
+    const definition = SANDBOX_LARGE_BATTLEFIELD_DEFINITION;
+    const rally = axialToWorld({ q: -7, r: 14 });
+    const centered = cameraCenterForWorldPoint(
+      rally,
+      definition.worldBounds,
+      definition.cameraPreset.desktopYaw,
+      1,
+    );
+
+    expect(centered.x).toBeCloseTo(rally.x, 8);
+    expect(centered.z).toBeCloseTo(rally.z, 8);
+  });
+
+  it("clamps camera jump commands against the active battlefield bounds", () => {
+    const sandbox = SANDBOX_LARGE_BATTLEFIELD_DEFINITION;
+    const point = { x: 1_000, z: -1_000 };
+    const centered = cameraCenterForWorldPoint(
+      point,
+      sandbox.worldBounds,
+      sandbox.cameraPreset.desktopYaw,
+      1,
+    );
+
+    expect(centered.x).toBeGreaterThanOrEqual(sandbox.worldBounds.minX);
+    expect(centered.x).toBeLessThanOrEqual(sandbox.worldBounds.maxX);
+    expect(centered.z).toBeGreaterThanOrEqual(sandbox.worldBounds.minZ);
+    expect(centered.z).toBeLessThanOrEqual(sandbox.worldBounds.maxZ);
   });
 
   it("places both castles on the portrait screen's vertical center line", () => {

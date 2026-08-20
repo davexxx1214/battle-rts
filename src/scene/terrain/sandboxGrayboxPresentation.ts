@@ -12,8 +12,13 @@ import {
   type HexCoordinate,
 } from "../../map/battlefield";
 import type { Faction, WorldPoint } from "../../game/types";
+import {
+  createBattlefieldBoundaryPresentation,
+  type BattlefieldWaterUnderlayPresentation,
+} from "./battlefieldBoundaryPresentation";
 
 export const SANDBOX_GRAYBOX_MAP_ID = SANDBOX_LARGE_BATTLEFIELD_ID;
+export const SANDBOX_GRAYBOX_HEX_ROTATION_Y = 0;
 
 export type SandboxGrayboxRouteId = BattlefieldRouteId;
 
@@ -48,9 +53,15 @@ export interface SandboxGrayboxMinePitPresentation {
   ];
 }
 
+export interface SandboxGrayboxBoundaryPresentation {
+  readonly waterCells: readonly SandboxGrayboxCellPresentation[];
+  readonly underlay: BattlefieldWaterUnderlayPresentation;
+}
+
 export interface SandboxGrayboxPresentation {
   readonly terrainColor: string;
   readonly terrainCells: readonly SandboxGrayboxCellPresentation[];
+  readonly boundary: SandboxGrayboxBoundaryPresentation;
   readonly routes: readonly SandboxGrayboxRoutePresentation[];
   readonly buildZones: readonly SandboxGrayboxBuildZonePresentation[];
   readonly minePits: readonly SandboxGrayboxMinePitPresentation[];
@@ -69,6 +80,7 @@ export const SANDBOX_GRAYBOX_COLORS = Object.freeze({
   }),
   minePit: "#d9a83e",
   mineEntrance: "#f6f0c6",
+  water: "#4b8fa4",
 });
 
 export function createSandboxGrayboxPresentation(
@@ -87,10 +99,18 @@ export function createSandboxGrayboxPresentation(
     cellsByKey,
     coordinate,
   );
+  const boundary = createBattlefieldBoundaryPresentation(
+    definition.map,
+    definition.worldBounds,
+  );
 
   return {
     terrainColor: SANDBOX_GRAYBOX_COLORS.terrain,
     terrainCells: definition.map.cells.map(markerFor),
+    boundary: {
+      waterCells: boundary.waterCells.map(markerForCell),
+      underlay: boundary.underlay,
+    },
     routes: routes.map((route) => ({
       id: route.id,
       color: SANDBOX_GRAYBOX_COLORS.routes[route.id],
@@ -111,6 +131,14 @@ export function createSandboxGrayboxPresentation(
       marker: markerFor(pit.coordinate),
       entrances: [markerFor(pit.entrances[0]), markerFor(pit.entrances[1])],
     })),
+  };
+}
+
+function markerForCell(cell: BattlefieldCell): SandboxGrayboxCellPresentation {
+  return {
+    coordinate: { q: cell.q, r: cell.r },
+    position: axialToWorld(cell),
+    height: cell.height,
   };
 }
 

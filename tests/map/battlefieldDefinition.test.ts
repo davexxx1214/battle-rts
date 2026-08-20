@@ -49,6 +49,7 @@ describe("battlefield definitions", () => {
       fingerprint: "fnv1a32:bf1e4e83",
       cameraPreset: {
         initialTarget: axialToWorld({ q: -7, r: 14 }),
+        startZoom: 32,
         defaultZoom: 32,
         maximumZoom: 56,
         overviewPaddingCells: 1,

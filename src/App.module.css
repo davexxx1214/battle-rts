@@ -503,6 +503,15 @@
   cursor: copy;
 }
 
+.battlefield > .sandboxMinimap {
+  position: absolute;
+  z-index: 20;
+  right: var(--sandbox-minimap-desktop-right);
+  bottom: var(--sandbox-minimap-desktop-bottom);
+  width: var(--sandbox-minimap-desktop-width);
+  max-width: calc(100% - 36px);
+}
+
 .battlefield::after {
   position: absolute;
   inset: 0;
@@ -929,6 +938,14 @@
 
   .fieldCaption {
     display: none;
+  }
+
+  .battlefield > .sandboxMinimap {
+    top: var(--sandbox-minimap-compact-top);
+    right: max(var(--sandbox-minimap-compact-right), var(--game-safe-right));
+    bottom: auto;
+    width: var(--sandbox-minimap-compact-width);
+    max-width: calc(100% - 12px - var(--game-safe-left) - var(--game-safe-right));
   }
 
   .objectiveFlag {

@@ -6,18 +6,23 @@ import {
   LEGACY_BATTLEFIELD_DEFINITION,
 } from "../../map/battlefieldDefinition";
 import type { CameraViewSnapshot } from "./cameraViewStore";
-import { clampCameraTarget, screenPanWorldDelta } from "./cameraPan";
 import {
-  CAMERA_MAXIMUM_ZOOM,
+  cameraCenterForWorldPoint,
+  clampCameraTarget,
+  screenPanWorldDelta,
+} from "./cameraPan";
+import {
+  BATTLE_CAMERA_GROUND_DISTANCE,
+  BATTLE_CAMERA_HEIGHT,
   cameraZoomBounds,
+  clampedCameraZoom,
   initialCameraZoom,
   isPortraitCameraViewport,
+  wheelZoomFactor,
 } from "./cameraZoom";
 import type { SceneInteractionBridge } from "../sceneInteractionBridge";
 import { useBattlefieldDefinition } from "../battlefieldSceneContext";
 
-const CAMERA_HEIGHT = 18;
-const CAMERA_GROUND_DISTANCE = 25;
 export const DESKTOP_CAMERA_YAW = LEGACY_BATTLEFIELD_DEFINITION.cameraPreset.desktopYaw;
 export const PORTRAIT_CAMERA_YAW = LEGACY_BATTLEFIELD_DEFINITION.cameraPreset.portraitYaw;
 
@@ -45,14 +50,27 @@ export function BattleCamera({
   const resolvedInitialTargetZ = initialTargetZ
     ?? battlefield.cameraPreset.initialTarget.z;
   const resolvedInitialZoom = initialZoom
-    ?? battlefield.cameraPreset.defaultZoom;
+    ?? battlefield.cameraPreset.startZoom;
   const { camera, size } = useThree();
   const portraitViewport = isPortraitCameraViewport(size);
-  const startingZoom = initialCameraZoom(size, resolvedInitialZoom);
-  const zoomBounds = cameraZoomBounds(size, resolvedInitialZoom);
+  const presetYaw = portraitViewport
+    ? battlefield.cameraPreset.portraitYaw
+    : battlefield.cameraPreset.desktopYaw;
+  const startingZoomBounds = cameraZoomBounds({
+    size,
+    worldBounds: battlefield.worldBounds,
+    yaw: presetYaw,
+    overviewPaddingCells: battlefield.cameraPreset.overviewPaddingCells,
+    maximumZoom: battlefield.cameraPreset.maximumZoom,
+  });
+  const startingZoom = clampedCameraZoom(
+    initialCameraZoom(size, resolvedInitialZoom),
+    1,
+    startingZoomBounds,
+  );
   const target = useRef(new Vector3(0, 0, 0));
   const keys = useRef(new Set<string>());
-  const yaw = useRef(DESKTOP_CAMERA_YAW);
+  const yaw = useRef(presetYaw);
   const orbiting = useRef(false);
   const lastPointerX = useRef(0);
   const shakeEnergy = useRef(0);
@@ -68,9 +86,7 @@ export function BattleCamera({
         ? battlefield.cameraPreset.initialTarget.z
         : resolvedInitialTargetZ,
     );
-    yaw.current = portraitViewport
-      ? battlefield.cameraPreset.portraitYaw
-      : battlefield.cameraPreset.desktopYaw;
+    yaw.current = presetYaw;
     shakeEnergy.current = 0;
     if (camera instanceof OrthographicCamera) {
       camera.zoom = startingZoom;
@@ -84,6 +100,7 @@ export function BattleCamera({
     battlefield,
     camera,
     portraitViewport,
+    presetYaw,
     resetToken,
     resolvedInitialTargetZ,
     startingZoom,
@@ -135,31 +152,81 @@ export function BattleCamera({
   }, []);
 
   useFrame((_, delta) => {
+    const currentZoomBounds = cameraZoomBounds({
+      size,
+      worldBounds: battlefield.worldBounds,
+      yaw: yaw.current,
+      overviewPaddingCells: battlefield.cameraPreset.overviewPaddingCells,
+      maximumZoom: battlefield.cameraPreset.maximumZoom,
+    });
+    const currentPanProgress = camera instanceof OrthographicCamera
+      ? normalizedPanProgress(
+        camera.zoom,
+        currentZoomBounds.minimum,
+        currentZoomBounds.maximum,
+      )
+      : 1;
     bridgeRef.current.panByScreenDelta = (deltaX, deltaY) => {
       const worldDelta = screenPanWorldDelta(
         deltaX,
         deltaY,
         yaw.current,
         camera instanceof OrthographicCamera ? camera.zoom : 1,
-        CAMERA_HEIGHT,
-        CAMERA_GROUND_DISTANCE,
+        BATTLE_CAMERA_HEIGHT,
+        BATTLE_CAMERA_GROUND_DISTANCE,
       );
       target.current.x += worldDelta.x;
       target.current.z += worldDelta.z;
+    };
+    bridgeRef.current.centerOn = (point) => {
+      const centerZoomBounds = cameraZoomBounds({
+        size,
+        worldBounds: battlefield.worldBounds,
+        yaw: yaw.current,
+        overviewPaddingCells: battlefield.cameraPreset.overviewPaddingCells,
+        maximumZoom: battlefield.cameraPreset.maximumZoom,
+      });
+      const centerPanProgress = camera instanceof OrthographicCamera
+        ? normalizedPanProgress(
+          camera.zoom,
+          centerZoomBounds.minimum,
+          centerZoomBounds.maximum,
+        )
+        : 1;
+      const centered = cameraCenterForWorldPoint(
+        point,
+        battlefield.worldBounds,
+        yaw.current,
+        centerPanProgress,
+      );
+      target.current.set(centered.x, 0, centered.z);
+    };
+    bridgeRef.current.zoomByFactor = (factor) => {
+      if (!(camera instanceof OrthographicCamera)) return;
+      const nextZoom = clampedCameraZoom(camera.zoom, factor, cameraZoomBounds({
+        size,
+        worldBounds: battlefield.worldBounds,
+        yaw: yaw.current,
+        overviewPaddingCells: battlefield.cameraPreset.overviewPaddingCells,
+        maximumZoom: battlefield.cameraPreset.maximumZoom,
+      }));
+      if (nextZoom === camera.zoom) return;
+      camera.zoom = nextZoom;
+      camera.updateProjectionMatrix();
+    };
+    bridgeRef.current.zoomBy = (deltaY, deltaMode) => {
+      bridgeRef.current.zoomByFactor(wheelZoomFactor(deltaY, deltaMode));
     };
     const speed = 8 * delta;
     if (keys.current.has("arrowleft")) target.current.x -= speed;
     if (keys.current.has("arrowright")) target.current.x += speed;
     if (keys.current.has("arrowup")) target.current.z -= speed;
     if (keys.current.has("arrowdown")) target.current.z += speed;
-    const panProgress = camera instanceof OrthographicCamera
-      ? normalizedPanProgress(camera.zoom, zoomBounds.minimum, CAMERA_MAXIMUM_ZOOM)
-      : 1;
     const clampedTarget = clampCameraTarget(
       target.current,
       battlefield.worldBounds,
       yaw.current,
-      panProgress,
+      currentPanProgress,
     );
     target.current.x = clampedTarget.x;
     target.current.z = clampedTarget.z;
@@ -167,9 +234,9 @@ export function BattleCamera({
     const shakeX = Math.sin(shakePhase.current + shakeEnergy.current * 43) * shakeEnergy.current * 0.24;
     const shakeY = Math.cos(shakePhase.current * 1.7 + shakeEnergy.current * 37) * shakeEnergy.current * 0.13;
     camera.position.set(
-      target.current.x + Math.sin(yaw.current) * 25 + shakeX,
-      CAMERA_HEIGHT + shakeY,
-      target.current.z + Math.cos(yaw.current) * CAMERA_GROUND_DISTANCE - shakeX * 0.45,
+      target.current.x + Math.sin(yaw.current) * BATTLE_CAMERA_GROUND_DISTANCE + shakeX,
+      BATTLE_CAMERA_HEIGHT + shakeY,
+      target.current.z + Math.cos(yaw.current) * BATTLE_CAMERA_GROUND_DISTANCE - shakeX * 0.45,
     );
     camera.lookAt(target.current);
     camera.updateMatrixWorld();

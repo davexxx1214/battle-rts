@@ -19,7 +19,6 @@ import type { BattleRace, Faction, FactionRaces } from "../../game/types";
 import {
   axialToWorld,
   terrainHeightAtMap,
-  type BattlefieldCell,
   type BattlefieldDecoration,
   type BattlefieldStructure,
 } from "../../map/battlefield";
@@ -60,6 +59,7 @@ import {
   type TerrainTilePresentation,
 } from "./tilePresentation";
 import { useBattlefieldDefinition } from "../battlefieldSceneContext";
+import { createBattlefieldBoundaryPresentation } from "./battlefieldBoundaryPresentation";
 
 const EMPTY_HIDDEN_NODES: readonly string[] = [];
 const EMPTY_NODE_ROTATIONS: Readonly<Record<string, number>> = {};
@@ -137,7 +137,7 @@ function BattlefieldCloudAsset({ cloud }: { readonly cloud: BattlefieldCloud }) 
 }
 
 function HexArena({ factionRaces }: { readonly factionRaces: FactionRaces }) {
-  const { map } = useBattlefieldDefinition();
+  const { map, worldBounds } = useBattlefieldDefinition();
   const tileGltfs = useLoader(
     GLTFLoader,
     TERRAIN_TILE_ASSET_KEYS.map((key) => TERRAIN_TILE_ASSETS[key].url),
@@ -148,9 +148,13 @@ function HexArena({ factionRaces }: { readonly factionRaces: FactionRaces }) {
       extractMeshTemplate(tileGltfs[index]!.scene),
     ]),
   ), [tileGltfs]);
+  const boundary = useMemo(
+    () => createBattlefieldBoundaryPresentation(map, worldBounds),
+    [map, worldBounds],
+  );
   const tilePlan = useMemo<readonly TerrainTilePresentation[]>(() => [
     ...createTerrainTilePlan(map),
-    ...createOuterWaterRing(map.radius + 1).map((cell) => ({
+    ...boundary.waterCells.map((cell) => ({
       cell,
       assetKey: "water" as const,
       renderHeight: cell.height,
@@ -158,7 +162,7 @@ function HexArena({ factionRaces }: { readonly factionRaces: FactionRaces }) {
       tint: "#caeff8",
       connections: [],
     })),
-  ], [map]);
+  ], [boundary.waterCells, map]);
   const undeadFactions = useMemo(() => (
     (["verdant", "crimson"] as const).filter((faction) => (
       mapModuleForFaction(factionRaces, faction).race === "undead"
@@ -207,8 +211,17 @@ function HexArena({ factionRaces }: { readonly factionRaces: FactionRaces }) {
           ) : null,
         ];
       }))}
-      <mesh receiveShadow position={[0, -0.95, 0]}>
-        <cylinderGeometry args={[22, 23.5, 1.5, 54]} />
+      <mesh receiveShadow position={[
+        boundary.underlay.center.x,
+        boundary.underlay.y,
+        boundary.underlay.center.z,
+      ]}>
+        <cylinderGeometry args={[
+          boundary.underlay.topRadius,
+          boundary.underlay.bottomRadius,
+          boundary.underlay.height,
+          54,
+        ]} />
         <meshStandardMaterial color="#4b8fa4" roughness={0.62} metalness={0.04} />
       </mesh>
     </group>
@@ -1088,28 +1101,4 @@ function extractGroundedMeshTemplate(source: Object3D): TileTemplate {
     template.geometry.translate(0, -minimumY, 0);
   }
   return template;
-}
-
-function createOuterWaterRing(radius: number): BattlefieldCell[] {
-  const cells: BattlefieldCell[] = [];
-  for (let q = -radius; q <= radius; q += 1) {
-    const minimumR = Math.max(-radius, -q - radius);
-    const maximumR = Math.min(radius, -q + radius);
-    for (let r = minimumR; r <= maximumR; r += 1) {
-      const distance = (Math.abs(q) + Math.abs(r) + Math.abs(-q - r)) / 2;
-      if (distance === radius) {
-        cells.push({
-          q,
-          r,
-          height: -0.34,
-          surface: "water",
-          walkable: false,
-          territory: null,
-          buildable: false,
-          reservedForPath: false,
-        });
-      }
-    }
-  }
-  return cells;
 }
