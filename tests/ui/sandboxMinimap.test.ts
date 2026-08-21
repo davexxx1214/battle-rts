@@ -49,6 +49,9 @@ describe("sandbox minimap", () => {
     expect(markup.match(/data-minimap-route=/g)).toHaveLength(3);
     expect(markup.match(/data-minimap-build-zone=/g)).toHaveLength(4);
     expect(markup.match(/data-minimap-mine=/g)).toHaveLength(8);
+    expect(markup.match(/data-control="player"/g)).toHaveLength(2);
+    expect(markup.match(/data-control="enemy"/g)).toHaveLength(2);
+    expect(markup.match(/data-control="neutral"/g)).toHaveLength(4);
     expect(markup.match(/data-minimap-castle=/g)).toHaveLength(2);
     expect(markup.match(/data-minimap-building=/g)).toHaveLength(2);
     expect(markup.match(/data-minimap-squad=/g)).toHaveLength(2);
@@ -99,6 +102,7 @@ describe("sandbox minimap", () => {
 
     const occupied = minimapMineTag(markup, occupiedDefinition.id);
     expect(occupied).toContain('data-faction="crimson"');
+    expect(occupied).toContain('data-control="enemy"');
     expect(occupied).toContain('data-occupying-mine="runtime-crimson-mine"');
     expect(occupied).toContain('data-status="occupied"');
     const depleted = minimapMineTag(markup, depletedDefinition.id);
@@ -106,6 +110,7 @@ describe("sandbox minimap", () => {
     expect(depleted).toContain('data-status="depleted"');
     const capturing = minimapMineTag(markup, capturingDefinition.id);
     expect(capturing).toContain('data-faction="neutral"');
+    expect(capturing).toContain('data-control="neutral"');
     expect(capturing).toContain('data-capturing-faction="verdant"');
     expect(capturing).toContain('data-capture-progress="1.5"');
     expect(capturing).toContain('data-status="capturing"');
@@ -237,7 +242,7 @@ function renderMinimap(battle: BattleState): string {
 }
 
 function minimapMineTag(markup: string, pitId: string): string {
-  const tag = markup.match(new RegExp(`<circle[^>]*data-minimap-mine="${pitId}"[^>]*>`))?.[0];
+  const tag = markup.match(new RegExp(`<g[^>]*data-minimap-mine="${pitId}"[^>]*>`))?.[0];
   if (!tag) throw new Error(`Missing minimap marker for pit ${pitId}.`);
   return tag;
 }

@@ -393,6 +393,9 @@ export const STRUCTURE_SCENE_ASSETS = {
     castle: kaykitBuilding("blue", "castle", 0.76),
     blacksmith: kaykitBuilding("blue", "blacksmith", 0.94),
     barracks: kaykitBuilding("blue", "barracks", 0.86),
+    "archery-range": kaykitBuilding("blue", "home_B", 0.96),
+    "mage-tower": kaykitBuilding("blue", "tower_A", 0.82),
+    "siege-workshop": kaykitBuilding("blue", "blacksmith", 0.94),
     "arrow-tower": kaykitBuilding("blue", "tower_A", 0.76),
     mine: kaykitBuilding("blue", "mine", 0.84),
   },
@@ -400,6 +403,9 @@ export const STRUCTURE_SCENE_ASSETS = {
     castle: kaykitBuilding("red", "castle", 0.8),
     blacksmith: kaykitBuilding("red", "blacksmith", 1.02),
     barracks: kaykitBuilding("red", "barracks", 0.9),
+    "archery-range": kaykitBuilding("red", "home_B", 1),
+    "mage-tower": kaykitBuilding("red", "tower_A", 0.88),
+    "siege-workshop": kaykitBuilding("red", "blacksmith", 1.02),
     "arrow-tower": kaykitBuilding("red", "tower_A", 0.82),
     mine: kaykitBuilding("red", "mine", 0.88),
   },
@@ -444,6 +450,18 @@ export const UNDEAD_STRUCTURE_SCENE_ASSETS = {
     ...UNDEAD_DUNGEON_PACK_ASSETS.stoneAltar,
     scale: 1,
   },
+  "archery-range": {
+    ...UNDEAD_HALLOWEEN_ASSETS.archGate,
+    scale: 0.76,
+  },
+  "mage-tower": {
+    ...UNDEAD_HALLOWEEN_ASSETS.shrine,
+    scale: 0.86,
+  },
+  "siege-workshop": {
+    ...UNDEAD_HALLOWEEN_ASSETS.coffinDecorated,
+    scale: 0.82,
+  },
   "arrow-tower": UNDEAD_DUNGEON_PACK_ASSETS.skullCandelabra,
   mine: UNDEAD_DUNGEON_PACK_ASSETS.cursedCrystal,
 } as const satisfies Readonly<Record<
@@ -467,12 +485,12 @@ export const BATTLE_BUILDING_ASSET_KEYS = {
   "guard-tower": "arrow-tower",
   "gold-mine": "mine",
   barracks: "barracks",
-  "archery-range": "barracks",
-  "mage-tower": "barracks",
-  "siege-workshop": "barracks",
+  "archery-range": "archery-range",
+  "mage-tower": "mage-tower",
+  "siege-workshop": "siege-workshop",
 } as const satisfies Readonly<Record<
   BattleBuildingKind,
-  "castle" | "arrow-tower" | "mine" | "barracks"
+  keyof typeof STRUCTURE_SCENE_ASSETS.crimson
 >>;
 
 const BUILDING_PROP_ROOT = "/assets/kaykit/medieval-hex/decoration/props";
@@ -547,16 +565,45 @@ function createBattleBuildingDetails(color: "blue" | "red") {
       buildingDetail("weapon-rack", `${BUILDING_PROP_ROOT}/weaponrack.gltf`, 2.9, [
         -0.68, 0.08, 0.48,
       ], -0.42),
-      buildingDetail("training-target", `${BUILDING_PROP_ROOT}/target.gltf`, 2.45, [
-        0.68, 0.08, 0.52,
+      buildingDetail("field-tent", `${BUILDING_PROP_ROOT}/tent.gltf`, 1.38, [
+        0.62, 0.08, 0.5,
       ], 0.48),
       buildingDetail("supply-crate", `${BUILDING_PROP_ROOT}/crate_A_big.gltf`, 2.1, [
         -0.56, 0.08, -0.58,
       ], -0.16),
     ],
-    "archery-range": [],
-    "mage-tower": [],
-    "siege-workshop": [],
+    "archery-range": [
+      buildingDetail("range-banner", flag, 2.5, [-0.65, 0.08, -0.48], -0.2),
+      buildingDetail("range-target-left", `${BUILDING_PROP_ROOT}/target.gltf`, 2.35, [
+        -0.62, 0.08, 0.52,
+      ], -0.32),
+      buildingDetail("range-target-right", `${BUILDING_PROP_ROOT}/target.gltf`, 2.1, [
+        0.64, 0.08, 0.5,
+      ], 0.4),
+      buildingDetail("range-weapons", `${BUILDING_PROP_ROOT}/weaponrack.gltf`, 2.65, [
+        0.6, 0.08, -0.5,
+      ], 0.24),
+    ],
+    "mage-tower": [
+      buildingDetail("mage-banner", flag, 2.55, [0.66, 0.08, -0.5], 0.24),
+      buildingDetail("mage-stones", `${BUILDING_PROP_ROOT}/resource_stone.gltf`, 1.05, [
+        -0.62, 0.08, 0.5,
+      ], -0.28),
+    ],
+    "siege-workshop": [
+      buildingDetail("siege-cart", `${BUILDING_PROP_ROOT}/wheelbarrow.gltf`, 1.72, [
+        -0.66, 0.08, 0.5,
+      ], -0.42),
+      buildingDetail("siege-lumber", `${BUILDING_PROP_ROOT}/resource_lumber.gltf`, 1.08, [
+        0.62, 0.08, 0.5,
+      ], 0.28),
+      buildingDetail("siege-barrel", `${BUILDING_PROP_ROOT}/barrel.gltf`, 1.72, [
+        0.64, 0.08, -0.5,
+      ], 0.18),
+      buildingDetail("siege-crate", `${BUILDING_PROP_ROOT}/crate_A_big.gltf`, 1.95, [
+        -0.58, 0.08, -0.52,
+      ], -0.16),
+    ],
   } as const;
 }
 

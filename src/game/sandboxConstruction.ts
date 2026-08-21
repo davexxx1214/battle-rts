@@ -133,14 +133,12 @@ export function canStartSandboxOrdinaryConstruction(
   }
 
   const spec = sandboxBuildingSpec(input.slot);
-  if (!spec.prerequisites.every((prerequisite) => (
-    hasCompletedLivingSandboxBuilding(
-      input.buildings,
-      input.faction,
-      prerequisite,
-      input.elapsedSeconds,
-    )
-  ))) {
+  if (sandboxBuildingMissingPrerequisites(
+    input.buildings,
+    input.faction,
+    input.slot,
+    input.elapsedSeconds,
+  ).length > 0) {
     return { ok: false, reason: "missing-prerequisite" };
   }
   if (
@@ -208,6 +206,22 @@ export function hasCompletedLivingSandboxBarracks(
     "barracks",
     elapsedSeconds,
   );
+}
+
+export function sandboxBuildingMissingPrerequisites(
+  buildings: readonly BattleBuilding[],
+  faction: Faction,
+  slot: SandboxBuildingSlot,
+  elapsedSeconds: number,
+): readonly SandboxBuildingSlot[] {
+  return Object.freeze(sandboxBuildingSpec(slot).prerequisites.filter((prerequisite) => (
+    !hasCompletedLivingSandboxBuilding(
+      buildings,
+      faction,
+      prerequisite,
+      elapsedSeconds,
+    )
+  )));
 }
 
 export function hasCompletedLivingSandboxBuilding(

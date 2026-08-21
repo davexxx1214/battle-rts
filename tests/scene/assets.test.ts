@@ -62,6 +62,43 @@ describe("scene asset presentation", () => {
     });
   });
 
+  it("gives every troop-producing building a distinct readable silhouette", () => {
+    const producers = [
+      "barracks",
+      "archery-range",
+      "mage-tower",
+      "siege-workshop",
+    ] as const satisfies readonly BattleBuildingKind[];
+
+    expect(producers.map((kind) => BATTLE_BUILDING_ASSET_KEYS[kind]))
+      .toEqual(["barracks", "archery-range", "mage-tower", "siege-workshop"]);
+    for (const faction of ["verdant", "crimson"] as const) {
+      const humanUrls = producers.map((kind) => structureSceneAssetFor(
+        faction,
+        BATTLE_BUILDING_ASSET_KEYS[kind],
+        "human",
+      ).url);
+      const undeadUrls = producers.map((kind) => structureSceneAssetFor(
+        faction,
+        BATTLE_BUILDING_ASSET_KEYS[kind],
+        "undead",
+      ).url);
+      expect(new Set(humanUrls).size).toBe(4);
+      expect(new Set(undeadUrls).size).toBe(4);
+    }
+
+    expect(STRUCTURE_SCENE_ASSETS.verdant["archery-range"].url)
+      .toContain("building_home_B_blue.gltf");
+    expect(STRUCTURE_SCENE_ASSETS.verdant["mage-tower"].url)
+      .toContain("building_tower_A_blue.gltf");
+    expect(STRUCTURE_SCENE_ASSETS.verdant["siege-workshop"].url)
+      .toContain("building_blacksmith_blue.gltf");
+    expect(battleBuildingDetailAssets("verdant", "archery-range").map(({ id }) => id))
+      .toEqual(expect.arrayContaining(["range-target-left", "range-target-right"]));
+    expect(battleBuildingDetailAssets("verdant", "siege-workshop").map(({ id }) => id))
+      .toEqual(expect.arrayContaining(["siege-cart", "siege-lumber"]));
+  });
+
   it("provides KayKit walls and mining props instead of generated workshop art", () => {
     for (const kind of [
       "wall-straight",

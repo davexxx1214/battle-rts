@@ -173,7 +173,6 @@ function productionSourcesAt(
     const mine = livingMines.get(pit.occupyingMineId);
     if (
       !mine
-      || mine.faction !== pit.controller
       || battleBuildingConstructionPhaseAt(mine, elapsedSeconds) !== "operational"
     ) return [];
     return [{ pitId: pit.id, mineId: mine.id, faction: mine.faction }];

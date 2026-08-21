@@ -37,7 +37,7 @@ describe("battlefield definitions", () => {
     expect(Object.isFrozen(definition)).toBe(true);
   });
 
-  it("registers the real sandbox large graybox independently from legacy geometry", () => {
+  it("registers the detailed sandbox battlefield independently from legacy geometry", () => {
     const definition = battlefieldDefinitionFor(SANDBOX_LARGE_BATTLEFIELD_ID);
 
     expect(definition).toBe(SANDBOX_LARGE_BATTLEFIELD_DEFINITION);
@@ -45,8 +45,8 @@ describe("battlefield definitions", () => {
     expect(definition.map).not.toBe(BATTLEFIELD_MAP);
     expect(definition).toMatchObject({
       id: "sandbox-large-v1",
-      navigationRevision: 1,
-      fingerprint: "fnv1a32:bf1e4e83",
+      navigationRevision: 3,
+      fingerprint: "fnv1a32:9c5df2be",
       cameraPreset: {
         initialTarget: axialToWorld({ q: -7, r: 14 }),
         startZoom: 32,
@@ -59,8 +59,9 @@ describe("battlefield definitions", () => {
     expect(definition.roadNetworkCells).toHaveLength(327);
     expect(definition.roadReserve).toHaveLength(331);
     expect(definition.minePits).toHaveLength(8);
-    expect(definition.buildAnchors?.verdant).toHaveLength(52);
-    expect(definition.buildAnchors?.crimson).toHaveLength(52);
+    expect(definition.buildAnchors?.verdant).toHaveLength(34);
+    expect(definition.buildAnchors?.crimson).toHaveLength(34);
+    expect(definition.scenery).toHaveLength(96);
   });
 
   it("fails fast instead of silently falling back for an unknown map id", () => {

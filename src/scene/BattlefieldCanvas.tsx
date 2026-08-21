@@ -214,9 +214,14 @@ export function BattlefieldCanvas({
       <SceneBridge battle={battle} bridgeRef={bridgeRef} />
       {onBenchmarkUpdate && <BenchmarkProbe onUpdate={onBenchmarkUpdate} />}
       <Suspense fallback={<ArenaFallback presentation={scenePresentation} />}>
-        {sandboxGrayboxPlan
-          ? <SandboxGrayboxOverlay plan={sandboxGrayboxPlan} />
-          : <BattlefieldTerrain factionRaces={resolvedFactionRaces} />}
+        <BattlefieldTerrain factionRaces={resolvedFactionRaces} />
+        {sandboxGrayboxPlan && (
+          <SandboxGrayboxOverlay
+            mining={battle.mining}
+            plan={sandboxGrayboxPlan}
+            markersOnly
+          />
+        )}
       </Suspense>
       <Suspense fallback={null}>
         <BattleBuildingLayer battle={battle} factionRaces={resolvedFactionRaces} />

@@ -6,8 +6,6 @@ import {
   type BattlefieldMinePitDefinition,
 } from "../../src/map/sandboxLargeBattlefield";
 import {
-  MINE_CAPTURE_DURATION_SECONDS,
-  MINE_CAPTURE_INTERFERENCE_RADIUS_CELLS,
   MINE_CAPTURE_RADIUS_CELLS,
   updatePitCapture,
   type MineCaptureUnitSummary,
@@ -31,115 +29,90 @@ describe("sandbox mine capture", () => {
     expect(pits.filter(({ controller }) => controller === null)).toHaveLength(4);
   });
 
-  it("uses inclusive two-cell capture and exclusive three-cell friendly boundaries", () => {
-    expect(MINE_CAPTURE_RADIUS_CELLS).toBe(2);
+  it("captures immediately within one surrounding cell but not two cells away", () => {
+    expect(MINE_CAPTURE_RADIUS_CELLS).toBe(1);
     const state = pitState("N-NW");
-    const qualifying = updatePitCapture({
+    const captured = updatePitCapture({
       state,
-      units: [unitAt(state, "verdant", 2, 0)],
+      units: [unitAt(state, "verdant", 1, 0)],
       occupyingMine: null,
-      deltaSeconds: 1,
+      deltaSeconds: 0.1,
     });
     const outside = updatePitCapture({
       state,
-      units: [unitAt(state, "verdant", 3, 0)],
+      units: [unitAt(state, "verdant", 2, 0)],
       occupyingMine: null,
-      deltaSeconds: 1,
+      deltaSeconds: 30,
     });
 
-    expect(qualifying.state.captureProgress).toBe(1);
-    expect(qualifying.state.capturingFaction).toBe("verdant");
-    expect(qualifying.state).not.toBe(state);
-    expect(state.captureProgress).toBe(0);
-    expect(Object.isFrozen(qualifying.state)).toBe(true);
-    expect(outside.state).toBe(state);
-  });
-
-  it("lets an enemy exactly three cells away interrupt, but not four cells away", () => {
-    expect(MINE_CAPTURE_INTERFERENCE_RADIUS_CELLS).toBe(3);
-    const state = pitState("N-NW", {
-      captureProgress: 1,
-      capturingFaction: "verdant",
+    expect(captured.state).toMatchObject({
+      controller: "verdant",
+      capturingFaction: null,
+      captureProgress: 0,
     });
-    const friendly = unitAt(state, "verdant", 2, 0);
-    const interrupted = updatePitCapture({
-      state,
-      units: [friendly, unitAt(state, "crimson", -3, 0)],
-      occupyingMine: null,
-      deltaSeconds: 1,
-    });
-    const uninterrupted = updatePitCapture({
-      state,
-      units: [friendly, unitAt(state, "crimson", -4, 0)],
-      occupyingMine: null,
-      deltaSeconds: 1,
-    });
-
-    expect(interrupted.state.captureProgress).toBe(0);
-    expect(interrupted.state.capturingFaction).toBeNull();
-    expect(uninterrupted.state.captureProgress).toBe(2);
-    expect(uninterrupted.state.capturingFaction).toBe("verdant");
-  });
-
-  it("clears all progress as soon as the only capturing unit dies", () => {
-    const state = pitState("N-NW", {
-      captureProgress: 2.5,
-      capturingFaction: "verdant",
-    });
-    const result = updatePitCapture({
-      state,
-      units: [unitAt(state, "verdant", 0, 0, false)],
-      occupyingMine: null,
-      deltaSeconds: 0.1,
-    });
-
-    expect(result.state.captureProgress).toBe(0);
-    expect(result.state.capturingFaction).toBeNull();
-    expect(result.event).toBeNull();
-  });
-
-  it("requires three uninterrupted seconds and captures when delta crosses the boundary", () => {
-    expect(MINE_CAPTURE_DURATION_SECONDS).toBe(3);
-    const initial = pitState("N-NW");
-    const units = [unitAt(initial, "verdant", 1, 0)];
-    const first = updatePitCapture({
-      state: initial,
-      units,
-      occupyingMine: null,
-      deltaSeconds: 1.25,
-    });
-    const interrupted = updatePitCapture({
-      state: first.state,
-      units: [],
-      occupyingMine: null,
-      deltaSeconds: 0.1,
-    });
-    const restarted = updatePitCapture({
-      state: interrupted.state,
-      units,
-      occupyingMine: null,
-      deltaSeconds: 2.8,
-    });
-    const captured = updatePitCapture({
-      state: restarted.state,
-      units,
-      occupyingMine: null,
-      deltaSeconds: 0.3,
-    });
-
-    expect(first.state.captureProgress).toBe(1.25);
-    expect(interrupted.state.captureProgress).toBe(0);
-    expect(restarted.state.controller).toBeNull();
-    expect(restarted.state.captureProgress).toBe(2.8);
-    expect(captured.state.controller).toBe("verdant");
-    expect(captured.state.captureProgress).toBe(0);
-    expect(captured.state.capturingFaction).toBeNull();
     expect(captured.event).toEqual({
       type: "mine-pit-captured",
       pitId: "N-NW",
       previousController: null,
       faction: "verdant",
     });
+    expect(outside.state).toBe(state);
+  });
+
+  it("keeps the first arrival in control while both sides remain present", () => {
+    const neutral = pitState("N-NW");
+    const first = updatePitCapture({
+      state: neutral,
+      units: [unitAt(neutral, "verdant", 1, 0)],
+      occupyingMine: null,
+      deltaSeconds: 0.1,
+    });
+    const contested = updatePitCapture({
+      state: first.state,
+      units: [
+        unitAt(neutral, "crimson", -1, 0),
+        unitAt(neutral, "verdant", 1, 0),
+      ],
+      occupyingMine: null,
+      deltaSeconds: 20,
+    });
+
+    expect(contested.state.controller).toBe("verdant");
+    expect(contested.event).toBeNull();
+  });
+
+  it("lets the remaining faction take over after the first arrival is eliminated", () => {
+    const controlled = pitState("N-NW", { controller: "verdant" });
+    const result = updatePitCapture({
+      state: controlled,
+      units: [
+        unitAt(controlled, "verdant", 1, 0, false),
+        unitAt(controlled, "crimson", -1, 0),
+      ],
+      occupyingMine: null,
+      deltaSeconds: 0.1,
+    });
+
+    expect(result.state.controller).toBe("crimson");
+    expect(result.event).toMatchObject({
+      previousController: "verdant",
+      faction: "crimson",
+    });
+  });
+
+  it("resolves a same-tick neutral arrival by stable unit order", () => {
+    const neutral = pitState("N-NW");
+    const result = updatePitCapture({
+      state: neutral,
+      units: [
+        unitAt(neutral, "crimson", -1, 0),
+        unitAt(neutral, "verdant", 1, 0),
+      ],
+      occupyingMine: null,
+      deltaSeconds: 0.1,
+    });
+
+    expect(result.state.controller).toBe("crimson");
   });
 
   it("captures mirrored neutral pits symmetrically for both factions", () => {
@@ -147,35 +120,31 @@ describe("sandbox mine capture", () => {
     const crimsonPit = pitState("N-SE");
     const verdant = updatePitCapture({
       state: verdantPit,
-      units: [unitAt(verdantPit, "verdant", 2, 0)],
+      units: [unitAt(verdantPit, "verdant", 1, 0)],
       occupyingMine: null,
-      deltaSeconds: 3,
+      deltaSeconds: 0.1,
     });
     const crimson = updatePitCapture({
       state: crimsonPit,
-      units: [unitAt(crimsonPit, "crimson", -2, 0)],
+      units: [unitAt(crimsonPit, "crimson", -1, 0)],
       occupyingMine: null,
-      deltaSeconds: 3,
+      deltaSeconds: 0.1,
     });
 
     expect(verdant.state.controller).toBe("verdant");
     expect(crimson.state.controller).toBe("crimson");
-    expect(verdant.event?.faction).toBe("verdant");
-    expect(crimson.event?.faction).toBe("crimson");
     expect(crimsonPit.coordinate).toEqual({
       q: -verdantPit.coordinate.q,
       r: -verdantPit.coordinate.r,
     });
   });
 
-  it("blocks passive takeover until the occupying enemy mine is destroyed", () => {
+  it("blocks takeover until the occupying enemy mine is destroyed", () => {
     const occupied = pitState("N-NW", {
       controller: "crimson",
-      captureProgress: 2.9,
-      capturingFaction: "verdant",
       occupyingMineId: "crimson-mine",
     });
-    const units = [unitAt(occupied, "verdant", 0, 0)];
+    const units = [unitAt(occupied, "verdant", 1, 0)];
     const blocked = updatePitCapture({
       state: occupied,
       units,
@@ -194,33 +163,50 @@ describe("sandbox mine capture", () => {
         faction: "crimson",
         active: false,
       },
-      deltaSeconds: 3,
+      deltaSeconds: 0.1,
     });
 
     expect(blocked.state.controller).toBe("crimson");
-    expect(blocked.state.captureProgress).toBe(0);
     expect(blocked.event).toBeNull();
     expect(destroyed.state.controller).toBe("verdant");
-    expect(destroyed.state.occupyingMineId).toBe("crimson-mine");
     expect(destroyed.event?.previousController).toBe("crimson");
   });
 
   it("treats missing or mismatched building summaries as occupied, not destroyed", () => {
     const state = pitState("N-NW", { occupyingMineId: "mine-authoritative" });
-    const units = [unitAt(state, "verdant", 0, 0)];
+    const units = [unitAt(state, "verdant", 1, 0)];
 
     expect(updatePitCapture({
       state,
       units,
       occupyingMine: null,
-      deltaSeconds: 3,
+      deltaSeconds: 0.1,
     }).state.controller).toBeNull();
     expect(updatePitCapture({
       state,
       units,
       occupyingMine: { id: "other-mine", faction: "crimson", active: false },
-      deltaSeconds: 3,
+      deltaSeconds: 0.1,
     }).state.controller).toBeNull();
+  });
+
+  it("ignores invalid time steps and clears legacy capture progress on a valid step", () => {
+    const legacy = pitState("N-NW", {
+      captureProgress: 2.5,
+      capturingFaction: "verdant",
+    });
+    expect(updatePitCapture({
+      state: legacy,
+      units: [],
+      occupyingMine: null,
+      deltaSeconds: 0,
+    }).state).toBe(legacy);
+    expect(updatePitCapture({
+      state: legacy,
+      units: [],
+      occupyingMine: null,
+      deltaSeconds: 0.1,
+    }).state).toMatchObject({ captureProgress: 0, capturingFaction: null });
   });
 });
 

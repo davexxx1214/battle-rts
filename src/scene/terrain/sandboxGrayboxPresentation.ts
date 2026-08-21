@@ -12,6 +12,7 @@ import {
   type HexCoordinate,
 } from "../../map/battlefield";
 import type { Faction, WorldPoint } from "../../game/types";
+import type { SandboxMiningState } from "../../game/miningEconomy";
 import {
   createBattlefieldBoundaryPresentation,
   type BattlefieldWaterUnderlayPresentation,
@@ -46,11 +47,18 @@ export interface SandboxGrayboxMinePitPresentation {
   readonly id: string;
   readonly label: string;
   readonly region: BattlefieldMineRegion;
+  readonly initialController: Faction | null;
   readonly marker: SandboxGrayboxCellPresentation;
   readonly entrances: readonly [
     SandboxGrayboxCellPresentation,
     SandboxGrayboxCellPresentation,
   ];
+}
+
+export interface SandboxMineControlPresentation {
+  readonly id: string;
+  readonly controller: Faction | null;
+  readonly marker: SandboxGrayboxCellPresentation;
 }
 
 export interface SandboxGrayboxBoundaryPresentation {
@@ -128,10 +136,27 @@ export function createSandboxGrayboxPresentation(
       id: pit.id,
       label: pit.id,
       region: pit.region,
+      initialController: pit.initialController,
       marker: markerFor(pit.coordinate),
       entrances: [markerFor(pit.entrances[0]), markerFor(pit.entrances[1])],
     })),
   };
+}
+
+/**
+ * Resolves the visible pieces from the authoritative runtime controller state.
+ * The static controller is retained only as a compatibility fallback for old
+ * sandbox snapshots that predate runtime mining state.
+ */
+export function createSandboxMineControlPresentation(
+  plan: SandboxGrayboxPresentation,
+  mining: SandboxMiningState | null,
+): readonly SandboxMineControlPresentation[] {
+  return plan.minePits.map((pit) => Object.freeze({
+    id: pit.id,
+    controller: mining?.pitsById[pit.id]?.controller ?? pit.initialController,
+    marker: pit.marker,
+  }));
 }
 
 function markerForCell(cell: BattlefieldCell): SandboxGrayboxCellPresentation {

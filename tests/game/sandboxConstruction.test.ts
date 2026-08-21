@@ -11,6 +11,7 @@ import { createEconomyState, type EconomyState } from "../../src/game/economy";
 import {
   canStartSandboxOrdinaryConstruction,
   hasCompletedLivingSandboxBarracks,
+  sandboxBuildingMissingPrerequisites,
   startSandboxOrdinaryConstruction,
   type CanStartSandboxOrdinaryConstructionInput,
 } from "../../src/game/sandboxConstruction";
@@ -52,6 +53,29 @@ describe("sandbox ordinary construction", () => {
     });
     expect(input.economy.accounts.verdant.gold).toBe(1_000);
     expect(input.buildings).toHaveLength(0);
+  });
+
+  it("allows multiple production buildings of the same type", () => {
+    const first = startSandboxOrdinaryConstruction(constructionInput({
+      buildingId: "verdant-barracks-1",
+      coordinate: VERDANT_ANCHORS[1]!.coordinate,
+    }));
+    expect(first.ok).toBe(true);
+    if (!first.ok) throw new Error(first.reason);
+
+    const second = startSandboxOrdinaryConstruction(constructionInput({
+      buildingId: "verdant-barracks-2",
+      coordinate: VERDANT_ANCHORS[2]!.coordinate,
+      buildings: first.buildings,
+      occupancy: first.occupancy,
+      economy: first.economy,
+    }));
+
+    expect(second.ok).toBe(true);
+    if (!second.ok) throw new Error(second.reason);
+    expect(second.buildings.filter((building) => building.kind === "barracks"))
+      .toHaveLength(2);
+    expect(second.economy.accounts.verdant.gold).toBe(200);
   });
 
   it("accepts only own ordinary anchors and rejects roads, pits, enemy anchors, and mine slots", () => {
@@ -112,6 +136,8 @@ describe("sandbox ordinary construction", () => {
       "guard-tower",
     ] as const satisfies readonly SandboxBuildingSlot[];
     for (const slot of advancedSlots) {
+      expect(sandboxBuildingMissingPrerequisites([], "verdant", slot, 0))
+        .toEqual(["barracks"]);
       expect(canStartSandboxOrdinaryConstruction(constructionInput({ slot })))
         .toEqual({ ok: false, reason: "missing-prerequisite" });
     }
@@ -119,6 +145,12 @@ describe("sandbox ordinary construction", () => {
     const barracks = sandboxBuilding("barracks", VERDANT_ANCHORS[0]!.coordinate);
     expect(hasCompletedLivingSandboxBarracks([barracks], "verdant", 7.999)).toBe(false);
     expect(hasCompletedLivingSandboxBarracks([barracks], "verdant", 8)).toBe(true);
+    expect(sandboxBuildingMissingPrerequisites(
+      [barracks],
+      "verdant",
+      "archery-range",
+      8,
+    )).toEqual([]);
     expect(canStartSandboxOrdinaryConstruction(constructionInput({
       slot: "archery-range",
       buildings: [barracks],

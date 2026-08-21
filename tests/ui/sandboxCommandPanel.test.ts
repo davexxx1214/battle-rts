@@ -35,6 +35,10 @@ describe("sandbox command panel", () => {
     expect(markup.match(/aria-pressed=/g)).toHaveLength(6);
     expect(markup).toContain('aria-pressed="true"');
     expect(markup).toContain("点击地图放置");
+    expect(markup.match(/data-unlocked="true"/g)).toHaveLength(2);
+    expect(markup.match(/data-unlocked="false"/g)).toHaveLength(4);
+    expect(markup.match(/ disabled/g)).toHaveLength(4);
+    expect(markup).toContain("未解锁 · 需 兵营");
   });
 
   it("renders each real producer queue and its legal troop buttons", () => {
@@ -61,6 +65,8 @@ describe("sandbox command panel", () => {
     expect(markup).toContain("剑士");
     expect(markup).toContain("训练中");
     expect(markup).toContain("0 + 2");
+    expect(markup.match(/data-unlocked="true"/g)).toHaveLength(6);
+    expect(markup).toContain("每栋独立训练 · 多栋并行");
     expect(markup).not.toContain(">弓箭手</span><strong>300 金");
   });
 

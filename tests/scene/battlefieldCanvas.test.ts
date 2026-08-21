@@ -6,6 +6,7 @@ const suspension = vi.hoisted(() => ({
   buildings: false,
   effects: false,
   grayboxBoundaryCells: null as number | null,
+  grayboxMiningControllers: null as readonly (string | null)[] | null,
   pending: new Promise<never>(() => undefined),
   statuses: false,
   unit: false,
@@ -26,10 +27,14 @@ vi.mock("../../src/scene/terrain/BattlefieldTerrain", () => ({
 }));
 
 vi.mock("../../src/scene/terrain/SandboxGrayboxOverlay", () => ({
-  SandboxGrayboxOverlay: ({ plan }: {
+  SandboxGrayboxOverlay: ({ mining, plan }: {
+    readonly mining: { readonly pitsById: Readonly<Record<string, { readonly controller: string | null }>> } | null;
     readonly plan: { readonly boundary: { readonly waterCells: readonly unknown[] } };
   }) => {
     suspension.grayboxBoundaryCells = plan.boundary.waterCells.length;
+    suspension.grayboxMiningControllers = mining
+      ? Object.values(mining.pitsById).map(({ controller }) => controller)
+      : null;
     return "graybox-stable";
   },
 }));
@@ -78,6 +83,7 @@ describe("battlefield asset loading boundaries", () => {
     suspension.buildings = false;
     suspension.effects = false;
     suspension.grayboxBoundaryCells = null;
+    suspension.grayboxMiningControllers = null;
     suspension.statuses = false;
     suspension.unit = false;
   });
@@ -88,7 +94,7 @@ describe("battlefield asset loading boundaries", () => {
     expect(renderBattlefield()).toContain("terrain-stable");
   });
 
-  it("keeps legacy terrain unchanged and mounts the graybox only for the sandbox map", () => {
+  it("keeps legacy terrain unchanged and adds sandbox markers over detailed terrain", () => {
     const legacy = renderBattlefield();
     expect(legacy).toContain("terrain-stable");
     expect(legacy).not.toContain("graybox-stable");
@@ -96,8 +102,11 @@ describe("battlefield asset loading boundaries", () => {
 
     const sandbox = renderBattlefield(createBattleState([], { modeId: "sandbox" }));
     expect(suspension.grayboxBoundaryCells).toBeGreaterThan(0);
+    expect(suspension.grayboxMiningControllers).toEqual([
+      "verdant", "verdant", null, null, null, null, "crimson", "crimson",
+    ]);
     expect(sandbox).toContain("graybox-stable");
-    expect(sandbox).not.toContain("terrain-stable");
+    expect(sandbox).toContain("terrain-stable");
   });
 
   it("keeps the existing battlefield visible while a new unit asset loads", () => {

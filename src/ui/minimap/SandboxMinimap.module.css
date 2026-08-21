@@ -41,48 +41,50 @@
 }
 
 .minePit {
-  fill: rgb(58 48 38);
-  stroke: rgb(241 199 82);
-  stroke-width: 1.1;
+  color: rgb(247 244 234);
 }
 
-.minePit[data-status="occupied"] {
-  fill: rgb(241 199 82);
+.minePit[data-control="player"] {
+  color: rgb(66 148 244);
 }
 
-.minePit[data-faction="verdant"] {
-  stroke: rgb(86 232 145);
+.minePit[data-control="enemy"] {
+  color: rgb(227 79 89);
 }
 
-.minePit[data-faction="crimson"] {
-  stroke: rgb(247 94 105);
+.minePiece {
+  fill: currentColor;
+  stroke: rgb(12 21 31 / 92%);
+  stroke-width: 0.55;
+  paint-order: stroke fill;
 }
 
-.minePit[data-status="occupied"][data-faction="verdant"] {
-  fill: rgb(62 204 118);
+.mineCaptureRing {
+  fill: rgb(0 0 0 / 28%);
+  stroke: rgb(241 199 82 / 76%);
+  stroke-width: 0.7;
 }
 
-.minePit[data-status="occupied"][data-faction="crimson"] {
-  fill: rgb(231 77 88);
+.minePit[data-status="controlled"] .mineCaptureRing,
+.minePit[data-status="occupied"] .mineCaptureRing {
+  stroke: currentColor;
 }
 
-.minePit[data-status="capturing"] {
+.minePit[data-status="capturing"] .mineCaptureRing {
   stroke-dasharray: 1.5 1;
   stroke-width: 1.8;
 }
 
-.minePit[data-capturing-faction="verdant"] {
+.minePit[data-capturing-faction="verdant"] .mineCaptureRing {
   stroke: rgb(86 232 145);
 }
 
-.minePit[data-capturing-faction="crimson"] {
+.minePit[data-capturing-faction="crimson"] .mineCaptureRing {
   stroke: rgb(247 94 105);
 }
 
 .minePit[data-status="depleted"] {
-  fill: rgb(50 54 55);
-  stroke: rgb(137 143 143);
-  opacity: 0.62;
+  opacity: 0.46;
 }
 
 .castle,

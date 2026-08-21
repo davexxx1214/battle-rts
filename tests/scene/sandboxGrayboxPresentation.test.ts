@@ -11,8 +11,10 @@ import {
 import {
   SANDBOX_GRAYBOX_HEX_ROTATION_Y,
   SANDBOX_GRAYBOX_MAP_ID,
+  createSandboxMineControlPresentation,
   createSandboxGrayboxPresentation,
 } from "../../src/scene/terrain/sandboxGrayboxPresentation";
+import { createSandboxMiningState, replaceMinePitState } from "../../src/game/miningEconomy";
 
 describe("sandbox graybox presentation", () => {
   it("tessellates pointy-top hexes without triangular gaps", () => {
@@ -53,21 +55,40 @@ describe("sandbox graybox presentation", () => {
     expect(createSandboxGrayboxPresentation(definition)).toEqual(plan);
   });
 
-  it("covers both 52-anchor build zones and all eight labeled two-entry mines", () => {
+  it("covers both castle-adjacent build zones and all eight labeled two-entry mines", () => {
     const plan = createSandboxGrayboxPresentation(SANDBOX_LARGE_BATTLEFIELD_DEFINITION);
     if (!plan) throw new Error("Expected sandbox graybox presentation.");
 
     expect(plan.buildZones.map(({ faction, anchors }) => [faction, anchors.length]))
-      .toEqual([["verdant", 52], ["crimson", 52]]);
+      .toEqual([["verdant", 34], ["crimson", 34]]);
     expect(plan.buildZones.every(({ anchors }) => (
-      anchors.filter(({ wing }) => wing === "west").length === 26
-      && anchors.filter(({ wing }) => wing === "east").length === 26
+      anchors.filter(({ wing }) => wing === "west").length === 17
+      && anchors.filter(({ wing }) => wing === "east").length === 17
     ))).toBe(true);
     expect(plan.minePits).toHaveLength(8);
     expect(plan.minePits.map(({ label }) => label)).toEqual([
       "P-W", "P-E", "N-NW", "N-NE", "N-SW", "N-SE", "E-W", "E-E",
     ]);
+    expect(plan.minePits.map(({ initialController }) => initialController)).toEqual([
+      "verdant", "verdant", null, null, null, null, "crimson", "crimson",
+    ]);
     expect(plan.minePits.every(({ entrances }) => entrances.length === 2)).toBe(true);
     expect(plan.minePits.flatMap(({ entrances }) => entrances)).toHaveLength(16);
+  });
+
+  it("resolves neutral, player and enemy pieces from live mine control", () => {
+    const plan = createSandboxGrayboxPresentation(SANDBOX_LARGE_BATTLEFIELD_DEFINITION);
+    if (!plan) throw new Error("Expected sandbox graybox presentation.");
+    const initial = createSandboxMiningState(SANDBOX_LARGE_BATTLEFIELD_DEFINITION.minePits);
+    const neutral = initial.pitsById["N-NW"];
+    if (!neutral) throw new Error("Expected neutral sandbox mine.");
+    const captured = replaceMinePitState(initial, { ...neutral, controller: "verdant" });
+
+    expect(createSandboxMineControlPresentation(plan, initial).map(({ controller }) => controller))
+      .toEqual(["verdant", "verdant", null, null, null, null, "crimson", "crimson"]);
+    expect(createSandboxMineControlPresentation(plan, captured)
+      .find(({ id }) => id === "N-NW")?.controller).toBe("verdant");
+    expect(createSandboxMineControlPresentation(plan, null).map(({ controller }) => controller))
+      .toEqual(["verdant", "verdant", null, null, null, null, "crimson", "crimson"]);
   });
 });

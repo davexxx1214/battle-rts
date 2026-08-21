@@ -20,6 +20,7 @@ export interface MinimapBuildZoneShape {
 export interface MinimapMineMarker {
   readonly id: string;
   readonly faction: Faction | null;
+  readonly control: "neutral" | "player" | "enemy";
   readonly status: "neutral" | "controlled" | "capturing" | "occupied" | "depleted";
   readonly remainingOre: number;
   readonly occupyingMineId: string | null;
@@ -120,6 +121,7 @@ export function createSandboxMinimapModel(
       return Object.freeze({
         id: pit.id,
         faction: runtimePit.controller,
+        control: mineControlFor(runtimePit.controller),
         status,
         remainingOre: runtimePit.remainingOre,
         occupyingMineId: runtimePit.occupyingMineId,
@@ -136,6 +138,7 @@ export function createSandboxMinimapModel(
     return Object.freeze({
       id: pit.id,
       faction,
+      control: mineControlFor(faction),
       status: occupiedMine ? "occupied" : faction ? "controlled" : "neutral",
       remainingOre: pit.capacity,
       occupyingMineId: occupiedMine?.id ?? null,
@@ -199,6 +202,11 @@ export function createSandboxMinimapModel(
     squads: Object.freeze(squads),
     viewport: freezePoints(cameraViewportCorners(cameraView).map(projection.project)),
   });
+}
+
+function mineControlFor(controller: Faction | null): MinimapMineMarker["control"] {
+  if (controller === null) return "neutral";
+  return controller === "verdant" ? "player" : "enemy";
 }
 
 function cameraViewportCorners(view: CameraViewSnapshot): WorldPoint[] {

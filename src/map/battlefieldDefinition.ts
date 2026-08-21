@@ -21,6 +21,7 @@ import {
   BATTLEFIELD_SCENERY,
   type BattlefieldScenery,
 } from "./battlefieldScenery";
+import { SANDBOX_LARGE_SCENERY } from "./sandboxLargeScenery";
 import {
   SANDBOX_LARGE_BATTLEFIELD_FINGERPRINT,
   SANDBOX_LARGE_BATTLEFIELD_ID,
@@ -129,14 +130,13 @@ export const LEGACY_BATTLEFIELD_DEFINITION: BattlefieldDefinition = Object.freez
 
 const EMPTY_STRUCTURES: readonly BattlefieldStructure[] = Object.freeze([]);
 const EMPTY_DECORATIONS: readonly BattlefieldDecoration[] = Object.freeze([]);
-const EMPTY_SCENERY: readonly BattlefieldScenery[] = Object.freeze([]);
 const EMPTY_CLOUDS: readonly BattlefieldCloud[] = Object.freeze([]);
 const SANDBOX_INITIAL_TARGET = axialToWorld(SANDBOX_LARGE_RALLY_POINTS.verdant);
 
 export const SANDBOX_LARGE_BATTLEFIELD_DEFINITION: BattlefieldDefinition = Object.freeze({
   id: SANDBOX_LARGE_BATTLEFIELD_ID,
   version: 1,
-  displayName: "Sandbox Large Graybox",
+  displayName: "Sandbox Large Battlefield",
   map: SANDBOX_LARGE_BATTLEFIELD_MAP,
   navigationRevision: SANDBOX_LARGE_BATTLEFIELD_MAP.navigationRevision,
   worldBounds: SANDBOX_LARGE_WORLD_BOUNDS,
@@ -144,7 +144,7 @@ export const SANDBOX_LARGE_BATTLEFIELD_DEFINITION: BattlefieldDefinition = Objec
   battleStructures: SANDBOX_LARGE_BATTLE_STRUCTURES,
   staticStructures: EMPTY_STRUCTURES,
   decorations: EMPTY_DECORATIONS,
-  scenery: EMPTY_SCENERY,
+  scenery: SANDBOX_LARGE_SCENERY,
   clouds: EMPTY_CLOUDS,
   cameraPreset: Object.freeze({
     initialPosition: Object.freeze([34, 38, 49] as const),

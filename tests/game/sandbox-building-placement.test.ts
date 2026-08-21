@@ -25,6 +25,7 @@ import {
   type CanStartSandboxGoldMineConstructionInput,
   type MinePitPlacementView,
 } from "../../src/game/sandboxBuildingPlacement";
+import { SANDBOX_GOLD_MINE_MAX_HEALTH } from "../../src/game/sandboxCatalog";
 import { GAME_RULES } from "../../src/game/rules";
 import { axialToWorld, coordinateKey } from "../../src/map/battlefield";
 import { SANDBOX_LARGE_BATTLEFIELD_DEFINITION } from "../../src/map/battlefieldDefinition";
@@ -55,6 +56,8 @@ describe("sandbox gold-mine construction", () => {
       createdAt: 10,
       constructionCompletedAt: 16,
       lifetimeSeconds: null,
+      maxHealth: SANDBOX_GOLD_MINE_MAX_HEALTH,
+      health: SANDBOX_GOLD_MINE_MAX_HEALTH,
       status: "active",
     });
     expect(result.building).not.toHaveProperty("remainingOre");

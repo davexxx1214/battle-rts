@@ -13,7 +13,7 @@ import {
 } from "./battlefield";
 
 export const SANDBOX_LARGE_BATTLEFIELD_ID = "sandbox-large-v1" as const;
-export const SANDBOX_LARGE_NAVIGATION_REVISION = 1;
+export const SANDBOX_LARGE_NAVIGATION_REVISION = 3;
 export const SANDBOX_LARGE_MINE_CAPACITY = 3_000;
 
 export type BattlefieldRouteId = "center" | "west" | "east";
@@ -38,6 +38,12 @@ export interface BattlefieldMinePitDefinition {
   readonly capacity: number;
   readonly initialController: Faction | null;
   readonly protectionRadius: number;
+}
+
+export interface BattlefieldMineDistrictDefinition {
+  readonly pitId: string;
+  readonly wing: BattlefieldBuildWing;
+  readonly cells: readonly HexCoordinate[];
 }
 
 export interface BattlefieldBuildAnchor {
@@ -176,6 +182,12 @@ export const SANDBOX_LARGE_ROAD_NETWORK_CELLS: readonly HexCoordinate[] =
 export const SANDBOX_LARGE_ROAD_RESERVE: readonly HexCoordinate[] =
   freezeCoordinates(SANDBOX_LARGE_COORDINATES.filter(isRoadReserveCell));
 
+export const SANDBOX_LARGE_MINE_DISTRICTS: readonly BattlefieldMineDistrictDefinition[] =
+  createSandboxLargeMineDistricts();
+const SANDBOX_LARGE_MINE_DISTRICT_KEYS = new Set(
+  SANDBOX_LARGE_MINE_DISTRICTS.flatMap((district) => district.cells.map(coordinateKey)),
+);
+
 const VERDANT_BUILD_ANCHORS = createVerdantBuildAnchors();
 const CRIMSON_BUILD_ANCHORS = VERDANT_BUILD_ANCHORS.map((anchor) => Object.freeze({
   coordinate: freezeCoordinate(mirrorCoordinate(anchor.coordinate)),
@@ -229,6 +241,12 @@ export const SANDBOX_LARGE_ROUTES: readonly BattlefieldRouteDefinition[] =
       routeAssignmentFor(coordinate) === id
     ))),
   })));
+
+export const SANDBOX_LARGE_VISUAL_ROAD_CELLS: readonly HexCoordinate[] =
+  createSandboxLargeVisualRoadCells();
+const SANDBOX_LARGE_VISUAL_ROAD_KEYS = new Set(
+  SANDBOX_LARGE_VISUAL_ROAD_CELLS.map(coordinateKey),
+);
 
 export const SANDBOX_LARGE_ZONES: readonly BattlefieldZoneDefinition[] = Object.freeze([
   zone("verdant-base", "verdant", (coordinate) => coordinate.r >= 10),
@@ -308,11 +326,14 @@ function createSandboxLargeCell(coordinate: HexCoordinate): BattlefieldCell {
   const zoneDefinition = SANDBOX_LARGE_ZONE_BY_CELL.get(key);
   if (!zoneDefinition) throw new Error(`Sandbox cell ${key} has no explicit zone.`);
   const buildPolicy = buildPolicyAt(coordinate);
+  const isMineDistrict = SANDBOX_LARGE_MINE_DISTRICT_KEYS.has(key);
   return Object.freeze({
     ...coordinate,
     height: 0,
-    surface: zoneDefinition.territory === null ? "grass" : "camp",
-    walkable: true,
+    surface: isMineDistrict
+      ? "rock"
+      : zoneDefinition.territory === null ? "grass" : "camp",
+    walkable: !isMineDistrict,
     territory: zoneDefinition.territory,
     buildable: buildPolicy === "ordinary",
     reservedForPath: SANDBOX_LARGE_ROAD_RESERVE_KEYS.has(key),
@@ -321,7 +342,8 @@ function createSandboxLargeCell(coordinate: HexCoordinate): BattlefieldCell {
     routeTags: Object.freeze(SANDBOX_LARGE_ROUTES.flatMap((route) => (
       SANDBOX_LARGE_ROUTE_KEYS.get(route.id)?.has(key) ? [route.id] : []
     ))),
-    blocker: "none",
+    visualRoad: SANDBOX_LARGE_VISUAL_ROAD_KEYS.has(key),
+    blocker: isMineDistrict ? "terrain" : "none",
   });
 }
 
@@ -371,10 +393,11 @@ function isRoadReserveCell(coordinate: HexCoordinate): boolean {
 function createVerdantBuildAnchors(): BattlefieldBuildAnchor[] {
   return SANDBOX_LARGE_COORDINATES
     .filter((coordinate) => (
-      coordinate.r >= 10
-      && coordinate.r <= 15
-      && Math.abs(axialToWorld(coordinate).x) <= 16
+      coordinate.r >= 13
+      && coordinate.r <= 17
+      && hexDistance(coordinate, SANDBOX_LARGE_CASTLES.verdant) <= 6
       && !SANDBOX_LARGE_ROAD_RESERVE_KEYS.has(coordinateKey(coordinate))
+      && !SANDBOX_LARGE_MINE_DISTRICT_KEYS.has(coordinateKey(coordinate))
       && hexDistance(coordinate, SANDBOX_LARGE_CASTLES.verdant) > 2
       && SANDBOX_LARGE_MINE_PITS.every((pit) => (
         hexDistance(coordinate, pit.coordinate) > pit.protectionRadius
@@ -384,6 +407,81 @@ function createVerdantBuildAnchors(): BattlefieldBuildAnchor[] {
       coordinate: freezeCoordinate(coordinate),
       wing: axialToWorld(coordinate).x < 0 ? "west" as const : "east" as const,
     }));
+}
+
+function createSandboxLargeMineDistricts(): readonly BattlefieldMineDistrictDefinition[] {
+  const safeMineOffsets = [
+    { q: -2, r: 0 },
+    { q: -1, r: 0 },
+    { q: -2, r: 1 },
+    { q: -1, r: 1 },
+    { q: -2, r: 2 },
+    { q: -1, r: 2 },
+    { q: 0, r: 2 },
+    { q: 0, r: 1 },
+  ] as const;
+  const neutralNorthwestOffsets = [
+    { q: -2, r: 0 },
+    { q: -1, r: 0 },
+    { q: -2, r: -1 },
+    { q: -1, r: -1 },
+    { q: -2, r: -2 },
+    { q: -1, r: -2 },
+    { q: 0, r: -2 },
+    { q: 0, r: -1 },
+  ] as const;
+  const definitions = [
+    ["P-W", "west", safeMineOffsets, (offset: HexCoordinate) => offset],
+    ["P-E", "east", safeMineOffsets, horizontalMirrorOffset],
+    ["N-NW", "west", neutralNorthwestOffsets, (offset: HexCoordinate) => offset],
+    ["N-NE", "east", neutralNorthwestOffsets, horizontalMirrorOffset],
+    [
+      "N-SW",
+      "west",
+      neutralNorthwestOffsets,
+      (offset: HexCoordinate) => invertOffset(horizontalMirrorOffset(offset)),
+    ],
+    ["N-SE", "east", neutralNorthwestOffsets, invertOffset],
+    [
+      "E-W",
+      "west",
+      safeMineOffsets,
+      (offset: HexCoordinate) => invertOffset(horizontalMirrorOffset(offset)),
+    ],
+    ["E-E", "east", safeMineOffsets, invertOffset],
+  ] as const;
+  const coordinateKeys = new Set(SANDBOX_LARGE_COORDINATES.map(coordinateKey));
+
+  return Object.freeze(definitions.map(([pitId, wing, offsets, transform]) => {
+    const pit = SANDBOX_LARGE_MINE_PITS.find((candidate) => candidate.id === pitId);
+    if (!pit) throw new Error(`Missing sandbox mine pit ${pitId}.`);
+    const cells = offsets.map((offset) => {
+      const transformed = transform(offset);
+      return { q: pit.coordinate.q + transformed.q, r: pit.coordinate.r + transformed.r };
+    });
+    for (const cell of cells) {
+      const key = coordinateKey(cell);
+      if (!coordinateKeys.has(key)) {
+        throw new Error(`Sandbox mine district ${pitId} leaves the battlefield at ${key}.`);
+      }
+      if (SANDBOX_LARGE_ROAD_RESERVE_KEYS.has(key)) {
+        throw new Error(`Sandbox mine district ${pitId} blocks reserved road ${key}.`);
+      }
+    }
+    return Object.freeze({
+      pitId,
+      wing,
+      cells: freezeCoordinates(cells),
+    });
+  }));
+}
+
+function horizontalMirrorOffset(offset: HexCoordinate): HexCoordinate {
+  return { q: -offset.q - offset.r, r: offset.r };
+}
+
+function invertOffset(offset: HexCoordinate): HexCoordinate {
+  return { q: -offset.q, r: -offset.r };
 }
 
 function buildAnchorAt(coordinate: HexCoordinate): boolean {
@@ -434,6 +532,25 @@ function pathThroughWaypoints(waypoints: readonly HexCoordinate[]): HexCoordinat
       ? [waypoint]
       : shortestHexSegment(waypoints[index - 1]!, waypoint).slice(1)
   ));
+}
+
+function createSandboxLargeVisualRoadCells(): readonly HexCoordinate[] {
+  const candidates = [
+    ...SANDBOX_LARGE_ROUTES.flatMap((route) => route.referencePath),
+    ...shortestHexSegment({ q: -8, r: 4 }, { q: 4, r: 4 }),
+    ...shortestHexSegment({ q: -4, r: -4 }, { q: 8, r: -4 }),
+  ];
+  const seen = new Set<string>();
+  const cells = candidates.filter((coordinate) => {
+    const key = coordinateKey(coordinate);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    if (!isRoadNetworkCell(coordinate)) {
+      throw new Error(`Sandbox visual road leaves the road network at ${key}.`);
+    }
+    return true;
+  });
+  return freezeCoordinates(cells);
 }
 
 function shortestHexSegment(
@@ -596,6 +713,7 @@ export function createSandboxLargeBattlefieldFingerprint(
       cell.zoneId,
       cell.buildPolicy,
       cell.routeTags?.join(",") ?? "",
+      cell.visualRoad ? 1 : 0,
       cell.blocker,
     ].join(":")),
     ...factionCoordinates("castle", source.castles),

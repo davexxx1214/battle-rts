@@ -109,20 +109,31 @@ export function SandboxMinimap({
       </g>
       <g aria-label="矿坑">
         {model.minePits.map((pit) => (
-          <circle
+          <g
+            aria-label={mineControlLabel(pit.id, pit.control)}
             className={styles.minePit}
-            cx={pit.point.x}
-            cy={pit.point.y}
             data-capture-progress={round(pit.captureProgress)}
             data-capturing-faction={pit.capturingFaction ?? undefined}
+            data-control={pit.control}
             data-faction={pit.faction ?? "neutral"}
             data-minimap-mine={pit.id}
             data-occupying-mine={pit.occupyingMineId ?? undefined}
             data-remaining-ore={pit.remainingOre}
             data-status={pit.status}
             key={pit.id}
-            r={3.1}
-          />
+            role="img"
+            transform={`translate(${round(pit.point.x)} ${round(pit.point.y)})`}
+          >
+            <title>{mineControlLabel(pit.id, pit.control)}</title>
+            <circle className={styles.mineCaptureRing} cx={0} cy={0} r={4.1} />
+            <circle className={styles.minePiece} cx={0} cy={-2.35} r={1.05} />
+            <path
+              className={styles.minePiece}
+              d="M-0.72,-1.35 C-0.62,-0.6 -0.9,0.15 -1.42,0.85 L1.42,0.85 C0.9,0.15 0.62,-0.6 0.72,-1.35 Z"
+            />
+            <ellipse className={styles.minePiece} cx={0} cy={1.35} rx={1.72} ry={0.62} />
+            <ellipse className={styles.minePiece} cx={0} cy={2.25} rx={2.25} ry={0.7} />
+          </g>
         ))}
       </g>
       <g aria-label="城堡">
@@ -186,4 +197,12 @@ function pointsAttribute(points: readonly MinimapPoint[]): string {
 
 function round(value: number): number {
   return Number(value.toFixed(3));
+}
+
+function mineControlLabel(
+  id: string,
+  control: "neutral" | "player" | "enemy",
+): string {
+  const state = control === "neutral" ? "未占领" : control === "player" ? "我方占领" : "敌方占领";
+  return `矿坑 ${id}：${state}`;
 }

@@ -21,19 +21,19 @@ import { sandboxProductionExitForSpawn } from "../../src/game/sandboxProductionI
 import type { SandboxProductionSpawn } from "../../src/game/sandboxProductionQueue";
 
 describe("sandbox production exit fan", () => {
-  it("creates a unique, walkable, road-reachable four-cell fan for all 104 anchors", () => {
+  it("creates a unique, walkable, road-reachable four-cell fan for all 68 anchors", () => {
     const anchorsByFaction = Object.entries(SANDBOX_LARGE_BUILD_ANCHORS);
     const allAnchors = anchorsByFaction.flatMap(([faction, anchors]) => (
       anchors.map((anchor) => ({ faction, anchor }))
     ));
     const roadReserveKeys = new Set(SANDBOX_LARGE_ROAD_RESERVE.map(coordinateKey));
 
-    expect(SANDBOX_LARGE_BUILD_ANCHORS.verdant).toHaveLength(52);
-    expect(SANDBOX_LARGE_BUILD_ANCHORS.crimson).toHaveLength(52);
-    expect(allAnchors).toHaveLength(104);
+    expect(SANDBOX_LARGE_BUILD_ANCHORS.verdant).toHaveLength(34);
+    expect(SANDBOX_LARGE_BUILD_ANCHORS.crimson).toHaveLength(34);
+    expect(allAnchors).toHaveLength(68);
     expect(new Set(allAnchors.map(({ anchor }) => (
       coordinateKey(anchor.coordinate)
-    ))).size).toBe(104);
+    ))).size).toBe(68);
 
     for (const { anchor } of allAnchors) {
       const result = createSandboxProductionExitFan(
@@ -66,7 +66,7 @@ describe("sandbox production exit fan", () => {
     }
   });
 
-  it("blocks and deterministically releases every exit candidate on all 104 anchors", () => {
+  it("blocks and deterministically releases every exit candidate on all 68 anchors", () => {
     const anchors = Object.values(SANDBOX_LARGE_BUILD_ANCHORS).flat();
     for (const anchor of anchors) {
       const result = createSandboxProductionExitFan(
@@ -112,7 +112,7 @@ describe("sandbox production exit fan", () => {
     }
   });
 
-  it("integrates live blockers and releases every candidate across all 104 anchors", () => {
+  it("integrates live blockers and releases every candidate across all 68 anchors", () => {
     for (const faction of ["verdant", "crimson"] as const) {
       for (const [index, anchor] of SANDBOX_LARGE_BUILD_ANCHORS[faction].entries()) {
         const building = createBattleBuilding({
@@ -177,7 +177,7 @@ describe("sandbox production exit fan", () => {
     }
   });
 
-  it("keeps all 52 per-side anchor pairs exactly mirrored", () => {
+  it("keeps all 34 per-side anchor pairs exactly mirrored", () => {
     const crimsonByKey = new Map(SANDBOX_LARGE_BUILD_ANCHORS.crimson.map((anchor) => (
       [coordinateKey(anchor.coordinate), anchor] as const
     )));

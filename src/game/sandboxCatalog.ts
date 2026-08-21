@@ -24,6 +24,8 @@ export type SandboxAdvancedBuildingKind = Exclude<
   "barracks" | "guard-tower"
 >;
 
+export const SANDBOX_GOLD_MINE_MAX_HEALTH = 750;
+
 export interface SandboxCatalogDisplay {
   readonly name: string;
   readonly description: string;
@@ -85,7 +87,7 @@ export const SANDBOX_BUILDING_CATALOG = Object.freeze({
     kind: "gold-mine",
     cost: 400,
     constructionSeconds: 6,
-    maxHealth: 900,
+    maxHealth: SANDBOX_GOLD_MINE_MAX_HEALTH,
     prerequisites: buildingPrerequisites(),
     maximumActivePerFaction: null,
     displayByRace: buildingDisplay("mine"),

@@ -126,13 +126,7 @@ function BattleBuildingVisual({
       <BuildingHealthBar
         ratio={presentation.healthRatio}
         tone={presentation.healthTone}
-        height={building.kind === "castle"
-          ? race === "undead" ? 2.55 : 4.3
-          : building.kind === "arrow-tower" || building.kind === "guard-tower"
-            ? 3.25
-            : building.kind === "barracks"
-              ? race === "undead" ? 1.72 : 2.35
-              : 1.9}
+        height={battleBuildingHealthBarHeight(building.kind, race)}
       />
       {presentation.productionProgress !== null && (
         <ProductionProgress
@@ -161,6 +155,18 @@ function BattleBuildingVisual({
       )}
     </group>
   );
+}
+
+function battleBuildingHealthBarHeight(
+  kind: BattleBuildingKind,
+  race: BattleRace,
+): number {
+  if (kind === "castle") return race === "undead" ? 2.55 : 4.3;
+  if (kind === "arrow-tower" || kind === "guard-tower") return 3.25;
+  if (kind === "barracks") return race === "undead" ? 1.72 : 2.35;
+  if (kind === "mage-tower") return race === "undead" ? 2.05 : 3.25;
+  if (kind === "siege-workshop") return race === "undead" ? 1.65 : 2.15;
+  return 1.9;
 }
 
 function BuildingFoundation({

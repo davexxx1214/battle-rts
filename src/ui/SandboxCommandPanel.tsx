@@ -2,6 +2,7 @@ import type { BattleState } from "../game/battle";
 import { battleBuildingConstructionPhaseAt } from "../game/buildings";
 import { miningIncomeMultiplier } from "../game/miningEconomy";
 import { sandboxUsedPopulation } from "../game/population";
+import { sandboxBuildingMissingPrerequisites } from "../game/sandboxConstruction";
 import {
   SANDBOX_BUILDING_SLOTS,
   SANDBOX_TROOP_SLOTS,
@@ -96,19 +97,34 @@ export function SandboxCommandPanel({
           {SANDBOX_BUILDING_SLOTS.map((slot) => {
             const spec = sandboxBuildingSpec(slot);
             const display = spec.displayByRace[race];
+            const missingPrerequisites = sandboxBuildingMissingPrerequisites(
+              battle.buildings,
+              faction,
+              slot,
+              battle.matchElapsed,
+            );
+            const unlocked = missingPrerequisites.length === 0;
+            const prerequisiteNames = missingPrerequisites.map((prerequisite) => (
+              sandboxBuildingSpec(prerequisite).displayByRace[race].name
+            ));
             return (
               <button
                 type="button"
                 key={slot}
                 data-selected={selectedBuilding === slot}
-                disabled={disabled}
+                data-unlocked={unlocked}
+                disabled={disabled || !unlocked}
                 aria-pressed={selectedBuilding === slot}
-                title={display.description}
+                title={unlocked
+                  ? display.description
+                  : `未解锁：需要先建造完成${prerequisiteNames.join("、")}`}
                 onClick={() => onSelectBuilding(slot)}
               >
                 <span>{display.name}</span>
                 <strong>{spec.cost} 金</strong>
-                <small>{spec.constructionSeconds} 秒</small>
+                <small>{unlocked
+                  ? `${spec.constructionSeconds} 秒`
+                  : `未解锁 · 需 ${prerequisiteNames.join("、")}`}</small>
               </button>
             );
           })}
@@ -118,7 +134,7 @@ export function SandboxCommandPanel({
       <section className={styles.productionSection} aria-labelledby="sandbox-production-heading">
         <div className={styles.sectionHeading}>
           <h2 id="sandbox-production-heading">生产队列</h2>
-          <span>每栋建筑 FIFO · 最多 {SANDBOX_PRODUCTION_MAX_QUEUE_LENGTH} 项</span>
+          <span>每栋独立训练 · 多栋并行 · 最多 {SANDBOX_PRODUCTION_MAX_QUEUE_LENGTH} 项</span>
         </div>
         {queues.length === 0 ? (
           <p className={styles.emptyState}>先建造兵营，再从对应建筑训练兵种。</p>

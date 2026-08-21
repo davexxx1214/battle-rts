@@ -82,6 +82,7 @@ import {
   type SandboxBuildingSlot,
   type SandboxTroopSlot,
 } from "./game/sandboxCatalog";
+import { sandboxBuildingMissingPrerequisites } from "./game/sandboxConstruction";
 import { enqueueSandboxBattleProduction } from "./game/sandboxProductionTransactions";
 import {
   issueSandboxSquadOrder,
@@ -575,6 +576,25 @@ export function App() {
 
   const selectSandboxBuilding = useCallback((slot: SandboxBuildingSlot) => {
     if (!sandboxMode || battlePhase !== "engaged" || battle.winner !== null) return;
+    const missingPrerequisites = sandboxBuildingMissingPrerequisites(
+      battle.buildings,
+      "verdant",
+      slot,
+      battle.matchElapsed,
+    );
+    if (missingPrerequisites.length > 0) {
+      const names = missingPrerequisites.map((prerequisite) => (
+        sandboxBuildingSpec(prerequisite).displayByRace[factionRaces.verdant].name
+      ));
+      setApp((current) => ({
+        ...current,
+        feedback: {
+          tone: "error",
+          message: `尚未解锁：请先建造完成${names.join("、")}`,
+        },
+      }));
+      return;
+    }
     playUiCue("select");
     setCursorWorld(null);
     setApp((current) => ({ ...current, selectedDeployable: null }));
@@ -600,6 +620,8 @@ export function App() {
     }));
   }, [
     battle.winner,
+    battle.buildings,
+    battle.matchElapsed,
     battlePhase,
     factionRaces.verdant,
     playUiCue,
@@ -1183,6 +1205,14 @@ export function App() {
     if (placingSandboxBuilding) {
       const slot = selectedSandboxBuilding;
       setCursorWorld(null);
+      if (previewSandboxBuildingConstruction(battle, {
+        faction: "verdant",
+        slot,
+        worldPosition,
+      }).valid) {
+        setSelectedSandboxBuilding(null);
+        setSandboxInteractionMode("neutral");
+      }
       setApp((current) => {
         if (current.session.phase !== "engaged" || current.session.battle.modeId !== "sandbox") {
           return current;
@@ -1249,6 +1279,7 @@ export function App() {
     });
   }, [
     app.selectedDeployable,
+    battle,
     battle.winner,
     battlePhase,
     campaignDeployables,

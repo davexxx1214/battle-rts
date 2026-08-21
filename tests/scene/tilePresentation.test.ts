@@ -9,6 +9,10 @@ import {
   BATTLEFIELD_LEFT_FARM_PASSAGE_COORDINATE,
 } from "../../src/map/battlefieldLayout";
 import { BATTLEFIELD_SCENERY } from "../../src/map/battlefieldScenery";
+import {
+  SANDBOX_LARGE_BATTLEFIELD_MAP,
+  SANDBOX_LARGE_VISUAL_ROAD_CELLS,
+} from "../../src/map/sandboxLargeBattlefield";
 import { UNDEAD_HALLOWEEN_ASSETS } from "../../src/scene/assets";
 import {
   TERRAIN_TILE_ASSETS,
@@ -89,6 +93,18 @@ describe("terrain tile presentation", () => {
       && Number.isFinite(rotationY)
     ))).toBe(true);
     expect(createTerrainTilePlan(BATTLEFIELD_MAP)).toEqual(plan);
+  });
+
+  it("renders every explicit sandbox route cell with the same KayKit road tiles", () => {
+    const plan = createTerrainTilePlan(SANDBOX_LARGE_BATTLEFIELD_MAP);
+    const roadKeys = new Set(plan.filter(({ assetKey }) => (
+      assetKey.startsWith("road-")
+    )).map(({ cell }) => coordinateKey(cell)));
+
+    expect(roadKeys).toEqual(new Set(SANDBOX_LARGE_VISUAL_ROAD_CELLS.map(coordinateKey)));
+    expect(plan.filter(({ cell }) => cell.surface === "rock").every(({ assetKey }) => (
+      assetKey === "grass"
+    ))).toBe(true);
   });
 
   it("aligns two land road exits with both lanes of every bridge", () => {

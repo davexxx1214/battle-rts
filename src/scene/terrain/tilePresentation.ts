@@ -95,6 +95,9 @@ export function createTerrainTilePlan(
 
 function visualRoadKeys(map: BattlefieldMap): ReadonlySet<string> {
   const keys = new Set<string>();
+  for (const cell of map.cells) {
+    if (cell.visualRoad === true) keys.add(coordinateKey(cell));
+  }
   for (const faction of ["verdant", "crimson"] as const) {
     const camp = map[`${faction}Camp`];
     for (const destination of [map.castleApproaches[faction], ...map.bridges.map(

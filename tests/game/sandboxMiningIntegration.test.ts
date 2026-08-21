@@ -62,6 +62,31 @@ describe("sandbox mining integration", () => {
     expect(produced.mining.pitsById[verdantPit.id]!.remainingOre).toBe(2_900);
   });
 
+  it("keeps a living mine producing for its building faction independent of pit control", () => {
+    const occupied = occupiedMining();
+    const pit = occupied.pitsById[verdantPit.id]!;
+    const mining = replaceMinePitState(occupied, {
+      ...pit,
+      controller: "crimson",
+    });
+    const result = advanceSandboxMiningSystems({
+      mining,
+      economy: createEconomyState(sandbox.economyPolicy),
+      buildings: [mine()],
+      units: [],
+      elapsedSeconds: 6,
+      deltaSeconds: 4,
+    });
+
+    expect(result.economy.accounts.verdant.gold).toBe(1_100);
+    expect(result.economy.accounts.crimson.gold).toBe(1_000);
+    expect(result.mining.pitsById[verdantPit.id]).toMatchObject({
+      controller: "crimson",
+      occupyingMineId: "mine-1",
+      remainingOre: 2_900,
+    });
+  });
+
   it("splits a large step at construction completion instead of losing active time", () => {
     const result = advanceSandboxMiningSystems({
       mining: occupiedMining(),

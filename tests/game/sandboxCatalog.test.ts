@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   SANDBOX_BUILDING_CATALOG,
   SANDBOX_BUILDING_SLOTS,
+  SANDBOX_GOLD_MINE_MAX_HEALTH,
   SANDBOX_TROOP_CATALOG,
   SANDBOX_TROOP_SLOTS,
   sandboxBuildingSlotForKind,
@@ -36,7 +37,7 @@ describe("sandbox catalog", () => {
         kind: "gold-mine",
         cost: 400,
         constructionSeconds: 6,
-        maxHealth: 900,
+        maxHealth: SANDBOX_GOLD_MINE_MAX_HEALTH,
         prerequisites: [],
         maximumActivePerFaction: null,
       },

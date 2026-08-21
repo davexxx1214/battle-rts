@@ -23,7 +23,7 @@ describe("sandbox mining in the battle clock", () => {
     expect(pits.every((pit) => pit.remainingOre === 3_000 && !pit.depleted)).toBe(true);
   });
 
-  it("captures a neutral pit after three uninterrupted simulated seconds", () => {
+  it("captures a neutral pit immediately when a soldier reaches its one-cell perimeter", () => {
     const neutral = SANDBOX_LARGE_MINE_PITS.find((pit) => pit.initialController === null);
     if (!neutral) throw new Error("Sandbox fixture requires a neutral mine pit.");
     const unit = createBattleUnit({
@@ -34,12 +34,6 @@ describe("sandbox mining in the battle clock", () => {
     });
     let battle = createBattleState([unit], { modeId: "sandbox" });
 
-    for (let index = 0; index < 29; index += 1) battle = stepBattle(battle, 0.1);
-    expect(battle.mining?.pitsById[neutral.id]).toMatchObject({
-      controller: null,
-      capturingFaction: "verdant",
-      captureProgress: 2.9,
-    });
     battle = stepBattle(battle, 0.1);
     expect(battle.mining?.pitsById[neutral.id]).toMatchObject({
       controller: "verdant",
@@ -61,9 +55,46 @@ describe("sandbox mining in the battle clock", () => {
       position: axialToWorld(neutral.coordinate),
     });
     let battle = createBattleState([unit], { modeId: "sandbox" });
-    battle = runSteps(battle, 30);
+    battle = runSteps(battle, 1);
 
     expect(battle.mining?.pitsById[neutral.id]?.controller).toBe("crimson");
+  });
+
+  it("keeps the first arrival in control until that side is eliminated", () => {
+    const neutral = SANDBOX_LARGE_MINE_PITS.find((pit) => pit.id === "N-NW");
+    if (!neutral) throw new Error("Sandbox fixture requires a neutral mine pit.");
+    const first = createBattleUnit({
+      id: "verdant-first-arrival",
+      faction: "verdant",
+      role: "spearman",
+      position: axialToWorld({ q: neutral.coordinate.q + 1, r: neutral.coordinate.r }),
+    });
+    let battle = stepBattle(createBattleState([first], { modeId: "sandbox" }), 0.1);
+    expect(battle.mining?.pitsById[neutral.id]?.controller).toBe("verdant");
+
+    const challenger = createBattleUnit({
+      id: "crimson-later-arrival",
+      faction: "crimson",
+      role: "spearman",
+      position: axialToWorld({ q: neutral.coordinate.q - 1, r: neutral.coordinate.r }),
+    });
+    battle = stepBattle({ ...battle, units: [...battle.units, challenger] }, 0.1);
+    expect(battle.mining?.pitsById[neutral.id]?.controller).toBe("verdant");
+
+    battle = stepBattle({
+      ...battle,
+      units: battle.units.map((unit) => (
+        unit.id === first.id
+          ? { ...unit, health: 0, status: "dead" as const, diedAt: battle.elapsed }
+          : unit
+      )),
+    }, 0.1);
+    expect(battle.mining?.pitsById[neutral.id]?.controller).toBe("crimson");
+    expect(battle.events.flatMap((event) => (
+      event.type === "mine-pit-captured" && event.pitId === neutral.id
+        ? [event.faction]
+        : []
+    ))).toEqual(["verdant", "crimson"]);
   });
 
   it("preserves ore through enemy-mine blocking, destruction, capture and rebuilding", () => {
@@ -83,7 +114,7 @@ describe("sandbox mining in the battle clock", () => {
       position: axialToWorld({ q: -3, r: -10 }),
     });
     battle = { ...battle, units: [...battle.units, attacker] };
-    battle = runSteps(battle, 30);
+    battle = runSteps(battle, 1);
     expect(battle.mining?.pitsById["E-W"]).toMatchObject({
       controller: "crimson",
       captureProgress: 0,
@@ -105,7 +136,7 @@ describe("sandbox mining in the battle clock", () => {
           : building
       )),
     };
-    battle = runSteps(battle, 30);
+    battle = runSteps(battle, 10);
     expect(battle.mining?.pitsById["E-W"]).toMatchObject({
       controller: "verdant",
       captureProgress: 0,

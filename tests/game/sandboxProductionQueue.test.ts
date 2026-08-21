@@ -98,6 +98,30 @@ describe("sandbox production queue", () => {
     });
   });
 
+  it("trains in parallel across multiple buildings of the same type", () => {
+    let state = createSandboxProductionState([
+      { buildingId: "barracks-a", faction: "verdant", producer: "barracks" },
+      { buildingId: "barracks-b", faction: "verdant", producer: "barracks" },
+    ]);
+    let economy = createEconomyState(SANDBOX_ECONOMY_POLICY);
+    for (const buildingId of ["barracks-a", "barracks-b"]) {
+      const queued = enqueue(state, economy, "spearman", { buildingId });
+      expect(queued.accepted).toBe(true);
+      if (!queued.accepted) throw new Error("expected enqueue success");
+      state = queued.state;
+      economy = queued.economy;
+    }
+
+    const completed = advanceSandboxProduction(state, {
+      elapsedSeconds: 0,
+      deltaSeconds: sandboxTroopSpec("spearman").trainingSeconds,
+    });
+
+    expect(completed.spawns.map((spawn) => spawn.buildingId))
+      .toEqual(["barracks-a", "barracks-b"]);
+    expect(completed.spawns.every((spawn) => spawn.scheduledAtSeconds === 6)).toBe(true);
+  });
+
   it("treats prototype-looking building ids as ordinary own keys", () => {
     let state = createSandboxProductionState();
     expect(sandboxProductionQueueFor(state, "toString")).toBeNull();

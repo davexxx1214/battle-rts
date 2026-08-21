@@ -31,6 +31,8 @@ export interface BattlefieldCell extends HexCoordinate {
   readonly zoneId?: string;
   readonly buildPolicy?: BattlefieldCellBuildPolicy;
   readonly routeTags?: readonly string[];
+  /** Optional centerline hint for detailed road tile rendering. */
+  readonly visualRoad?: boolean;
   readonly blocker?: BattlefieldStaticBlocker;
 }
 

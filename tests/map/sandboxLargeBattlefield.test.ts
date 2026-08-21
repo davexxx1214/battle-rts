@@ -16,12 +16,14 @@ import {
   SANDBOX_LARGE_CASTLES,
   SANDBOX_LARGE_GATES,
   SANDBOX_LARGE_MINE_PITS,
+  SANDBOX_LARGE_MINE_DISTRICTS,
   SANDBOX_LARGE_RALLY_POINTS,
   SANDBOX_LARGE_ROAD_NETWORK_CELLS,
   SANDBOX_LARGE_ROAD_RESERVE,
   SANDBOX_LARGE_ROUTES,
   SANDBOX_LARGE_SPAWNS,
   SANDBOX_LARGE_WORLD_BOUNDS,
+  SANDBOX_LARGE_VISUAL_ROAD_CELLS,
   SANDBOX_LARGE_ZONES,
   createSandboxLargeBattlefieldFingerprint,
   generateSandboxLargeCoordinates,
@@ -37,7 +39,7 @@ const NEIGHBORS: readonly HexCoordinate[] = [
   { q: 0, r: 1 },
 ];
 
-describe("sandbox large battlefield graybox", () => {
+describe("sandbox large battlefield", () => {
   it("generates fresh deterministic coordinate data through its public pure generator", () => {
     const first = generateSandboxLargeCoordinates();
     const second = generateSandboxLargeCoordinates();
@@ -66,20 +68,61 @@ describe("sandbox large battlefield graybox", () => {
     });
   });
 
-  it("keeps the first graybox flat and explicit without static terrain blockers", () => {
+  it("keeps explicit flat terrain while eight mirrored mine ridges block navigation", () => {
     const cells = SANDBOX_LARGE_BATTLEFIELD_MAP.cells;
+    const mineDistrictKeys = new Set(SANDBOX_LARGE_MINE_DISTRICTS.flatMap((district) => (
+      district.cells.map(coordinateKey)
+    )));
     const zoneByCell = new Map(SANDBOX_LARGE_ZONES.flatMap((zone) => (
       zone.cells.map((coordinate) => [coordinateKey(coordinate), zone] as const)
     )));
 
-    expect(cells.every((cell) => cell.walkable && cell.height === 0)).toBe(true);
-    expect(new Set(cells.map((cell) => cell.surface))).toEqual(new Set(["grass", "camp"]));
+    expect(cells.every((cell) => cell.height === 0)).toBe(true);
+    expect(new Set(cells.map((cell) => cell.surface)))
+      .toEqual(new Set(["grass", "camp", "rock"]));
+    expect(SANDBOX_LARGE_MINE_DISTRICTS.map(({ pitId, wing, cells: districtCells }) => (
+      [pitId, wing, districtCells.length]
+    ))).toEqual([
+      ["P-W", "west", 8],
+      ["P-E", "east", 8],
+      ["N-NW", "west", 8],
+      ["N-NE", "east", 8],
+      ["N-SW", "west", 8],
+      ["N-SE", "east", 8],
+      ["E-W", "west", 8],
+      ["E-E", "east", 8],
+    ]);
+    expect(cells.filter((cell) => !cell.walkable).map(coordinateKey))
+      .toEqual(expect.arrayContaining([...mineDistrictKeys]));
+    expect(cells.filter((cell) => !cell.walkable)).toHaveLength(64);
     expect(cells.every((cell) => (
       cell.zoneId === zoneByCell.get(coordinateKey(cell))?.id
       && cell.territory === zoneByCell.get(coordinateKey(cell))?.territory
-      && cell.blocker === "none"
+      && cell.blocker === (mineDistrictKeys.has(coordinateKey(cell)) ? "terrain" : "none")
       && Array.isArray(cell.routeTags)
     ))).toBe(true);
+    expect(cells.filter((cell) => mineDistrictKeys.has(coordinateKey(cell))).every((cell) => (
+      cell.surface === "rock"
+      && !cell.walkable
+      && !cell.buildable
+      && !cell.reservedForPath
+    ))).toBe(true);
+    const reservedMineKeys = new Set(SANDBOX_LARGE_MINE_PITS.flatMap((pit) => [
+      coordinateKey(pit.coordinate),
+      ...pit.entrances.map(coordinateKey),
+    ]));
+    expect([...mineDistrictKeys].every((key) => !reservedMineKeys.has(key))).toBe(true);
+    const districtByPit = new Map(SANDBOX_LARGE_MINE_DISTRICTS.map((district) => (
+      [district.pitId, new Set(district.cells.map(coordinateKey))] as const
+    )));
+    for (const [first, second] of [
+      ["P-W", "E-E"],
+      ["P-E", "E-W"],
+      ["N-NW", "N-SE"],
+      ["N-NE", "N-SW"],
+    ] as const) {
+      expect(mirroredKeys(districtByPit.get(first)!)).toEqual(districtByPit.get(second));
+    }
     expect(zoneByCell.size).toBe(871);
     expect(SANDBOX_LARGE_ZONES.map((zone) => zone.id)).toEqual([
       "verdant-base",
@@ -102,7 +145,7 @@ describe("sandbox large battlefield graybox", () => {
     expect(new Set(cells.filter((cell) => (
       cell.buildPolicy === "mine-only"
     )).map(coordinateKey))).toEqual(mineKeys);
-    expect(cells.filter((cell) => cell.buildPolicy === "ordinary")).toHaveLength(104);
+    expect(cells.filter((cell) => cell.buildPolicy === "ordinary")).toHaveLength(68);
     expect(cells.filter((cell) => (
       cell.reservedForPath && cell.buildPolicy !== "forbidden"
     ))).toEqual([]);
@@ -156,6 +199,18 @@ describe("sandbox large battlefield graybox", () => {
         coordinateFromKey(key),
       )?.routeTags?.length === 0
     ))).toBe(true);
+  });
+
+  it("separates the 123-cell detailed road centerlines from the wide movement corridors", () => {
+    const networkKeys = new Set(SANDBOX_LARGE_ROAD_NETWORK_CELLS.map(coordinateKey));
+
+    expect(SANDBOX_LARGE_VISUAL_ROAD_CELLS).toHaveLength(123);
+    expect(SANDBOX_LARGE_VISUAL_ROAD_CELLS.every((cell) => (
+      networkKeys.has(coordinateKey(cell))
+      && getMapCell(SANDBOX_LARGE_BATTLEFIELD_MAP, cell)?.visualRoad === true
+    ))).toBe(true);
+    expect(SANDBOX_LARGE_BATTLEFIELD_MAP.cells.filter((cell) => cell.visualRoad))
+      .toHaveLength(123);
   });
 
   it("locks the 30/38/38 route paths and 6/12-step lane changes", () => {
@@ -249,23 +304,27 @@ describe("sandbox large battlefield graybox", () => {
     ))).toEqual([9, 9, 13, 13, 20, 20, 25, 25]);
   });
 
-  it("creates exactly 52 mirrored build anchors per faction with locked rows and wings", () => {
+  it("clusters 34 mirrored build anchors per faction around each castle", () => {
     const verdant = SANDBOX_LARGE_BUILD_ANCHORS.verdant;
     const crimson = SANDBOX_LARGE_BUILD_ANCHORS.crimson;
-    const rowCounts = Object.fromEntries(Array.from({ length: 6 }, (_, index) => {
-      const r = 10 + index;
+    const rowCounts = Object.fromEntries(Array.from({ length: 5 }, (_, index) => {
+      const r = 13 + index;
       return [r, verdant.filter((anchor) => anchor.coordinate.r === r).length];
     }));
 
-    expect(verdant).toHaveLength(52);
-    expect(crimson).toHaveLength(52);
-    expect(rowCounts).toEqual({ 10: 6, 11: 4, 12: 8, 13: 10, 14: 12, 15: 12 });
-    expect(verdant.filter((anchor) => anchor.wing === "west")).toHaveLength(26);
-    expect(verdant.filter((anchor) => anchor.wing === "east")).toHaveLength(26);
+    expect(verdant).toHaveLength(34);
+    expect(crimson).toHaveLength(34);
+    expect(rowCounts).toEqual({ 13: 4, 14: 6, 15: 8, 16: 8, 17: 8 });
+    expect(verdant.filter((anchor) => anchor.wing === "west")).toHaveLength(17);
+    expect(verdant.filter((anchor) => anchor.wing === "east")).toHaveLength(17);
+    expect(verdant.every((anchor) => {
+      const distance = hexDistance(anchor.coordinate, SANDBOX_LARGE_CASTLES.verdant);
+      return distance >= 3 && distance <= 6;
+    })).toBe(true);
     expect(new Set(crimson.map((anchor) => coordinateKey(anchor.coordinate))))
       .toEqual(mirroredKeys(new Set(verdant.map((anchor) => coordinateKey(anchor.coordinate)))));
     expect(SANDBOX_LARGE_BATTLEFIELD_MAP.cells.filter((cell) => cell.buildable))
-      .toHaveLength(104);
+      .toHaveLength(68);
     for (const anchor of [...verdant, ...crimson]) {
       expect(getMapCell(SANDBOX_LARGE_BATTLEFIELD_MAP, anchor.coordinate)).toMatchObject({
         buildable: true,
@@ -315,7 +374,7 @@ describe("sandbox large battlefield graybox", () => {
       .not.toBe(SANDBOX_LARGE_BATTLEFIELD_FINGERPRINT);
     expect(createSandboxLargeBattlefieldFingerprint(changedRouteSource))
       .not.toBe(SANDBOX_LARGE_BATTLEFIELD_FINGERPRINT);
-    expect(SANDBOX_LARGE_BATTLEFIELD_FINGERPRINT).toBe("fnv1a32:bf1e4e83");
+    expect(SANDBOX_LARGE_BATTLEFIELD_FINGERPRINT).toBe("fnv1a32:9c5df2be");
   });
 
   it("freezes all exported geometry metadata used by the fingerprint", () => {
@@ -330,10 +389,12 @@ describe("sandbox large battlefield graybox", () => {
       SANDBOX_LARGE_ROAD_RESERVE,
       SANDBOX_LARGE_ROUTES,
       SANDBOX_LARGE_MINE_PITS,
+      SANDBOX_LARGE_MINE_DISTRICTS,
       SANDBOX_LARGE_BUILD_ANCHORS,
       SANDBOX_LARGE_ZONES,
       SANDBOX_LARGE_BATTLE_STRUCTURES,
       SANDBOX_LARGE_WORLD_BOUNDS,
+      SANDBOX_LARGE_VISUAL_ROAD_CELLS,
     ].every(Object.isFrozen)).toBe(true);
     expect(SANDBOX_LARGE_ROUTES.every((route) => (
       Object.isFrozen(route)
@@ -344,6 +405,11 @@ describe("sandbox large battlefield graybox", () => {
       Object.isFrozen(pit)
       && Object.isFrozen(pit.coordinate)
       && Object.isFrozen(pit.entrances)
+    ))).toBe(true);
+    expect(SANDBOX_LARGE_MINE_DISTRICTS.every((district) => (
+      Object.isFrozen(district)
+      && Object.isFrozen(district.cells)
+      && district.cells.every(Object.isFrozen)
     ))).toBe(true);
     expect((["verdant", "crimson"] as const).every((faction) => (
       Object.isFrozen(SANDBOX_LARGE_CASTLES[faction])

@@ -144,6 +144,18 @@
   box-shadow: inset 3px 0 0 var(--amber);
 }
 
+.buildGrid button[data-unlocked="false"] {
+  border-color: rgb(165 167 158 / 14%);
+  color: rgb(170 171 164 / 72%);
+  background: rgb(22 23 21 / 88%);
+  filter: grayscale(1);
+}
+
+.buildGrid button[data-unlocked="false"] strong,
+.buildGrid button[data-unlocked="false"] small {
+  color: rgb(151 153 146 / 68%);
+}
+
 .buildGrid span,
 .trainingButtons span {
   overflow: hidden;
