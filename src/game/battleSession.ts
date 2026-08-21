@@ -1,6 +1,11 @@
 import { stepBattle, type BattleState } from "./battle";
 import type { BattlePhase, BattleSessionState } from "./battleSessionState";
 import { advanceOpponentAi } from "./opponentAi";
+import {
+  advanceSandboxOpponentAi,
+  SANDBOX_AI_DECISION_INTERVAL_SECONDS,
+  SANDBOX_AI_FIRST_DECISION_SECONDS,
+} from "./sandboxOpponentAi";
 import { resolveBattleRuntimeContext } from "./battleRuntime";
 import {
   DEFAULT_AI_DIFFICULTY,
@@ -45,6 +50,8 @@ export function advanceBattleSession(
   let next = state;
   const usesLegacyOpponentAi = resolveBattleRuntimeContext(state).mode.opponentPolicy.kind
     === "legacy-deployment-ai";
+  const usesSandboxOpponentAi = resolveBattleRuntimeContext(state).mode.opponentPolicy.kind
+    === "sandbox-rts-ai";
   for (let index = 0; index < steps; index += 1) {
     const previousMatchElapsed = next.matchElapsed;
     next = stepBattle(next, stepSeconds);
@@ -54,8 +61,35 @@ export function advanceBattleSession(
     for (let decision = 0; decision < decisionCount; decision += 1) {
       next = advanceOpponentAi({ battle: next, phase }, aiDifficulty).battle;
     }
+    const sandboxDecisionCount = usesSandboxOpponentAi
+      ? crossedFixedDecisionCount(
+          previousMatchElapsed,
+          next.matchElapsed,
+          SANDBOX_AI_FIRST_DECISION_SECONDS,
+          SANDBOX_AI_DECISION_INTERVAL_SECONDS,
+        )
+      : 0;
+    for (let decision = 0; decision < sandboxDecisionCount; decision += 1) {
+      next = advanceSandboxOpponentAi(next);
+    }
   }
   return next;
+}
+
+function crossedFixedDecisionCount(
+  start: number,
+  end: number,
+  firstDecision: number,
+  interval: number,
+): number {
+  if (end <= start || interval <= 0 || firstDecision <= 0) return 0;
+  const epsilon = 1e-9;
+  const decisionsThrough = (elapsed: number) => (
+    elapsed + epsilon < firstDecision
+      ? 0
+      : Math.floor((elapsed - firstDecision + epsilon) / interval) + 1
+  );
+  return Math.max(0, decisionsThrough(end) - decisionsThrough(start));
 }
 
 function crossedDecisionCount(
@@ -67,11 +101,5 @@ function crossedDecisionCount(
   const interval = strategy.decisionIntervalSeconds;
   const firstDecision = strategy.firstDecisionSeconds;
   if (end <= start || interval <= 0 || firstDecision <= 0) return 0;
-  const epsilon = 1e-9;
-  const decisionsThrough = (elapsed: number) => (
-    elapsed + epsilon < firstDecision
-      ? 0
-      : Math.floor((elapsed - firstDecision + epsilon) / interval) + 1
-  );
-  return Math.max(0, decisionsThrough(end) - decisionsThrough(start));
+  return crossedFixedDecisionCount(start, end, firstDecision, interval);
 }

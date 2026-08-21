@@ -175,6 +175,12 @@ export function issueSandboxSquadOrder(
     });
     return order;
   });
+  const unitDestinations = formationUnitDestinations(
+    map,
+    orders,
+    livingMembersBySquad,
+  );
+  if (!unitDestinations) return failure(battle, "no-path");
   const orderEntries = new Map(Object.entries(state.ordersBySquadId));
   for (const order of orders) orderEntries.set(order.squadId, order);
   const ordersBySquadId = Object.fromEntries(orderEntries);
@@ -184,15 +190,16 @@ export function issueSandboxSquadOrder(
     const order = orderBySquadId.get(unit.squadId);
     if (!order || unit.health <= 0 || unit.status === "dead") return unit;
     if (order.kind === "move" || order.kind === "attack-move") {
-      const waypoints = findWorldPath(map, unit.position, order.destination!);
+      const destination = unitDestinations.get(unit.id) ?? order.destination!;
+      const waypoints = findWorldPath(map, unit.position, destination);
       const arrived = waypoints.length === 0
-        && distance(unit.position, order.destination!) <= 0.12;
+        && distance(unit.position, destination) <= 0.12;
       return {
         ...unit,
         behavior: "charging" as const,
         currentTarget: null,
         engagementSlot: null,
-        formationSlot: { ...order.destination! },
+        formationSlot: { ...destination },
         waypoints,
         navigationKey: arrived ? null : `order:${order.sequence}:${order.kind}`,
         status: arrived ? "idle" as const : "moving" as const,
@@ -219,6 +226,37 @@ export function issueSandboxSquadOrder(
       revision: battle.revision + 1,
     },
   });
+}
+
+function formationUnitDestinations(
+  map: BattlefieldMap,
+  orders: readonly SandboxSquadOrder[],
+  membersBySquad: ReadonlyMap<string, readonly BattleUnit[]>,
+): Map<string, WorldPoint> | null {
+  const result = new Map<string, WorldPoint>();
+  const used = new Set<string>();
+  for (const order of orders) {
+    if (
+      (order.kind !== "move" && order.kind !== "attack-move")
+      || order.destination === null
+    ) continue;
+    const members = [...(membersBySquad.get(order.squadId) ?? [])]
+      .sort((first, second) => first.id.localeCompare(second.id));
+    const candidates = formationCoordinates(
+      worldToAxial(order.destination),
+      Math.max(2, members.length),
+    ).filter((coordinate) => getMapCell(map, coordinate)?.walkable === true);
+    for (const member of members) {
+      const coordinate = candidates.find((candidate) => (
+        !used.has(coordinateKey(candidate))
+        && areWorldPointsConnected(map, member.position, axialToWorld(candidate))
+      ));
+      if (!coordinate) return null;
+      used.add(coordinateKey(coordinate));
+      result.set(member.id, axialToWorld(coordinate));
+    }
+  }
+  return result;
 }
 
 export function pruneSandboxSquadOrders(

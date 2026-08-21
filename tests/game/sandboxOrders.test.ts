@@ -41,6 +41,27 @@ describe("sandbox squad orders", () => {
     ))).toBe(true);
   });
 
+  it("keeps multi-member squads moving through shared waypoints", () => {
+    const battle = sandboxBattle([
+      unit("alpha-1", "alpha", "verdant", { q: -7, r: 14 }),
+      unit("alpha-2", "alpha", "verdant", { q: -6, r: 14 }),
+    ]);
+    const result = issueSandboxSquadOrder(battle, {
+      faction: "verdant",
+      squadIds: ["alpha"],
+      kind: "move",
+      destination: axialToWorld({ q: 0, r: 0 }),
+    });
+    if (!result.ok) throw new Error(result.reason);
+    expect(new Set(result.battle.units.map((candidate) => (
+      `${candidate.formationSlot.x},${candidate.formationSlot.z}`
+    ))).size).toBe(2);
+    const advanced = advanceSeconds(result.battle, 10);
+    expect(advanced.units.every((candidate, index) => (
+      distance(candidate.position, result.battle.units[index]!.position) > 5
+    ))).toBe(true);
+  });
+
   it("rejects invalid selections, destinations, and friendly targets atomically", () => {
     const battle = sandboxBattle([
       unit("friendly", "alpha", "verdant", { q: -5, r: 10 }),

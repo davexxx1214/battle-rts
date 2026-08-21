@@ -44,6 +44,13 @@ export function separateLivingAllies(
     for (let second = first + 1; second < units.length; second += 1) {
       const secondUnit = units[second]!;
       if (secondUnit.health <= 0 || secondUnit.faction !== firstUnit.faction) continue;
+      if (
+        firstUnit.squadId === secondUnit.squadId
+        && firstUnit.status === "moving"
+        && secondUnit.status === "moving"
+        && firstUnit.navigationKey !== null
+        && firstUnit.navigationKey === secondUnit.navigationKey
+      ) continue;
       let dx = positions[second]!.x - positions[first]!.x;
       let dz = positions[second]!.z - positions[first]!.z;
       let distance = Math.hypot(dx, dz);

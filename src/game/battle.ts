@@ -126,6 +126,7 @@ import {
   type SandboxSquadOrder,
   type SandboxSquadOrderState,
 } from "./sandboxOrders";
+import type { SandboxOpponentAiState } from "./sandboxOpponentAi";
 
 export type { BattleRace, Faction, FactionRaces, UnitRole, WorldPoint } from "./types";
 export { UNIT_SPECS } from "./rules";
@@ -168,6 +169,7 @@ export interface BattleState {
   readonly miningLedger: readonly MiningLedgerEvent[];
   readonly production: SandboxProductionState | null;
   readonly squadOrders: SandboxSquadOrderState | null;
+  readonly sandboxAi: SandboxOpponentAiState | null;
   readonly matchPolicy: MatchPolicy;
   readonly matchElapsed: number;
   readonly buildings: readonly BattleBuilding[];
@@ -266,6 +268,7 @@ export function createBattleState(
     miningLedger: [],
     production: modeId === "sandbox" ? createSandboxProductionState() : null,
     squadOrders: modeId === "sandbox" ? createSandboxSquadOrderState() : null,
+    sandboxAi: null,
     matchPolicy: options.matchPolicy ?? mode.clockPolicy,
     matchElapsed: 0,
     buildings: createInitialDefensiveBuildings(
@@ -862,6 +865,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
           livingSquadIds(unitsAfterProduction),
         )
       : null,
+    sandboxAi: state.sandboxAi ?? null,
     matchPolicy: state.matchPolicy,
     matchElapsed,
     buildings: buildingCleanup.buildings,
@@ -1161,7 +1165,7 @@ function advanceManualOrder(
   }
   return advanceManualDestination(
     next,
-    order.destination,
+    unit.formationSlot,
     `order:${order.sequence}:${order.kind}`,
     deltaSeconds,
     map,

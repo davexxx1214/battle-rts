@@ -47,10 +47,10 @@ describe("battle session gate", () => {
     expect(secondNormal).not.toBe(firstNormal);
 
     const recoveredNormal = advanceBattleSession(firstNormal, "engaged", 28, 0.1);
-    const waitedSandbox = advanceBattleSession(sandbox, "engaged", 6_000, 0.1);
+    const waitedSandbox = advanceBattleSession(sandbox, "engaged", 600, 0.1);
 
     expect(recoveredNormal.economy.accounts.verdant.gold).toBe(600);
-    expect(waitedSandbox.matchElapsed).toBeCloseTo(600);
+    expect(waitedSandbox.matchElapsed).toBeCloseTo(60);
     expect(waitedSandbox.economy.accounts.verdant.gold).toBe(1_000);
   });
 
@@ -113,15 +113,22 @@ describe("battle session gate", () => {
     ))).toBe(false);
   });
 
-  it("does not run the legacy deployment AI in sandbox mode", () => {
+  it("runs sandbox AI through shared transactions without legacy deployments", () => {
     const initial = createInitialBattle({ modeId: "sandbox" });
     const advanced = advanceBattleSession(initial, "engaged", 40, 0.1);
 
     expect(advanced.matchElapsed).toBeCloseTo(4);
     expect(advanced.deploymentCounts).toEqual(initial.deploymentCounts);
-    expect(advanced.nextDeploymentSequence).toBe(0);
-    expect(advanced.buildings).toEqual(initial.buildings);
-    expect(advanced.economy).toEqual(initial.economy);
+    expect(advanced.nextDeploymentSequence).toBe(2);
+    expect(advanced.buildings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ faction: "crimson", kind: "gold-mine" }),
+      expect.objectContaining({ faction: "crimson", kind: "barracks" }),
+    ]));
+    expect(advanced.economy.accounts.crimson.gold).toBe(200);
+    expect(advanced.sandboxAi).toMatchObject({
+      decisionSequence: 4,
+      actionSequence: 2,
+    });
   });
 
   it("runs hard opponent decisions on the original one-second boundaries", () => {
@@ -145,5 +152,15 @@ describe("battle session gate", () => {
     const split = advanceBattleSession(firstHalf, "engaged", 60, 0.05);
 
     expect(split).toEqual(continuous);
+  });
+
+  it("keeps sandbox AI decisions identical across session batching", () => {
+    const initial = createInitialBattle({ modeId: "sandbox" });
+    const continuous = advanceBattleSession(initial, "engaged", 120, 0.05);
+    const firstHalf = advanceBattleSession(initial, "engaged", 60, 0.05);
+    const split = advanceBattleSession(firstHalf, "engaged", 60, 0.05);
+
+    expect(split).toEqual(continuous);
+    expect(split.sandboxAi?.decisionSequence).toBe(6);
   });
 });
