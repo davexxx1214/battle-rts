@@ -1,0 +1,155 @@
+.bar {
+  position: absolute;
+  z-index: 28;
+  right: 200px;
+  bottom: 12px;
+  left: 310px;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 9px;
+  border: 1px solid rgb(222 211 183 / 24%);
+  border-bottom: 3px solid rgb(90 174 255 / 72%);
+  color: var(--parchment);
+  background: rgb(13 15 13 / 93%);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 38%);
+  user-select: none;
+}
+
+.bar[data-active="false"] {
+  opacity: 0.62;
+}
+
+.selectionSummary {
+  min-width: 58px;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 5px;
+  align-items: baseline;
+}
+
+.selectionSummary span,
+.bar > small {
+  color: var(--muted);
+  font-size: 7px;
+  white-space: nowrap;
+}
+
+.selectionSummary strong {
+  color: var(--amber);
+  font-family: var(--display);
+  font-size: 15px;
+}
+
+.commands {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(42px, 1fr));
+  gap: 4px;
+}
+
+.commands button {
+  min-width: 0;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid rgb(222 211 183 / 18%);
+  color: var(--parchment);
+  background: rgb(33 35 30 / 94%);
+  cursor: pointer;
+}
+
+.commands button:hover:not(:disabled),
+.commands button:focus-visible,
+.commands button[data-armed="true"] {
+  border-color: var(--amber);
+  color: #fff2bd;
+  background: rgb(92 69 25 / 82%);
+  outline: none;
+}
+
+.commands button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.commands span {
+  font-size: 9px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.commands kbd {
+  color: var(--muted);
+  font: 7px/1 ui-monospace, "Cascadia Mono", monospace;
+}
+
+@media (max-width: 900px) {
+  .bar {
+    right: 132px;
+    left: 302px;
+  }
+
+  .bar > small,
+  .commands kbd {
+    display: none;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px),
+  (orientation: portrait) {
+  .bar {
+    right: max(6px, var(--game-safe-right));
+    bottom: max(6px, var(--game-safe-bottom));
+    left: max(6px, var(--game-safe-left));
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 5px;
+    padding: 5px;
+  }
+
+  .selectionSummary {
+    min-width: 42px;
+    grid-template-columns: 1fr;
+    gap: 0;
+    text-align: center;
+  }
+
+  .selectionSummary span {
+    font-size: 6px;
+  }
+
+  .commands {
+    grid-template-columns: repeat(5, minmax(44px, 1fr));
+  }
+
+  .commands button {
+    min-height: 44px;
+  }
+
+  .commands span {
+    font-size: 8px;
+  }
+
+  .bar > small {
+    display: none;
+  }
+}
+
+@media (max-width: 390px) {
+  .bar {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .commands {
+    gap: 2px;
+  }
+
+  .commands button {
+    padding-inline: 2px;
+  }
+}

@@ -503,6 +503,28 @@
   cursor: copy;
 }
 
+.battlefield[data-sandbox-interaction="move-armed"],
+.battlefield[data-sandbox-interaction="attack-move-armed"] {
+  cursor: crosshair;
+}
+
+.battlefield[data-sandbox-interaction="attack-armed"] {
+  cursor: cell;
+}
+
+.battlefield[data-sandbox-interaction="box-selecting"] {
+  cursor: default;
+}
+
+.sandboxSelectionBox {
+  position: absolute;
+  z-index: 30;
+  border: 1px solid rgb(104 219 232 / 92%);
+  background: rgb(90 174 255 / 16%);
+  box-shadow: inset 0 0 12px rgb(104 219 232 / 10%);
+  pointer-events: none;
+}
+
 .battlefield > .sandboxMinimap {
   position: absolute;
   z-index: 20;

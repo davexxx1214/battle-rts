@@ -17,6 +17,7 @@ import type { MutableRefObject } from "react";
 import {
   createBattleUnit,
   type BattleState,
+  type WorldPoint,
 } from "../game/battle";
 import type { SandboxBuildingConstructionPreview } from "../game/sandboxBattleTransactions";
 import {
@@ -24,6 +25,7 @@ import {
   type SandboxBuildingSlot,
 } from "../game/sandboxCatalog";
 import { createSandboxProductionExitFan } from "../game/sandboxProductionExit";
+import type { SandboxSquadOrderKind } from "../game/sandboxOrders";
 import { hasRace, legacyUndeadOpponentRaces } from "../game/factions";
 import type { FactionRaces } from "../game/types";
 import type { DeploymentPreview } from "../game/deployTransaction";
@@ -82,6 +84,12 @@ interface BattlefieldCanvasProps {
   readonly deploymentKind?: DeployableKind | null;
   readonly deploymentPreview: (DeploymentPreview & { readonly kind: DeployableKind }) | null;
   readonly sandboxConstructionPreview?: SandboxBuildingConstructionPreview | null;
+  readonly selectedSquadIds?: readonly string[];
+  readonly sandboxCommandMarker?: {
+    readonly sequence: number;
+    readonly kind: SandboxSquadOrderKind;
+    readonly position: WorldPoint;
+  } | null;
   readonly cameraResetToken: number;
   readonly cameraViewStore: CameraViewStore;
   readonly onAssetProgress?: (progress: SceneAssetLoadProgress) => void;
@@ -105,6 +113,8 @@ export function BattlefieldCanvas({
   deploymentKind = null,
   deploymentPreview,
   sandboxConstructionPreview = null,
+  selectedSquadIds = [],
+  sandboxCommandMarker = null,
   cameraResetToken,
   cameraViewStore,
   onAssetProgress,
@@ -129,6 +139,7 @@ export function BattlefieldCanvas({
     ? battlefield.cameraPreset.startZoom - 1
     : battlefield.cameraPreset.startZoom;
   const attackPresentations = useAttackPresentationCache(battle);
+  const selectedSquads = useMemo(() => new Set(selectedSquadIds), [selectedSquadIds]);
   const deploymentMaskCoordinates = useMemo(() => (
     deploymentKind
       ? validDeploymentCoordinates(
@@ -200,7 +211,7 @@ export function BattlefieldCanvas({
         onViewChange={cameraViewStore.publish}
         bridgeRef={bridgeRef}
       />
-      <SceneBridge bridgeRef={bridgeRef} />
+      <SceneBridge battle={battle} bridgeRef={bridgeRef} />
       {onBenchmarkUpdate && <BenchmarkProbe onUpdate={onBenchmarkUpdate} />}
       <Suspense fallback={<ArenaFallback presentation={scenePresentation} />}>
         {sandboxGrayboxPlan
@@ -219,7 +230,7 @@ export function BattlefieldCanvas({
           <Suspense fallback={null} key={unit.id}>
             <UnitModel
               unit={unit}
-              selected={false}
+              selected={unit.faction === "verdant" && selectedSquads.has(unit.squadId)}
               attackSequence={attack?.sequence}
               attackTime={attack?.time}
               battleTime={battle.elapsed}
@@ -248,8 +259,58 @@ export function BattlefieldCanvas({
           race={resolvedFactionRaces.verdant}
         />
       )}
+      {sandboxCommandMarker && (
+        <SandboxCommandMarkerVisual marker={sandboxCommandMarker} />
+      )}
       </BattlefieldSceneProvider>
     </Canvas>
+  );
+}
+
+function SandboxCommandMarkerVisual({
+  marker,
+}: {
+  readonly marker: NonNullable<BattlefieldCanvasProps["sandboxCommandMarker"]>;
+}) {
+  const { map } = useBattlefieldDefinition();
+  const root = useRef<Object3D>(null);
+  const color = marker.kind === "attack"
+    ? "#ff625e"
+    : marker.kind === "attack-move" ? "#f0c65f" : "#68dbe8";
+  const y = terrainHeightAtMap(map, marker.position) + 0.09;
+  useFrame(({ clock }) => {
+    if (!root.current) return;
+    const pulse = 0.9 + Math.sin(clock.elapsedTime * 11) * 0.12;
+    root.current.scale.setScalar(pulse);
+    root.current.rotation.y += 0.025;
+  });
+  return (
+    <group
+      ref={root}
+      name="sandbox-command-marker"
+      position={[marker.position.x, y, marker.position.z]}
+    >
+      <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={120}>
+        <ringGeometry args={[0.55, 0.72, 16]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.96}
+          depthTest={false}
+          depthWrite={false}
+        />
+      </mesh>
+      <mesh position={[0, 0.025, 0]} renderOrder={119}>
+        <cylinderGeometry args={[0.18, 0.32, 0.08, 4]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.82}
+          depthTest={false}
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
   );
 }
 
@@ -568,15 +629,19 @@ function BenchmarkProbe({ onUpdate }: {
 }
 
 function SceneBridge({
+  battle,
   bridgeRef,
 }: {
+  readonly battle: BattleState;
   readonly bridgeRef: MutableRefObject<SceneInteractionBridge>;
 }) {
+  const { map } = useBattlefieldDefinition();
   const { camera, size } = useThree();
   const raycaster = useMemo(() => new Raycaster(), []);
   const ground = useMemo(() => new Plane(new Vector3(0, 1, 0), 0), []);
   const hit = useMemo(() => new Vector3(), []);
   const ndc = useMemo(() => new Vector2(), []);
+  const projected = useMemo(() => new Vector3(), []);
 
   useFrame(() => {
     bridgeRef.current.screenToWorld = (x, y) => {
@@ -584,6 +649,88 @@ function SceneBridge({
       raycaster.setFromCamera(ndc, camera);
       const point = raycaster.ray.intersectPlane(ground, hit);
       return point ? { x: point.x, z: point.z } : null;
+    };
+    const project = (point: WorldPoint, height: number) => {
+      projected.set(
+        point.x,
+        terrainHeightAtMap(map, point) + height,
+        point.z,
+      ).project(camera);
+      if (projected.z < -1 || projected.z > 1) return null;
+      return {
+        x: (projected.x + 1) * size.width / 2,
+        y: (1 - projected.y) * size.height / 2,
+      };
+    };
+    bridgeRef.current.pickBattlefieldEntity = (x, y) => {
+      let best: {
+        readonly distance: number;
+        readonly priority: number;
+        readonly pick: ReturnType<SceneInteractionBridge["pickBattlefieldEntity"]>;
+      } | null = null;
+      for (const unit of battle.units) {
+        if (unit.health <= 0 || unit.status === "dead") continue;
+        const screen = project(unit.position, unit.role === "bone-dragon" ? 1.3 : 0.55);
+        if (!screen) continue;
+        const pointerDistance = Math.hypot(screen.x - x, screen.y - y);
+        if (pointerDistance > 26) continue;
+        if (
+          !best
+          || pointerDistance < best.distance
+          || (pointerDistance === best.distance && best.priority > 0)
+        ) {
+          best = {
+            distance: pointerDistance,
+            priority: 0,
+            pick: {
+              targetType: "unit",
+              id: unit.id,
+              squadId: unit.squadId,
+              faction: unit.faction,
+              position: { ...unit.position },
+            },
+          };
+        }
+      }
+      for (const building of battle.buildings) {
+        if (building.health <= 0 || building.status !== "active") continue;
+        const screen = project(building.position, building.kind === "castle" ? 2.1 : 1.1);
+        if (!screen) continue;
+        const pointerDistance = Math.hypot(screen.x - x, screen.y - y);
+        if (pointerDistance > (building.kind === "castle" ? 38 : 30)) continue;
+        if (!best || pointerDistance < best.distance) {
+          best = {
+            distance: pointerDistance,
+            priority: 1,
+            pick: {
+              targetType: "building",
+              id: building.id,
+              faction: building.faction,
+              position: { ...building.position },
+            },
+          };
+        }
+      }
+      return best?.pick ?? null;
+    };
+    bridgeRef.current.squadIdsInScreenRect = (rect, faction) => {
+      const squadIds = new Set<string>();
+      for (const unit of battle.units) {
+        if (
+          unit.faction !== faction
+          || unit.health <= 0
+          || unit.status === "dead"
+        ) continue;
+        const screen = project(unit.position, 0.45);
+        if (
+          screen
+          && screen.x >= rect.left
+          && screen.x <= rect.right
+          && screen.y >= rect.top
+          && screen.y <= rect.bottom
+        ) squadIds.add(unit.squadId);
+      }
+      return [...squadIds].sort();
     };
   });
   return null;

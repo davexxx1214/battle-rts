@@ -299,10 +299,10 @@
   .panel {
     top: auto;
     right: max(6px, var(--game-safe-right));
-    bottom: max(6px, var(--game-safe-bottom));
+    bottom: calc(62px + max(6px, var(--game-safe-bottom)));
     left: max(6px, var(--game-safe-left));
     width: auto;
-    max-height: min(48vh, 390px);
+    max-height: min(40vh, 330px);
   }
 
   .buildGrid {

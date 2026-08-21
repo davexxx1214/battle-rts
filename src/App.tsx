@@ -1,5 +1,6 @@
 import {
   type Dispatch,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type SetStateAction,
   useCallback,
@@ -82,6 +83,11 @@ import {
   type SandboxTroopSlot,
 } from "./game/sandboxCatalog";
 import { enqueueSandboxBattleProduction } from "./game/sandboxProductionTransactions";
+import {
+  issueSandboxSquadOrder,
+  type SandboxSquadOrderKind,
+  type SandboxSquadOrderTarget,
+} from "./game/sandboxOrders";
 import { battlefieldDefinitionFor } from "./map/battlefieldDefinition";
 import {
   BattlefieldCanvas,
@@ -114,6 +120,17 @@ import {
 } from "./ui/fieldInput";
 import { SandboxMinimap } from "./ui/minimap";
 import { SandboxCommandPanel } from "./ui/SandboxCommandPanel";
+import { SandboxSquadCommandBar } from "./ui/SandboxSquadCommandBar";
+import {
+  createSandboxSelectionState,
+  pruneSandboxSelection,
+  sandboxSelectionBox,
+  selectSandboxSquad,
+  selectSandboxSquadsInBox,
+  transitionSandboxInteraction,
+  type SandboxInteractionMode,
+  type SandboxSelectionBox,
+} from "./ui/sandboxSelection";
 
 interface AppState {
   readonly session: BattleSessionState;
@@ -136,6 +153,20 @@ interface TouchDragState {
 interface ActiveDeploymentDrag {
   readonly pointerId: number;
   readonly kind: DeployableKind;
+}
+
+interface SandboxSelectionDrag {
+  readonly pointerId: number;
+  readonly startField: FieldPoint;
+  readonly additive: boolean;
+  currentField: FieldPoint;
+  dragging: boolean;
+}
+
+interface SandboxCommandMarkerState {
+  readonly sequence: number;
+  readonly kind: SandboxSquadOrderKind;
+  readonly position: WorldPoint;
 }
 
 const SIMULATION_STEP_SECONDS = 0.05;
@@ -199,6 +230,16 @@ export function App() {
   const [selectedSandboxBuilding, setSelectedSandboxBuilding] = useState<
     SandboxBuildingSlot | null
   >(null);
+  const [sandboxSelection, setSandboxSelection] = useState(createSandboxSelectionState);
+  const [sandboxInteractionMode, setSandboxInteractionMode] = useState<
+    SandboxInteractionMode
+  >("neutral");
+  const [sandboxSelectionRect, setSandboxSelectionRect] = useState<
+    SandboxSelectionBox | null
+  >(null);
+  const [sandboxCommandMarker, setSandboxCommandMarker] = useState<
+    SandboxCommandMarkerState | null
+  >(null);
   const [cameraResetToken, setCameraResetToken] = useState(0);
   const [battleInstanceRevision, setBattleInstanceRevision] = useState(0);
   const [audioEnabled, setAudioEnabled] = useState(DEFAULT_AUDIO_ENABLED);
@@ -217,11 +258,14 @@ export function App() {
   const suppressTouchDeploymentRef = useRef(false);
   const deploymentDragRef = useRef<ActiveDeploymentDrag | null>(null);
   const deploymentDragReleasePointerRef = useRef<number | null>(null);
+  const sandboxSelectionDragRef = useRef<SandboxSelectionDrag | null>(null);
+  const nextSandboxCommandMarkerSequence = useRef(1);
   const [deploymentDragActive, setDeploymentDragActive] = useState(false);
   const [deploymentDragOverBattlefield, setDeploymentDragOverBattlefield] = useState(false);
   const cameraViewStore = useMemo(createCameraViewStore, []);
   const clock = getBattleMatchClock(battle);
   const sandboxMode = battle.modeId === "sandbox";
+  const armedSandboxOrder = sandboxOrderForInteractionMode(sandboxInteractionMode);
   const deploymentEnabled = !sandboxMode
     && battlePhase === "engaged"
     && battle.winner === null;
@@ -299,32 +343,72 @@ export function App() {
   }, [app.feedback]);
 
   useEffect(() => {
+    const livingFriendlySquads = new Set(battle.units.flatMap((unit) => (
+      unit.faction === "verdant" && unit.health > 0 && unit.status !== "dead"
+        ? [unit.squadId]
+        : []
+    )));
+    setSandboxSelection((current) => pruneSandboxSelection(current, livingFriendlySquads));
+  }, [battle.units]);
+
+  useEffect(() => {
+    if (!sandboxCommandMarker) return;
+    const timeout = window.setTimeout(() => setSandboxCommandMarker((current) => (
+      current?.sequence === sandboxCommandMarker.sequence ? null : current
+    )), 1_100);
+    return () => window.clearTimeout(timeout);
+  }, [sandboxCommandMarker]);
+
+  useEffect(() => {
+    if (sandboxMode && battlePhase === "engaged" && battle.winner === null) return;
+    sandboxSelectionDragRef.current = null;
+    setSelectedSandboxBuilding(null);
+    setCursorWorld(null);
+    setSandboxSelectionRect(null);
+    setSandboxInteractionMode("neutral");
+    if (!sandboxMode || battle.winner !== null) {
+      setSandboxSelection(createSandboxSelectionState());
+    }
+  }, [battle.winner, battlePhase, sandboxMode]);
+
+  useEffect(() => {
     const cancel = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      sandboxSelectionDragRef.current = null;
       setCursorWorld(null);
       setSelectedSandboxBuilding(null);
+      setSandboxSelectionRect(null);
+      setSandboxInteractionMode("neutral");
       setApp((current) => current.selectedDeployable
         ? {
             ...current,
             selectedDeployable: null,
             feedback: { tone: "info", message: "已取消部署" },
           }
-        : selectedSandboxBuilding
+        : selectedSandboxBuilding || armedSandboxOrder
           ? {
               ...current,
-              feedback: { tone: "info", message: "已取消建造" },
+              feedback: {
+                tone: "info",
+                message: selectedSandboxBuilding ? "已取消建造" : "已取消命令",
+              },
             }
           : current);
     };
     window.addEventListener("keydown", cancel);
     return () => window.removeEventListener("keydown", cancel);
-  }, [selectedSandboxBuilding]);
+  }, [armedSandboxOrder, selectedSandboxBuilding]);
 
   const resetBattle = useCallback(() => {
     deploymentDragRef.current = null;
     setDeploymentDragActive(false);
     setDeploymentDragOverBattlefield(false);
     setSelectedSandboxBuilding(null);
+    sandboxSelectionDragRef.current = null;
+    setSandboxSelection(createSandboxSelectionState());
+    setSandboxSelectionRect(null);
+    setSandboxInteractionMode("neutral");
+    setSandboxCommandMarker(null);
     setMobileMatchSetupOpen(false);
     setApp(createAppState(
       benchmarkMode,
@@ -354,6 +438,11 @@ export function App() {
     setDeploymentDragActive(false);
     setDeploymentDragOverBattlefield(false);
     setSelectedSandboxBuilding(null);
+    sandboxSelectionDragRef.current = null;
+    setSandboxSelection(createSandboxSelectionState());
+    setSandboxSelectionRect(null);
+    setSandboxInteractionMode("neutral");
+    setSandboxCommandMarker(null);
     const reloadSceneAssets = requiresSceneAssetReload(
       mode,
       nextMode,
@@ -491,6 +580,12 @@ export function App() {
     setApp((current) => ({ ...current, selectedDeployable: null }));
     const cancelling = selectedSandboxBuilding === slot;
     setSelectedSandboxBuilding(cancelling ? null : slot);
+    setSandboxSelection(createSandboxSelectionState());
+    setSandboxSelectionRect(null);
+    setSandboxInteractionMode((current) => transitionSandboxInteraction(current, {
+      type: "select-building",
+      selected: !cancelling,
+    }));
     const display = sandboxBuildingSpec(slot).displayByRace[factionRaces.verdant];
     setApp((current) => ({
       ...current,
@@ -543,6 +638,130 @@ export function App() {
       };
     });
   }, [playUiCue]);
+
+  const issueSelectedSandboxOrder = useCallback((
+    kind: SandboxSquadOrderKind,
+    options: {
+      readonly destination?: WorldPoint;
+      readonly target?: SandboxSquadOrderTarget;
+    } = {},
+  ) => {
+    const selectedSquadIds = sandboxSelection.selectedSquadIds;
+    setApp((current) => {
+      if (current.session.phase !== "engaged") return current;
+      const result = issueSandboxSquadOrder(current.session.battle, {
+        faction: "verdant",
+        squadIds: selectedSquadIds,
+        kind,
+        ...options,
+      });
+      if (!result.ok) {
+        return {
+          ...current,
+          feedback: {
+            tone: "error",
+            message: sandboxActionReasonLabel(result.reason),
+          },
+        };
+      }
+      if (result.markerPosition) {
+        const marker = {
+          sequence: nextSandboxCommandMarkerSequence.current,
+          kind,
+          position: result.markerPosition,
+        } as const;
+        nextSandboxCommandMarkerSequence.current += 1;
+        queueMicrotask(() => setSandboxCommandMarker(marker));
+      }
+      queueMicrotask(() => setSandboxInteractionMode("neutral"));
+      return {
+        ...current,
+        session: { ...current.session, battle: result.battle },
+        feedback: {
+          tone: "success",
+          message: sandboxOrderSuccessLabel(kind, result.orders.length),
+        },
+      };
+    });
+  }, [sandboxSelection.selectedSquadIds]);
+
+  const armSandboxOrder = useCallback((
+    kind: "move" | "attack" | "attack-move",
+  ) => {
+    if (
+      !sandboxMode
+      || battlePhase !== "engaged"
+      || battle.winner !== null
+      || sandboxSelection.selectedSquadIds.length === 0
+    ) return;
+    setSelectedSandboxBuilding(null);
+    setCursorWorld(null);
+    setSandboxSelectionRect(null);
+    setSandboxInteractionMode((current) => transitionSandboxInteraction(current, {
+      type: "arm-order",
+      order: kind,
+    }));
+    setApp((current) => ({
+      ...current,
+      selectedDeployable: null,
+      feedback: {
+        tone: "info",
+        message: kind === "attack"
+          ? "点击敌军或敌方建筑下达攻击命令"
+          : "点击地图选择命令目标",
+      },
+    }));
+  }, [
+    battle.winner,
+    battlePhase,
+    sandboxMode,
+    sandboxSelection.selectedSquadIds.length,
+  ]);
+
+  const issueImmediateSandboxOrder = useCallback((kind: "stop" | "hold") => {
+    issueSelectedSandboxOrder(kind);
+  }, [issueSelectedSandboxOrder]);
+
+  useEffect(() => {
+    const handleSandboxShortcut = (event: KeyboardEvent) => {
+      if (
+        !sandboxMode
+        || battlePhase !== "engaged"
+        || battle.winner !== null
+        || event.ctrlKey
+        || event.metaKey
+        || event.altKey
+        || (event.target as Element | null)?.closest?.("input, textarea, select")
+      ) return;
+      const key = event.key.toLowerCase();
+      if (key === "a") armSandboxOrder("attack-move");
+      else if (key === "m") armSandboxOrder("move");
+      else if (key === "r") armSandboxOrder("attack");
+      else if (key === "s") issueImmediateSandboxOrder("stop");
+      else if (key === "h") issueImmediateSandboxOrder("hold");
+      else return;
+      event.preventDefault();
+    };
+    const clearTransientInteraction = () => {
+      sandboxSelectionDragRef.current = null;
+      setSelectedSandboxBuilding(null);
+      setSandboxSelectionRect(null);
+      setSandboxInteractionMode("neutral");
+      setCursorWorld(null);
+    };
+    window.addEventListener("keydown", handleSandboxShortcut);
+    window.addEventListener("blur", clearTransientInteraction);
+    return () => {
+      window.removeEventListener("keydown", handleSandboxShortcut);
+      window.removeEventListener("blur", clearTransientInteraction);
+    };
+  }, [
+    armSandboxOrder,
+    battle.winner,
+    battlePhase,
+    issueImmediateSandboxOrder,
+    sandboxMode,
+  ]);
 
   const resolveDeploymentDragTarget = useCallback((client: FieldPoint) => {
     const battlefield = battlefieldRef.current;
@@ -728,10 +947,31 @@ export function App() {
       event.preventDefault();
       return;
     }
+    const fieldInteractionAllowed = shouldStartFieldPointerInteraction(
+      event.button,
+      event.target as Element | null,
+    );
     if (
       event.pointerType !== "touch"
-      || !shouldStartFieldPointerInteraction(event.button, event.target as Element | null)
-    ) return;
+      && sandboxMode
+      && battlePhase === "engaged"
+      && battle.winner === null
+      && selectedSandboxBuilding === null
+      && sandboxInteractionMode === "neutral"
+      && fieldInteractionAllowed
+    ) {
+      const point = localPointer(event);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      sandboxSelectionDragRef.current = {
+        pointerId: event.pointerId,
+        startField: point,
+        currentField: point,
+        additive: event.shiftKey,
+        dragging: false,
+      };
+      return;
+    }
+    if (event.pointerType !== "touch" || !fieldInteractionAllowed) return;
 
     event.currentTarget.setPointerCapture(event.pointerId);
     activeTouchPointersRef.current.set(event.pointerId, {
@@ -754,10 +994,38 @@ export function App() {
     suppressTouchDeploymentRef.current = true;
     setCursorWorld(null);
     event.preventDefault();
-  }, []);
+  }, [
+    battle.winner,
+    battlePhase,
+    sandboxInteractionMode,
+    sandboxMode,
+    selectedSandboxBuilding,
+  ]);
 
   const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (deploymentDragRef.current?.pointerId === event.pointerId) return;
+    const selectionDrag = sandboxSelectionDragRef.current;
+    if (selectionDrag?.pointerId === event.pointerId) {
+      const currentField = localPointer(event);
+      selectionDrag.currentField = currentField;
+      selectionDrag.dragging = selectionDrag.dragging || pointerDragExceedsThreshold(
+        selectionDrag.startField,
+        currentField,
+        TOUCH_DRAG_THRESHOLD_PX,
+      );
+      if (selectionDrag.dragging) {
+        setSandboxInteractionMode((current) => transitionSandboxInteraction(
+          current,
+          { type: "begin-box" },
+        ));
+        setSandboxSelectionRect(sandboxSelectionBox(
+          selectionDrag.startField,
+          currentField,
+        ));
+        event.preventDefault();
+      }
+      return;
+    }
     if (event.pointerType === "touch") {
       if (!activeTouchPointersRef.current.has(event.pointerId)) return;
       activeTouchPointersRef.current.set(event.pointerId, {
@@ -792,6 +1060,10 @@ export function App() {
             currentField.y - drag.previousField.y,
           );
           drag.dragging = true;
+          setSandboxInteractionMode((current) => transitionSandboxInteraction(
+            current,
+            { type: "begin-camera" },
+          ));
           suppressTouchDeploymentRef.current = true;
           setCursorWorld(null);
           drag.previousField = currentField;
@@ -820,6 +1092,37 @@ export function App() {
       deploymentDragRef.current?.pointerId === event.pointerId
       || deploymentDragReleasePointerRef.current === event.pointerId
     ) return;
+    const selectionDrag = sandboxSelectionDragRef.current;
+    if (selectionDrag?.pointerId === event.pointerId) {
+      sandboxSelectionDragRef.current = null;
+      setSandboxSelectionRect(null);
+      setSandboxInteractionMode("neutral");
+      if (selectionDrag.dragging) {
+        const squadIds = bridgeRef.current.squadIdsInScreenRect(
+          sandboxSelectionBox(selectionDrag.startField, selectionDrag.currentField),
+          "verdant",
+        );
+        setSandboxSelection((current) => selectSandboxSquadsInBox(
+          current,
+          squadIds,
+          selectionDrag.additive,
+        ));
+      } else {
+        const pick = bridgeRef.current.pickBattlefieldEntity(
+          selectionDrag.currentField.x,
+          selectionDrag.currentField.y,
+        );
+        setSandboxSelection((current) => selectSandboxSquad(
+          current,
+          pick?.targetType === "unit" && pick.faction === "verdant"
+            ? pick.squadId
+            : null,
+          selectionDrag.additive,
+        ));
+      }
+      event.preventDefault();
+      return;
+    }
     if (event.pointerType === "touch") {
       const trackedPointer = activeTouchPointersRef.current.has(event.pointerId);
       const drag = singleTouchDragRef.current;
@@ -833,6 +1136,7 @@ export function App() {
         suppressTouchDeploymentRef.current = false;
       }
       if (!trackedPointer || suppressDeployment) {
+        setSandboxInteractionMode("neutral");
         setCursorWorld(null);
         return;
       }
@@ -843,10 +1147,39 @@ export function App() {
       && selectedSandboxBuilding !== null
       && battlePhase === "engaged"
       && battle.winner === null;
-    if (!placingSandboxBuilding && (!app.selectedDeployable || !deploymentEnabled)) return;
+    const armedOrder = sandboxOrderForInteractionMode(sandboxInteractionMode);
+    const selectingSandboxSquad = sandboxMode
+      && battlePhase === "engaged"
+      && battle.winner === null
+      && selectedSandboxBuilding === null
+      && armedOrder === null;
+    if (
+      !placingSandboxBuilding
+      && !armedOrder
+      && !selectingSandboxSquad
+      && (!app.selectedDeployable || !deploymentEnabled)
+    ) return;
     const point = localPointer(event);
     const worldPosition = bridgeRef.current.screenToWorld(point.x, point.y);
     if (!worldPosition) return;
+    if (armedOrder) {
+      if (armedOrder === "attack") {
+        const pick = bridgeRef.current.pickBattlefieldEntity(point.x, point.y);
+        if (!pick || pick.faction === "verdant") {
+          setApp((current) => ({
+            ...current,
+            feedback: { tone: "error", message: "请选择敌军或敌方建筑" },
+          }));
+          return;
+        }
+        issueSelectedSandboxOrder("attack", {
+          target: { targetType: pick.targetType, targetId: pick.id },
+        });
+      } else {
+        issueSelectedSandboxOrder(armedOrder, { destination: worldPosition });
+      }
+      return;
+    }
     if (placingSandboxBuilding) {
       const slot = selectedSandboxBuilding;
       setCursorWorld(null);
@@ -881,6 +1214,18 @@ export function App() {
       });
       return;
     }
+    if (selectingSandboxSquad) {
+      const pick = bridgeRef.current.pickBattlefieldEntity(point.x, point.y);
+      setSandboxSelection((current) => selectSandboxSquad(
+        current,
+        pick?.targetType === "unit" && pick.faction === "verdant"
+          ? pick.squadId
+          : null,
+        event.shiftKey,
+      ));
+      setSandboxInteractionMode("neutral");
+      return;
+    }
     setApp((current) => {
       const kind = current.selectedDeployable;
       if (!kind || current.session.phase !== "engaged") return current;
@@ -908,12 +1253,20 @@ export function App() {
     battlePhase,
     campaignDeployables,
     deploymentEnabled,
+    issueSelectedSandboxOrder,
+    sandboxInteractionMode,
     sandboxMode,
     selectedSandboxBuilding,
   ]);
 
   const handlePointerCancel = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (sandboxSelectionDragRef.current?.pointerId === event.pointerId) {
+      sandboxSelectionDragRef.current = null;
+      setSandboxSelectionRect(null);
+      setSandboxInteractionMode("neutral");
+    }
     if (event.pointerType !== "touch") return;
+    setSelectedSandboxBuilding(null);
     if (singleTouchDragRef.current?.pointerId === event.pointerId) {
       singleTouchDragRef.current = null;
     }
@@ -922,6 +1275,7 @@ export function App() {
     if (activeTouchPointersRef.current.size === 0) {
       suppressTouchDeploymentRef.current = false;
     }
+    setSandboxInteractionMode("neutral");
     setCursorWorld(null);
   }, []);
 
@@ -931,6 +1285,9 @@ export function App() {
     setDeploymentDragOverBattlefield(false);
     setCursorWorld(null);
     setSelectedSandboxBuilding(null);
+    sandboxSelectionDragRef.current = null;
+    setSandboxSelectionRect(null);
+    setSandboxInteractionMode("neutral");
     setApp((current) => current.selectedDeployable
       ? {
           ...current,
@@ -944,6 +1301,41 @@ export function App() {
           }
         : current);
   }, [selectedSandboxBuilding]);
+
+  const handleBattlefieldContextMenu = useCallback((
+    event: ReactMouseEvent<HTMLDivElement>,
+  ) => {
+    event.preventDefault();
+    if (selectedSandboxBuilding || app.selectedDeployable) {
+      cancelDeployment();
+      return;
+    }
+    if (
+      !sandboxMode
+      || battlePhase !== "engaged"
+      || battle.winner !== null
+      || sandboxSelection.selectedSquadIds.length === 0
+    ) return;
+    const point = localPointer(event);
+    const pick = bridgeRef.current.pickBattlefieldEntity(point.x, point.y);
+    if (pick && pick.faction !== "verdant") {
+      issueSelectedSandboxOrder("attack", {
+        target: { targetType: pick.targetType, targetId: pick.id },
+      });
+      return;
+    }
+    const destination = bridgeRef.current.screenToWorld(point.x, point.y);
+    if (destination) issueSelectedSandboxOrder("move", { destination });
+  }, [
+    app.selectedDeployable,
+    battle.winner,
+    battlePhase,
+    cancelDeployment,
+    issueSelectedSandboxOrder,
+    sandboxMode,
+    sandboxSelection.selectedSquadIds.length,
+    selectedSandboxBuilding,
+  ]);
 
   const fieldFeedback = deploymentDragActive
     ? !deploymentDragOverBattlefield
@@ -1166,20 +1558,27 @@ export function App() {
             onDragDeploy={handleDeploymentDrag}
           />
         ))}
+        {battle.winner === null && sandboxMode && (
+          <SandboxSquadCommandBar
+            selectedCount={sandboxSelection.selectedSquadIds.length}
+            armedOrder={armedSandboxOrder}
+            disabled={battlePhase !== "engaged"}
+            onArmOrder={armSandboxOrder}
+            onImmediateOrder={issueImmediateSandboxOrder}
+          />
+        )}
 
         <div
           ref={battlefieldRef}
           className={styles.battlefield}
           data-deploying={app.selectedDeployable !== null || selectedSandboxBuilding !== null}
+          data-sandbox-interaction={sandboxInteractionMode}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerLeave={() => setCursorWorld(null)}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerCancel}
-          onContextMenu={(event) => {
-            event.preventDefault();
-            cancelDeployment();
-          }}
+          onContextMenu={handleBattlefieldContextMenu}
         >
           <BattlefieldCanvas
             battle={battle}
@@ -1190,6 +1589,8 @@ export function App() {
               ? { kind: app.selectedDeployable, ...deploymentPreview }
               : null}
             sandboxConstructionPreview={sandboxConstructionPreview}
+            selectedSquadIds={sandboxSelection.selectedSquadIds}
+            sandboxCommandMarker={sandboxCommandMarker}
             cameraResetToken={cameraResetToken}
             cameraViewStore={cameraViewStore}
             onAssetProgress={setAssetLoadProgress}
@@ -1197,6 +1598,19 @@ export function App() {
             onAssetError={handleAssetError}
             onBenchmarkUpdate={benchmarkMode ? setBenchmark : undefined}
           />
+          {sandboxSelectionRect && (
+            <div
+              className={styles.sandboxSelectionBox}
+              data-field-ui
+              aria-hidden="true"
+              style={{
+                left: sandboxSelectionRect.left,
+                top: sandboxSelectionRect.top,
+                width: sandboxSelectionRect.right - sandboxSelectionRect.left,
+                height: sandboxSelectionRect.bottom - sandboxSelectionRect.top,
+              }}
+            />
+          )}
           <SandboxMinimap
             battle={battle}
             battlefield={battlefieldDefinition}
@@ -1491,6 +1905,27 @@ function matchBriefingLabel(remainingSeconds: number | null): string {
   return `点击交战，开始${Number.isInteger(minutes) ? minutes : minutes.toFixed(1)}分钟攻防`;
 }
 
+function sandboxOrderForInteractionMode(
+  mode: SandboxInteractionMode,
+): "move" | "attack" | "attack-move" | null {
+  if (mode === "move-armed") return "move";
+  if (mode === "attack-armed") return "attack";
+  if (mode === "attack-move-armed") return "attack-move";
+  return null;
+}
+
+function sandboxOrderSuccessLabel(
+  kind: SandboxSquadOrderKind,
+  squadCount: number,
+): string {
+  const label = kind === "move"
+    ? "移动"
+    : kind === "attack" ? "攻击"
+      : kind === "attack-move" ? "攻击移动"
+        : kind === "stop" ? "停止" : "坚守";
+  return `${squadCount} 支兵团已执行${label}命令`;
+}
+
 function sandboxActionReasonLabel(reason: string): string {
   const labels: Readonly<Record<string, string>> = {
     "sandbox-mode-required": "此操作只在沙盒模式可用",
@@ -1520,6 +1955,13 @@ function sandboxActionReasonLabel(reason: string): string {
     "population-cap": "人口预留将超过 100 上限",
     "insufficient-gold": "金币不足",
     "building-not-operational": "建筑尚未完工",
+    "empty-selection": "请先选择己方兵团",
+    "squad-not-found": "所选兵团已不存在",
+    "invalid-destination": "命令目标不在可行走地图内",
+    "no-path": "所选兵团无法到达目标",
+    "target-not-found": "攻击目标已经消失",
+    "friendly-target": "不能攻击己方目标",
+    "invalid-order": "无效的兵团命令",
   };
   return labels[reason] ?? `操作失败：${reason}`;
 }

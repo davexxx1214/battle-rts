@@ -43,9 +43,9 @@ vi.mock("../../src/scene/buildings/BattleBuildingLayer", () => ({
 }));
 
 vi.mock("../../src/scene/units/UnitModel", () => ({
-  UnitModel: () => {
+  UnitModel: ({ selected }: { readonly selected: boolean }) => {
     if (suspension.unit) throw suspension.pending;
-    return "unit-stable";
+    return selected ? "unit-selected" : "unit-stable";
   },
 }));
 
@@ -150,6 +150,33 @@ describe("battlefield asset loading boundaries", () => {
     expect(rendered).toContain("building-ghost-stable");
     expect(rendered.match(/sandbox-production-exit-door/g)).toHaveLength(1);
     expect(rendered.match(/sandbox-production-exit-reserve/g)).toHaveLength(3);
+  });
+
+  it("renders whole-squad selection and the latest command marker", () => {
+    const unit = createBattleUnit({
+      id: "sandbox-selected-unit",
+      squadId: "sandbox-selected-squad",
+      faction: "verdant",
+      role: "spearman",
+      position: axialToWorld(SANDBOX_LARGE_BUILD_ANCHORS.verdant[0]!.coordinate),
+    });
+    const battle = createBattleState([unit], { modeId: "sandbox" });
+    const rendered = renderToString(createElement(BattlefieldCanvas, {
+      battle,
+      bridgeRef: { current: createSceneInteractionBridge() },
+      cameraResetToken: 0,
+      cameraViewStore: createCameraViewStore(),
+      deploymentPreview: null,
+      selectedSquadIds: [unit.squadId],
+      sandboxCommandMarker: {
+        sequence: 1,
+        kind: "move",
+        position: unit.position,
+      },
+    }));
+
+    expect(rendered).toContain("unit-selected");
+    expect(rendered).toContain("sandbox-command-marker");
   });
 });
 

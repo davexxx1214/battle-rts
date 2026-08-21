@@ -119,6 +119,13 @@ import {
   synchronizeSandboxProductionBuildings,
 } from "./sandboxProductionIntegration";
 import { sandboxTroopSpec } from "./sandboxCatalog";
+import {
+  createSandboxSquadOrderState,
+  pruneSandboxSquadOrders,
+  sandboxSquadOrderFor,
+  type SandboxSquadOrder,
+  type SandboxSquadOrderState,
+} from "./sandboxOrders";
 
 export type { BattleRace, Faction, FactionRaces, UnitRole, WorldPoint } from "./types";
 export { UNIT_SPECS } from "./rules";
@@ -160,6 +167,7 @@ export interface BattleState {
   readonly mining: SandboxMiningState | null;
   readonly miningLedger: readonly MiningLedgerEvent[];
   readonly production: SandboxProductionState | null;
+  readonly squadOrders: SandboxSquadOrderState | null;
   readonly matchPolicy: MatchPolicy;
   readonly matchElapsed: number;
   readonly buildings: readonly BattleBuilding[];
@@ -204,6 +212,8 @@ const POST_BATTLE_PRESENTATION_SECONDS = 8;
 const MAX_MINING_LEDGER_EVENTS = 512;
 const ATTACK_LINE_SAMPLE_DISTANCE = 0.35;
 const BUILDING_ATTACK_LINE_CLEARANCE = 1.1;
+const MANUAL_SELF_DEFENSE_PADDING = 0.2;
+const MANUAL_HOLD_LEASH_DISTANCE = 4;
 
 export function createBattleUnit(input: CreateBattleUnitInput): BattleUnit {
   const combatProfile = input.combatProfile ?? "human";
@@ -255,6 +265,7 @@ export function createBattleState(
       : null,
     miningLedger: [],
     production: modeId === "sandbox" ? createSandboxProductionState() : null,
+    squadOrders: modeId === "sandbox" ? createSandboxSquadOrderState() : null,
     matchPolicy: options.matchPolicy ?? mode.clockPolicy,
     matchElapsed: 0,
     buildings: createInitialDefensiveBuildings(
@@ -292,6 +303,8 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
   const miningLedgerAtStart = state.miningLedger ?? [];
   const productionAtStart = state.production
     ?? (state.modeId === "sandbox" ? createSandboxProductionState() : null);
+  const squadOrdersAtStart = state.squadOrders
+    ?? (state.modeId === "sandbox" ? createSandboxSquadOrderState() : null);
   const requestedStepSeconds = Math.min(MAX_STEP_SECONDS, requestedDeltaSeconds);
   if (state.resolvedAt !== null) {
     if (state.elapsed - state.resolvedAt >= POST_BATTLE_PRESENTATION_SECONDS) return state;
@@ -310,6 +323,12 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     const production = productionAtStart
       ? synchronizeSandboxProductionBuildings(productionAtStart, cleanup.buildings)
       : null;
+    const squadOrders = squadOrdersAtStart
+      ? pruneSandboxSquadOrders(
+          squadOrdersAtStart,
+          livingSquadIds(state.units),
+        )
+      : null;
     return {
       ...state,
       units: state.units.map((unit) => ({
@@ -320,6 +339,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       buildingOccupancy: cleanup.occupancy,
       mining,
       production,
+      squadOrders,
       projectiles: [],
       events: pruneBattleEvents(state.events, elapsed - EVENT_WINDOW_SECONDS),
       elapsed,
@@ -390,7 +410,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
   const combatantsAtStart = livingAtStart;
   const spatialIndex = new BattleSpatialIndex(combatantsAtStart);
   const automaticControl = mode.controlAuthority.kind === "automatic";
-  const targetsByUnitId = new Map(
+  const targetsByUnitId = new Map<string, AutomaticCombatTarget | null>(
     automaticControl
       ? combatantsAtStart.map((unit) => [unit.id, selectAutomaticTarget({
           unit,
@@ -398,7 +418,17 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
           buildings: activeBuildingsAtStart,
           map,
         })] as const)
-      : [],
+      : combatantsAtStart.map((unit) => [
+          unit.id,
+          selectManualOrderTarget(
+            unit,
+            squadOrdersAtStart
+              ? sandboxSquadOrderFor(squadOrdersAtStart, unit.squadId)
+              : null,
+            spatialIndex,
+            activeBuildingsAtStart,
+          ),
+        ] as const),
   );
   const squadNavigationPlans = automaticControl
     ? buildSquadNavigationPlans(
@@ -447,10 +477,12 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
   const engagementByAttackerId = new Map(
     engagementSlots.map((slot) => [slot.attackerId, slot] as const),
   );
-  const advancedUnits = automaticControl
-    ? unitsAtStart.map((unit) => advanceUnit(
+  const advancedUnits = unitsAtStart.map((unit) => {
+    const target = targetsByUnitId.get(unit.id) ?? null;
+    if (automaticControl || target) {
+      return advanceUnit(
         unit,
-        targetsByUnitId.get(unit.id) ?? null,
+        target,
         combatTargetsAtStart,
         engagementByAttackerId.get(unit.id) ?? null,
         deltaSeconds,
@@ -460,8 +492,18 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
         emit,
         map,
         squadNavigationPlans.get(unit.id) ?? null,
-      ))
-    : unitsAtStart.map((unit) => advanceIssuedWaypoints(unit, deltaSeconds, map));
+        automaticControl,
+      );
+    }
+    return advanceManualOrder(
+      unit,
+      squadOrdersAtStart
+        ? sandboxSquadOrderFor(squadOrdersAtStart, unit.squadId)
+        : null,
+      deltaSeconds,
+      map,
+    );
+  });
   const separatedUnits = separateLivingAllies(advancedUnits, 0.65, map).map((unit, index) => {
     const position = automaticControl
       ? clampToForwardProgress(
@@ -814,6 +856,12 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       ...sandboxMiningStep.ledgerEvents,
     ].slice(-MAX_MINING_LEDGER_EVENTS),
     production: sandboxProductionStep.state,
+    squadOrders: squadOrdersAtStart
+      ? pruneSandboxSquadOrders(
+          squadOrdersAtStart,
+          livingSquadIds(unitsAfterProduction),
+        )
+      : null,
     matchPolicy: state.matchPolicy,
     matchElapsed,
     buildings: buildingCleanup.buildings,
@@ -842,6 +890,7 @@ function advanceUnit(
   emit: EmitBattleEvent,
   map: BattlefieldMap,
   squadNavigationPlan: SquadNavigationPlan | null,
+  enforceForwardProgress = true,
 ): BattleUnit {
   if (unit.health <= 0 || unit.status === "dead") {
     return {
@@ -902,11 +951,20 @@ function advanceUnit(
         facing,
         deltaSeconds,
         map,
+        enforceForwardProgress,
       );
     }
   }
   if (targetDistance > spec.attackRange || !attackLineClear) {
-    return advanceTowardTarget(next, target, facing, deltaSeconds, map, requiresCenteredPath);
+    return advanceTowardTarget(
+      next,
+      target,
+      facing,
+      deltaSeconds,
+      map,
+      requiresCenteredPath,
+      enforceForwardProgress,
+    );
   }
   if (next.cooldownRemaining > 0) return { ...next, facing, status: "attacking" };
 
@@ -1001,6 +1059,165 @@ function advanceUnit(
     facing,
     status: "attacking",
     cooldownRemaining: spec.attackCooldown,
+  };
+}
+
+function selectManualOrderTarget(
+  unit: BattleUnit,
+  order: SandboxSquadOrder | null,
+  spatialIndex: BattleSpatialIndex,
+  buildings: readonly BattleBuilding[],
+): AutomaticCombatTarget | null {
+  if (order?.kind === "attack" && order.target) {
+    const target = order.target.targetType === "unit"
+      ? spatialIndex.unitById(order.target.targetId)
+      : buildings.find((building) => building.id === order.target!.targetId);
+    return target
+      && target.health > 0
+      && target.faction !== unit.faction
+      && (target.targetType !== "building" || target.status === "active")
+      ? target
+      : null;
+  }
+
+  const spec = unitSpecFor(unit.role, unit.combatProfile);
+  const acquisitionRange = order?.kind === "attack-move" || order?.kind === "hold"
+    ? spec.aggroRange
+    : spec.attackRange + MANUAL_SELF_DEFENSE_PADDING;
+  const withinHoldLeash = (target: AutomaticCombatTarget) => (
+    order?.kind !== "hold"
+    || !order.holdPosition
+    || distance(order.holdPosition, target.position) <= MANUAL_HOLD_LEASH_DISTANCE
+  );
+  const candidates: AutomaticCombatTarget[] = [
+    ...spatialIndex.enemiesWithin(unit, acquisitionRange),
+    ...buildings.filter((building) => (
+      building.faction !== unit.faction
+      && building.status === "active"
+      && building.health > 0
+      && distance(unit.position, building.position) <= acquisitionRange
+    )),
+  ].filter(withinHoldLeash);
+  const current = unit.currentTarget
+    ? candidates.find((candidate) => (
+        candidate.targetType === unit.currentTarget?.targetType
+        && candidate.id === unit.currentTarget.targetId
+      ))
+    : null;
+  return current ?? [...candidates].sort((first, second) => (
+    distance(unit.position, first.position) - distance(unit.position, second.position)
+    || first.id.localeCompare(second.id)
+  ))[0] ?? null;
+}
+
+function advanceManualOrder(
+  unit: BattleUnit,
+  order: SandboxSquadOrder | null,
+  deltaSeconds: number,
+  map: BattlefieldMap,
+): BattleUnit {
+  if (unit.health <= 0 || unit.status === "dead") {
+    return {
+      ...unit,
+      health: 0,
+      status: "dead",
+      waypoints: [],
+      currentTarget: null,
+      engagementSlot: null,
+    };
+  }
+  const next: BattleUnit = {
+    ...unit,
+    behavior: "charging",
+    cooldownRemaining: Math.max(
+      0,
+      unit.cooldownRemaining
+        - deltaSeconds * unitStatusModifiers(unit.statusEffects).attackSpeedMultiplier,
+    ),
+    currentTarget: null,
+    engagementSlot: null,
+  };
+  if (!order) return advanceIssuedWaypoints(next, deltaSeconds, map);
+  if (order.kind === "stop" || order.kind === "attack") {
+    return { ...next, status: "idle", waypoints: [], navigationKey: null };
+  }
+  if (order.kind === "hold") {
+    if (
+      !order.holdPosition
+      || distance(next.position, order.holdPosition) <= ARRIVAL_DISTANCE
+    ) {
+      return { ...next, status: "idle", waypoints: [], navigationKey: null };
+    }
+    return advanceManualDestination(
+      next,
+      order.holdPosition,
+      `order:${order.sequence}:hold`,
+      deltaSeconds,
+      map,
+    );
+  }
+  if (!order.destination) {
+    return { ...next, status: "idle", waypoints: [], navigationKey: null };
+  }
+  return advanceManualDestination(
+    next,
+    order.destination,
+    `order:${order.sequence}:${order.kind}`,
+    deltaSeconds,
+    map,
+  );
+}
+
+function advanceManualDestination(
+  unit: BattleUnit,
+  destination: WorldPoint,
+  navigationKey: string,
+  deltaSeconds: number,
+  map: BattlefieldMap,
+): BattleUnit {
+  const spec = unitSpecFor(unit.role, unit.combatProfile);
+  const maximumDistance = spec.moveSpeed
+    * unitStatusModifiers(unit.statusEffects).moveSpeedMultiplier
+    * deltaSeconds;
+  if (spec.movementMode === "flying") {
+    const position = moveToward(unit.position, destination, maximumDistance);
+    const arrived = distance(position, destination) <= ARRIVAL_DISTANCE;
+    return {
+      ...unit,
+      position,
+      facing: Math.atan2(
+        destination.x - unit.position.x,
+        destination.z - unit.position.z,
+      ),
+      status: arrived ? "idle" : "moving",
+      waypoints: [],
+      navigationKey: arrived ? null : navigationKey,
+    };
+  }
+  if (distance(unit.position, destination) <= ARRIVAL_DISTANCE) {
+    return { ...unit, status: "idle", waypoints: [], navigationKey: null };
+  }
+  const waypoints = unit.navigationKey === navigationKey && unit.waypoints.length > 0
+    ? unit.waypoints
+    : findWorldPath(map, unit.position, destination);
+  if (waypoints.length === 0) {
+    return { ...unit, status: "idle", waypoints: [], navigationKey: null };
+  }
+  const movement = advanceAlongWaypoints(
+    unit,
+    waypoints,
+    maximumDistance,
+    map,
+    false,
+  );
+  const arrived = movement.waypoints.length === 0;
+  return {
+    ...unit,
+    position: movement.position,
+    facing: movement.facing,
+    waypoints: movement.waypoints,
+    status: arrived ? "idle" : "moving",
+    navigationKey: arrived ? null : navigationKey,
   };
 }
 
@@ -1473,6 +1690,7 @@ function advanceTowardTarget(
   deltaSeconds: number,
   map: BattlefieldMap,
   forcePath = false,
+  enforceForwardProgress = true,
 ): BattleUnit {
   const spec = unitSpecFor(unit.role, unit.combatProfile);
   const moveSpeed = spec.moveSpeed * unitStatusModifiers(unit.statusEffects).moveSpeedMultiplier;
@@ -1486,12 +1704,14 @@ function advanceTowardTarget(
   if (spec.movementMode === "flying") {
     return {
       ...unit,
-      position: clampToForwardProgress(
-        unit.faction,
-        unit.position,
-        moveToward(unit.position, target.position, maximumDistance),
-        map,
-      ),
+      position: enforceForwardProgress
+        ? clampToForwardProgress(
+            unit.faction,
+            unit.position,
+            moveToward(unit.position, target.position, maximumDistance),
+            map,
+          )
+        : moveToward(unit.position, target.position, maximumDistance),
       facing,
       status: "moving",
       waypoints: [],
@@ -1502,7 +1722,9 @@ function advanceTowardTarget(
   if (waypoints.length === 0) {
     if (!forcePath) {
       const proposed = moveToward(unit.position, target.position, maximumDistance);
-      const position = walkableForwardPosition(unit.faction, unit.position, proposed, map);
+      const position = enforceForwardProgress
+        ? walkableForwardPosition(unit.faction, unit.position, proposed, map)
+        : walkablePosition(proposed, map);
       if (position) {
         return {
           ...unit,
@@ -1521,7 +1743,9 @@ function advanceTowardTarget(
   }
   const waypoint = waypoints[0] ?? target.position;
   const requested = moveToward(unit.position, waypoint, maximumDistance);
-  const moved = walkableForwardPosition(unit.faction, unit.position, requested, map);
+  const moved = enforceForwardProgress
+    ? walkableForwardPosition(unit.faction, unit.position, requested, map)
+    : walkablePosition(requested, map);
   if (!moved) {
     const recovery = recoverBlockedGroundPosition(unit.position, maximumDistance, map);
     if (recovery) {
@@ -1542,7 +1766,9 @@ function advanceTowardTarget(
   if (distance(moved, waypoint) <= arrivalDistance) waypoints = waypoints.slice(1);
   return {
     ...unit,
-    position: clampToForwardProgress(unit.faction, unit.position, moved, map),
+    position: enforceForwardProgress
+      ? clampToForwardProgress(unit.faction, unit.position, moved, map)
+      : moved,
     waypoints,
     navigationKey,
     facing,
@@ -1557,6 +1783,7 @@ function advanceTowardCombatPosition(
   facing: number,
   deltaSeconds: number,
   map: BattlefieldMap,
+  enforceForwardProgress = true,
 ): BattleUnit {
   const spec = unitSpecFor(unit.role, unit.combatProfile);
   const maximumDistance = spec.moveSpeed
@@ -1566,7 +1793,9 @@ function advanceTowardCombatPosition(
     let waypoints = unit.waypoints;
     const waypoint = waypoints[0]!;
     const requested = moveToward(unit.position, waypoint, maximumDistance);
-    const position = walkableForwardPosition(unit.faction, unit.position, requested, map);
+    const position = enforceForwardProgress
+      ? walkableForwardPosition(unit.faction, unit.position, requested, map)
+      : walkablePosition(requested, map);
     if (position) {
       if (distance(position, waypoint) <= WAYPOINT_ARRIVAL_EPSILON) {
         waypoints = waypoints.slice(1);
@@ -1582,7 +1811,9 @@ function advanceTowardCombatPosition(
     }
   }
   const requestedDirect = moveToward(unit.position, destination, maximumDistance);
-  const direct = walkableForwardPosition(unit.faction, unit.position, requestedDirect, map);
+  const direct = enforceForwardProgress
+    ? walkableForwardPosition(unit.faction, unit.position, requestedDirect, map)
+    : walkablePosition(requestedDirect, map);
   if (direct) {
     return {
       ...unit,
@@ -1596,12 +1827,10 @@ function advanceTowardCombatPosition(
   const route = findWorldPath(map, unit.position, destination);
   const waypoint = route[0];
   if (!waypoint) return { ...unit, facing, status: "idle", waypoints: [] };
-  const position = walkableForwardPosition(
-    unit.faction,
-    unit.position,
-    moveToward(unit.position, waypoint, maximumDistance),
-    map,
-  );
+  const requested = moveToward(unit.position, waypoint, maximumDistance);
+  const position = enforceForwardProgress
+    ? walkableForwardPosition(unit.faction, unit.position, requested, map)
+    : walkablePosition(requested, map);
   if (!position) {
     const recovery = recoverBlockedGroundPosition(unit.position, maximumDistance, map);
     if (recovery) {
@@ -1651,6 +1880,12 @@ export function appendUnitsToSquads(
         });
   }
   return [...next.values()];
+}
+
+function livingSquadIds(units: readonly BattleUnit[]): ReadonlySet<string> {
+  return new Set(units.flatMap((unit) => (
+    unit.health > 0 && unit.status !== "dead" ? [unit.squadId] : []
+  )));
 }
 
 function createInitialDefensiveBuildings(
