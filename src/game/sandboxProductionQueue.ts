@@ -146,11 +146,10 @@ export interface SandboxProductionSpawn {
   readonly faction: Faction;
   readonly producer: SandboxProductionBuildingSlot;
   readonly troopKind: SandboxTroopSlot;
-  readonly entityCount: number;
   readonly populationCost: number;
   readonly scheduledAtSeconds: number;
-  readonly squadId: string;
-  readonly unitIds: readonly string[];
+  /** Sandbox production is intentionally one order -> one independently controlled unit. */
+  readonly unitId: string;
   /** Immutable snapshot; navigation begins only after the caller creates units. */
   readonly rallyPoint: HexCoordinate | null;
 }
@@ -535,7 +534,6 @@ function createSpawn(
   scheduledAtSeconds: number,
 ): SandboxProductionSpawn {
   const spec = sandboxTroopSpec(entry.troopKind);
-  const squadId = `${queue.buildingId}:squad:${entry.sequence}`;
   return Object.freeze({
     entryId: entry.id,
     entrySequence: entry.sequence,
@@ -543,16 +541,9 @@ function createSpawn(
     faction: queue.faction,
     producer: queue.producer,
     troopKind: entry.troopKind,
-    entityCount: spec.entityCount,
     populationCost: spec.populationCost,
     scheduledAtSeconds,
-    squadId,
-    unitIds: Object.freeze(
-      Array.from(
-        { length: spec.entityCount },
-        (_, index) => `${squadId}:unit:${index + 1}`,
-      ),
-    ),
+    unitId: `${queue.buildingId}:unit:${entry.sequence}`,
     rallyPoint: queue.rallyPoint === null
       ? null
       : Object.freeze({ q: queue.rallyPoint.q, r: queue.rallyPoint.r }),

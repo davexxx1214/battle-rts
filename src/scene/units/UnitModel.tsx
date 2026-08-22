@@ -18,13 +18,19 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { useEffect, useMemo, useRef } from "react";
 
-import type { BattleUnit, UnitRole, WorldPoint } from "../../game/battle";
+import type {
+  BattleUnit,
+  CombatBattleUnit,
+  UnitRole,
+  WorldPoint,
+} from "../../game/battle";
 import type { BattleRace } from "../../game/types";
 import { terrainHeightAtMap } from "../../map/battlefield";
 import { sceneColorsForFaction } from "../assets";
 import { unitStatusModelTint } from "../effects/statusEffectPresentation";
 import { CatapultUnitModel } from "./CatapultUnitModel";
 import { BoneDragonUnitModel } from "./BoneDragonUnitModel";
+import { NeutralMonsterModel } from "./NeutralMonsterModel";
 import {
   CHARACTER_ANIMATION_URLS,
   characterAnimationForState,
@@ -53,7 +59,7 @@ export function UnitModel({
   undeadOpponent = false,
   ...props
 }: {
-  readonly unit: BattleUnit;
+  readonly unit: CombatBattleUnit;
   readonly selected: boolean;
   readonly attackSequence?: number;
   readonly attackTime?: number;
@@ -64,15 +70,19 @@ export function UnitModel({
   readonly undeadOpponent?: boolean;
   readonly ghostValid?: boolean;
 }) {
+  if (props.unit.faction === "neutral") {
+    return <NeutralMonsterModel {...props} />;
+  }
+  const playerProps = { ...props, unit: props.unit as BattleUnit };
   const resolvedRace: BattleRace = race
     ?? (undeadOpponent && props.unit.faction === "crimson" ? "undead" : "human");
   if (props.unit.role === "bone-dragon") {
-    return <BoneDragonUnitModel {...props} race={resolvedRace} />;
+    return <BoneDragonUnitModel {...playerProps} race={resolvedRace} />;
   }
   if (props.unit.role === "catapult") {
-    return <CatapultUnitModel {...props} race={resolvedRace} />;
+    return <CatapultUnitModel {...playerProps} race={resolvedRace} />;
   }
-  return <CharacterUnitModel {...props} race={resolvedRace} />;
+  return <CharacterUnitModel {...playerProps} race={resolvedRace} />;
 }
 
 function CharacterUnitModel({

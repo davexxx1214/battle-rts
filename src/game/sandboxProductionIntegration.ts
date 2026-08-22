@@ -120,7 +120,7 @@ export function sandboxProductionExitForSpawn(
     roadReserve,
     plan.fan,
     sandboxProductionBlockerKeys(buildings, units),
-    spawn.entityCount,
+    1,
   );
 }
 

@@ -1,4 +1,6 @@
 import type { BattleEvent } from "../game/events";
+import type { BattleBuilding } from "../game/buildings";
+import type { SandboxMiningState } from "../game/miningEconomy";
 import type { UnitCombatProfile } from "../game/types";
 
 export interface AudioVoice {
@@ -12,7 +14,17 @@ export interface AudioVoice {
   play: () => Promise<void> | void;
 }
 
-export type UiAudioCue = "select" | "place-unit" | "place-building";
+export type UiAudioCue =
+  | "select"
+  | "place-unit"
+  | "place-building"
+  | "construction-started"
+  | "construction-complete"
+  | "queue-complete"
+  | "exit-blocked"
+  | "mine-captured"
+  | "mine-depleted"
+  | "command-confirm";
 
 export type CombatAudioCue =
   | "ranger.attack"
@@ -50,7 +62,7 @@ export interface CombatAudioPlayback {
   readonly playbackRate: number;
 }
 
-export type BattleMusicScene = "victory" | "defeat";
+export type BattleMusicScene = "victory" | "defeat" | "draw";
 
 export const DEFAULT_AUDIO_ENABLED = true;
 
@@ -63,6 +75,7 @@ const MUSIC_TRACKS: Readonly<Record<BattleMusicScene, readonly string[]>> = {
     "/audio/music/victory3.mp3",
   ],
   defeat: ["/audio/music/fail.mp3"],
+  draw: ["/audio/ui/organic/select.mp3"],
 };
 
 export const UI_AUDIO_CUES: Readonly<
@@ -71,6 +84,13 @@ export const UI_AUDIO_CUES: Readonly<
   select: { src: "/audio/ui/organic/hover.mp3", gain: 0.25 },
   "place-unit": { src: "/audio/ui/organic/drop.mp3", gain: 1 },
   "place-building": { src: "/audio/ui/organic/snap.mp3", gain: 0.35 },
+  "construction-started": { src: "/audio/ui/organic/snap.mp3", gain: 0.38 },
+  "construction-complete": { src: "/audio/ui/organic/snap.mp3", gain: 0.58 },
+  "queue-complete": { src: "/audio/ui/organic/drop.mp3", gain: 0.58 },
+  "exit-blocked": { src: "/audio/ui/organic/select.mp3", gain: 0.42 },
+  "mine-captured": { src: "/audio/ui/organic/snap.mp3", gain: 0.64 },
+  "mine-depleted": { src: "/audio/ui/organic/select.mp3", gain: 0.5 },
+  "command-confirm": { src: "/audio/ui/organic/hover.mp3", gain: 0.35 },
 };
 
 export const COMBAT_AUDIO_BUS_CAPACITIES: Readonly<Record<CombatAudioBus, number>> = {
@@ -337,6 +357,86 @@ export class DeploymentAudioEventRouter {
   reset(): void {
     this.#lastSequence = -1;
   }
+}
+
+export interface SandboxAudioSnapshot {
+  readonly modeId: string;
+  readonly events: readonly BattleEvent[];
+  readonly buildings: readonly BattleBuilding[];
+  readonly mining: SandboxMiningState | null;
+  readonly matchElapsed: number;
+}
+
+/**
+ * Routes low-frequency sandbox feedback separately from combat audio. Snapshot
+ * comparisons cover construction completion and ore depletion because those
+ * transitions intentionally do not add extra simulation events.
+ */
+export class SandboxAudioEventRouter {
+  #lastSequence = -1;
+  #initialized = false;
+  readonly #operationalBuildings = new Set<string>();
+  readonly #depletedPits = new Set<string>();
+
+  consume(snapshot: SandboxAudioSnapshot): UiAudioCue[] {
+    if (snapshot.modeId !== "sandbox") {
+      this.reset();
+      return [];
+    }
+    const operationalBuildings = new Set(snapshot.buildings.flatMap((building) => (
+      building.faction === "verdant"
+      && building.status === "active"
+      && building.constructionCompletedAt <= snapshot.matchElapsed + 1e-9
+        ? [building.id]
+        : []
+    )));
+    const depletedPits = new Set(Object.values(snapshot.mining?.pitsById ?? {}).flatMap((pit) => (
+      pit.controller === "verdant" && pit.depleted ? [pit.id] : []
+    )));
+    const cues: UiAudioCue[] = [];
+    if (this.#initialized) {
+      for (const id of [...operationalBuildings].sort()) {
+        if (!this.#operationalBuildings.has(id)) cues.push("construction-complete");
+      }
+    }
+    for (const event of [...snapshot.events].sort((first, second) => (
+      first.sequence - second.sequence
+    ))) {
+      if (event.sequence <= this.#lastSequence) continue;
+      this.#lastSequence = event.sequence;
+      if (event.type === "building-unit-spawned" && event.faction === "verdant") {
+        cues.push("queue-complete");
+      } else if (
+        event.type === "building-unit-spawn-skipped"
+        && event.faction === "verdant"
+      ) {
+        cues.push("exit-blocked");
+      } else if (event.type === "mine-pit-captured" && event.faction === "verdant") {
+        cues.push("mine-captured");
+      }
+    }
+    if (this.#initialized) {
+      for (const id of [...depletedPits].sort()) {
+        if (!this.#depletedPits.has(id)) cues.push("mine-depleted");
+      }
+    }
+    replaceSet(this.#operationalBuildings, operationalBuildings);
+    replaceSet(this.#depletedPits, depletedPits);
+    this.#initialized = true;
+    return cues;
+  }
+
+  reset(): void {
+    this.#lastSequence = -1;
+    this.#initialized = false;
+    this.#operationalBuildings.clear();
+    this.#depletedPits.clear();
+  }
+}
+
+function replaceSet(target: Set<string>, source: ReadonlySet<string>): void {
+  target.clear();
+  for (const value of source) target.add(value);
 }
 
 function deterministicUnitValue(seed: number): number {

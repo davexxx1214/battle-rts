@@ -61,10 +61,10 @@ describe("building presentation state", () => {
 
   it("reads sandbox producer progress from the authoritative queue head", () => {
     const producers = [
-      { kind: "barracks", troopKind: "spearman", progress: 3, expected: 0.5 },
-      { kind: "archery-range", troopKind: "archer", progress: 4, expected: 0.5 },
-      { kind: "mage-tower", troopKind: "mage", progress: 3, expected: 0.25 },
-      { kind: "siege-workshop", troopKind: "catapult", progress: 9, expected: 0.5 },
+      { kind: "barracks", troopKind: "spearman", progress: 1.5, expected: 0.5 },
+      { kind: "archery-range", troopKind: "archer", progress: 2.5, expected: 0.5 },
+      { kind: "mage-tower", troopKind: "mage", progress: 3.5, expected: 0.5 },
+      { kind: "siege-workshop", troopKind: "catapult", progress: 8, expected: 0.5 },
     ] as const;
 
     for (const [index, producer] of producers.entries()) {

@@ -1,4 +1,4 @@
-import type { BattleUnit } from "./battle";
+import type { CombatBattleUnit } from "./battle";
 import type { WorldPoint } from "./types";
 import {
   BATTLEFIELD_MAP,
@@ -32,10 +32,10 @@ export function createFormationSlots(
 }
 
 export function separateLivingAllies(
-  units: readonly BattleUnit[],
+  units: readonly CombatBattleUnit[],
   minimumDistance = 0.65,
   map: BattlefieldMap = BATTLEFIELD_MAP,
-): BattleUnit[] {
+): CombatBattleUnit[] {
   const positions = units.map((unit) => ({ ...unit.position }));
 
   for (let first = 0; first < units.length; first += 1) {

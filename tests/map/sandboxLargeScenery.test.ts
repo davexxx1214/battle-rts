@@ -12,9 +12,11 @@ describe("sandbox large scenery", () => {
     const districtKeys = new Set(SANDBOX_LARGE_MINE_DISTRICTS.flatMap((district) => (
       district.cells.map(coordinateKey)
     )));
-    const ridgeScenery = SANDBOX_LARGE_SCENERY.filter(({ kind }) => kind !== "iron");
+    const mineScenery = SANDBOX_LARGE_SCENERY.filter(({ id }) => id.includes("-ridge-")
+      || id.includes("-ore-"));
+    const ridgeScenery = mineScenery.filter(({ kind }) => kind !== "iron");
 
-    expect(SANDBOX_LARGE_SCENERY).toHaveLength(96);
+    expect(mineScenery).toHaveLength(96);
     expect(ridgeScenery).toHaveLength(64);
     expect(new Set(ridgeScenery.map(({ coordinate }) => coordinateKey(coordinate))))
       .toEqual(districtKeys);
@@ -25,7 +27,7 @@ describe("sandbox large scenery", () => {
       "mine-rock-c",
       "mine-rock-e",
     ]));
-    expect(new Set(SANDBOX_LARGE_SCENERY.map(({ zone }) => zone)))
+    expect(new Set(mineScenery.map(({ zone }) => zone)))
       .toEqual(new Set(["left-mine", "right-mine"]));
   });
 
@@ -35,13 +37,15 @@ describe("sandbox large scenery", () => {
     )));
 
     expect(Object.isFrozen(SANDBOX_LARGE_SCENERY)).toBe(true);
-    expect(SANDBOX_LARGE_SCENERY.every((item) => (
+    const mineScenery = SANDBOX_LARGE_SCENERY.filter(({ id }) => id.includes("-ridge-")
+      || id.includes("-ore-"));
+    expect(mineScenery.every((item) => (
       Object.isFrozen(item)
       && Object.isFrozen(item.coordinate)
       && Object.isFrozen(item.offset)
       && item.faction === (controllerByPit.get(item.id.slice(8, 11)) ?? undefined)
     ))).toBe(true);
-    expect(SANDBOX_LARGE_SCENERY.filter((item) => item.id.startsWith("sandbox-N-"))
+    expect(mineScenery.filter((item) => item.id.startsWith("sandbox-N-"))
       .every((item) => item.faction === undefined)).toBe(true);
   });
 });

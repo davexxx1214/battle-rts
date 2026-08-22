@@ -34,7 +34,7 @@ describe("battle mode definitions", () => {
       productionPolicy: {
         kind: "building-queue",
         queueDiscipline: "fifo",
-        maximumQueueLength: 3,
+        maximumQueueLength: 5,
         reservesPopulation: true,
         blockedExit: "wait",
       },
@@ -65,7 +65,7 @@ describe("battle mode definitions", () => {
     }
   });
 
-  it("locks the sandbox wallet, population cap, and squad population costs", () => {
+  it("locks the sandbox wallet, population cap, and single-unit population costs", () => {
     expect(SANDBOX_ECONOMY_POLICY).toEqual({
       initialGold: 1_000,
       maximumGold: 5_000,
@@ -76,11 +76,11 @@ describe("battle mode definitions", () => {
       kind: "capped",
       maximumPopulation: 100,
       troopCosts: {
-        spearman: 2,
-        swordsman: 3,
-        archer: 2,
+        spearman: 1,
+        swordsman: 1,
+        archer: 1,
         mage: 2,
-        catapult: 3,
+        catapult: 4,
       },
       populationIncomeBands: [
         { maximumPopulation: 50, multiplier: 1 },

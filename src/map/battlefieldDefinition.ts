@@ -23,6 +23,10 @@ import {
 } from "./battlefieldScenery";
 import { SANDBOX_LARGE_SCENERY } from "./sandboxLargeScenery";
 import {
+  SANDBOX_LARGE_WILDLIFE,
+  type SandboxWildlifePlacement,
+} from "./sandboxLargeDressing";
+import {
   SANDBOX_LARGE_BATTLEFIELD_FINGERPRINT,
   SANDBOX_LARGE_BATTLEFIELD_ID,
   SANDBOX_LARGE_BATTLEFIELD_MAP,
@@ -30,6 +34,8 @@ import {
   SANDBOX_LARGE_BUILD_ANCHORS,
   SANDBOX_LARGE_GATES,
   SANDBOX_LARGE_MINE_PITS,
+  SANDBOX_LARGE_NEUTRAL_ENCOUNTERS,
+  SANDBOX_LARGE_OASIS,
   SANDBOX_LARGE_RALLY_POINTS,
   SANDBOX_LARGE_ROAD_NETWORK_CELLS,
   SANDBOX_LARGE_ROAD_RESERVE,
@@ -40,6 +46,8 @@ import {
   type BattlefieldBuildAnchor,
   type BattlefieldGateDefinition,
   type BattlefieldMinePitDefinition,
+  type BattlefieldHealingZoneDefinition,
+  type BattlefieldNeutralEncounterDefinition,
   type BattlefieldRouteDefinition,
   type BattlefieldZoneDefinition,
 } from "./sandboxLargeBattlefield";
@@ -48,10 +56,14 @@ export type {
   BattlefieldBuildAnchor,
   BattlefieldBuildWing,
   BattlefieldGateDefinition,
+  BattlefieldHealingZoneDefinition,
   BattlefieldMinePitDefinition,
   BattlefieldMineRegion,
   BattlefieldRouteDefinition,
   BattlefieldRouteId,
+  BattlefieldNeutralEncounterDefinition,
+  BattlefieldNeutralGuardDefinition,
+  NeutralMonsterKind,
   BattlefieldZoneDefinition,
 } from "./sandboxLargeBattlefield";
 
@@ -91,6 +103,9 @@ export interface BattlefieldDefinition {
   readonly roadNetworkCells?: readonly HexCoordinate[];
   readonly roadReserve?: readonly HexCoordinate[];
   readonly minePits?: readonly BattlefieldMinePitDefinition[];
+  readonly neutralEncounters?: readonly BattlefieldNeutralEncounterDefinition[];
+  readonly healingZones?: readonly BattlefieldHealingZoneDefinition[];
+  readonly wildlife?: readonly SandboxWildlifePlacement[];
   readonly buildAnchors?: Readonly<Record<Faction, readonly BattlefieldBuildAnchor[]>>;
   readonly gates?: Readonly<Record<Faction, BattlefieldGateDefinition>>;
   readonly rallyPoints?: Readonly<Record<Faction, HexCoordinate>>;
@@ -162,6 +177,9 @@ export const SANDBOX_LARGE_BATTLEFIELD_DEFINITION: BattlefieldDefinition = Objec
   roadNetworkCells: SANDBOX_LARGE_ROAD_NETWORK_CELLS,
   roadReserve: SANDBOX_LARGE_ROAD_RESERVE,
   minePits: SANDBOX_LARGE_MINE_PITS,
+  neutralEncounters: SANDBOX_LARGE_NEUTRAL_ENCOUNTERS,
+  healingZones: Object.freeze([SANDBOX_LARGE_OASIS]),
+  wildlife: SANDBOX_LARGE_WILDLIFE,
   buildAnchors: SANDBOX_LARGE_BUILD_ANCHORS,
   gates: SANDBOX_LARGE_GATES,
   rallyPoints: SANDBOX_LARGE_RALLY_POINTS,

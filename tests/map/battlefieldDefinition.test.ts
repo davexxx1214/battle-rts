@@ -61,7 +61,8 @@ describe("battlefield definitions", () => {
     expect(definition.minePits).toHaveLength(8);
     expect(definition.buildAnchors?.verdant).toHaveLength(34);
     expect(definition.buildAnchors?.crimson).toHaveLength(34);
-    expect(definition.scenery).toHaveLength(96);
+    expect(definition.scenery).toHaveLength(174);
+    expect(definition.wildlife).toHaveLength(5);
   });
 
   it("fails fast instead of silently falling back for an unknown map id", () => {

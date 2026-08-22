@@ -10,7 +10,7 @@ import {
 } from "three";
 import { useMemo, useRef } from "react";
 
-import type { BattleUnit } from "../../game/battle";
+import type { CombatBattleUnit } from "../../game/battle";
 import type { UnitStatusEffect } from "../../game/unitStatusEffects";
 import { terrainHeightAtMap } from "../../map/battlefield";
 import { FROST_BREATH_PARTICLES } from "./effectPresentation";
@@ -25,7 +25,7 @@ import {
 import { useBattlefieldDefinition } from "../battlefieldSceneContext";
 
 interface UnitStatusEffectLayerProps {
-  readonly units: readonly BattleUnit[];
+  readonly units: readonly CombatBattleUnit[];
   readonly elapsed: number;
 }
 
@@ -67,7 +67,7 @@ function UnitStatusAnchor({
   elapsed,
   textures,
 }: {
-  readonly unit: BattleUnit;
+  readonly unit: CombatBattleUnit;
   readonly effects: readonly UnitStatusEffect[];
   readonly elapsed: number;
   readonly textures: StatusEffectTextures;

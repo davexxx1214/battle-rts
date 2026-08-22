@@ -1,68 +1,75 @@
-import type { SandboxSquadOrderKind } from "../game/sandboxOrders";
+import type { BattleState } from "../game/battle";
+import { sandboxSquadOrderFor } from "../game/sandboxOrders";
 import styles from "./SandboxSquadCommandBar.module.css";
 
 interface SandboxSquadCommandBarProps {
-  readonly selectedCount: number;
-  readonly armedOrder: "move" | "attack" | "attack-move" | null;
+  readonly battle?: BattleState;
+  readonly selectedSquadIds?: readonly string[];
+  /** Legacy render-only fallback used by isolated consumers. */
+  readonly selectedCount?: number;
   readonly disabled?: boolean;
-  readonly onArmOrder: (kind: "move" | "attack" | "attack-move") => void;
-  readonly onImmediateOrder: (kind: "stop" | "hold") => void;
 }
 
-const COMMANDS: readonly {
-  readonly kind: SandboxSquadOrderKind;
-  readonly label: string;
-  readonly shortcut: string;
-  readonly armed: boolean;
-}[] = [
-  { kind: "move", label: "移动", shortcut: "M", armed: true },
-  { kind: "attack", label: "攻击", shortcut: "R", armed: true },
-  { kind: "attack-move", label: "攻移", shortcut: "A", armed: true },
-  { kind: "stop", label: "停止", shortcut: "S", armed: false },
-  { kind: "hold", label: "坚守", shortcut: "H", armed: false },
-];
+const ORDER_LABEL = {
+  move: "移动",
+  attack: "攻击",
+  "attack-move": "索敌前进",
+  stop: "停止",
+  hold: "坚守",
+} as const;
 
 export function SandboxSquadCommandBar({
+  battle,
+  selectedSquadIds = [],
   selectedCount,
-  armedOrder,
   disabled = false,
-  onArmOrder,
-  onImmediateOrder,
 }: SandboxSquadCommandBarProps) {
-  const unavailable = disabled || selectedCount === 0;
+  const unitSummaries = battle
+    ? selectedSquadIds.map((squadId) => ({
+        squadId,
+        unit: battle.units.find((unit) => (
+          unit.squadId === squadId && unit.health > 0 && unit.status !== "dead"
+        )) ?? null,
+        order: battle.squadOrders
+          ? sandboxSquadOrderFor(battle.squadOrders, squadId)?.kind ?? null
+          : null,
+      })).filter((summary) => summary.unit !== null)
+    : [];
+  const resolvedSelectedCount = battle ? unitSummaries.length : selectedCount ?? 0;
+  const unavailable = disabled || resolvedSelectedCount === 0;
   return (
     <aside
       className={styles.bar}
       data-field-ui
-      data-active={selectedCount > 0}
-      aria-label="沙盒兵团命令"
+      data-active={resolvedSelectedCount > 0}
+      aria-label="沙盒单位控制"
     >
       <div className={styles.selectionSummary}>
-        <span>已选兵团</span>
-        <strong>{selectedCount}</strong>
+        <span>已选单位</span>
+        <strong>{resolvedSelectedCount}</strong>
+        {unitSummaries.length > 0 && unitSummaries.length <= 6 && (
+          <div className={styles.squadDetails} aria-label="所选单位状态">
+            {unitSummaries.map((summary) => (
+              <small key={summary.squadId}>
+                {shortUnitId(summary.unit!.id)} · {summary.order
+                  ? ORDER_LABEL[summary.order]
+                  : "待命"}
+              </small>
+            ))}
+          </div>
+        )}
       </div>
-      <div className={styles.commands}>
-        {COMMANDS.map((command) => (
-          <button
-            type="button"
-            key={command.kind}
-            disabled={unavailable}
-            data-armed={armedOrder === command.kind}
-            aria-pressed={command.armed ? armedOrder === command.kind : undefined}
-            onClick={() => command.armed
-              ? onArmOrder(command.kind as "move" | "attack" | "attack-move")
-              : onImmediateOrder(command.kind as "stop" | "hold")}
-          >
-            <span>{command.label}</span>
-            <kbd>{command.shortcut}</kbd>
-          </button>
-        ))}
+      <div className={styles.guidance} data-enabled={!unavailable}>
+        <strong>{unavailable ? "选择单位" : "点击战场任意地点"}</strong>
+        <small>{unavailable
+          ? "点击己方单位；Shift + 左键拖框可多选"
+          : "自动索敌前进 · 遇敌先战斗，消灭后继续行军"}</small>
       </div>
-      <small>{armedOrder
-        ? armedOrder === "attack"
-          ? "点击敌军或敌方建筑"
-          : "点击地图下达目标"
-        : "右键地面移动 · 右键敌军攻击"}</small>
     </aside>
   );
+}
+
+function shortUnitId(unitId: string): string {
+  const parts = unitId.split(":");
+  return parts.length > 1 ? `#${parts.at(-1)}` : unitId;
 }

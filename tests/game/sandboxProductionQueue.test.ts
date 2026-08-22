@@ -63,7 +63,7 @@ function enqueue(
 
 describe("sandbox production queue", () => {
   it("derives the queue and population limits from the sandbox mode", () => {
-    expect(SANDBOX_PRODUCTION_MAX_QUEUE_LENGTH).toBe(3);
+    expect(SANDBOX_PRODUCTION_MAX_QUEUE_LENGTH).toBe(5);
     expect(SANDBOX_PRODUCTION_POPULATION_CAP).toBe(100);
   });
 
@@ -119,7 +119,7 @@ describe("sandbox production queue", () => {
 
     expect(completed.spawns.map((spawn) => spawn.buildingId))
       .toEqual(["barracks-a", "barracks-b"]);
-    expect(completed.spawns.every((spawn) => spawn.scheduledAtSeconds === 6)).toBe(true);
+    expect(completed.spawns.every((spawn) => spawn.scheduledAtSeconds === 3)).toBe(true);
   });
 
   it("treats prototype-looking building ids as ordinary own keys", () => {
@@ -147,7 +147,7 @@ describe("sandbox production queue", () => {
     if (!queued.accepted) throw new Error("expected enqueue success");
     state = queued.state;
     economy = queued.economy;
-    expect(economy.accounts.verdant.gold).toBe(800);
+    expect(economy.accounts.verdant.gold).toBe(900);
 
     const destroyed = destroySandboxProductionBuilding(state, "__proto__");
     expect(destroyed.destroyed).toBe(true);
@@ -206,7 +206,7 @@ describe("sandbox production queue", () => {
 
     expect(result.accepted).toBe(true);
     if (!result.accepted) throw new Error("expected enqueue success");
-    expect(result.economy.accounts.verdant.gold).toBe(800);
+    expect(result.economy.accounts.verdant.gold).toBe(900);
     expect(economy.accounts.verdant.gold).toBe(1_000);
     expect(result.entry).toMatchObject({
       troopKind: "spearman",
@@ -214,17 +214,17 @@ describe("sandbox production queue", () => {
       trainingProgressSeconds: 0,
     });
     expect(result.population).toEqual({
-      reservedPopulation: 2,
+      reservedPopulation: 1,
       readyBlockedPopulation: 0,
-      totalQueuePopulation: 2,
+      totalQueuePopulation: 1,
     });
     expect(Object.isFrozen(result.entry)).toBe(true);
   });
 
-  it("enforces FIFO length three across active and queued orders", () => {
+  it("enforces FIFO length five across active and queued single-unit orders", () => {
     let state = stateWithBuilding();
     let economy = createEconomyState(SANDBOX_ECONOMY_POLICY);
-    for (let index = 0; index < 3; index += 1) {
+    for (let index = 0; index < 5; index += 1) {
       const result = enqueue(state, economy, "spearman");
       expect(result.accepted).toBe(true);
       if (!result.accepted) throw new Error("expected enqueue success");
@@ -234,8 +234,8 @@ describe("sandbox production queue", () => {
 
     expect(sandboxProductionQueueFor(state, "producer-1")?.entries.map(
       (entry) => entry.status,
-    )).toEqual(["training", "queued", "queued"]);
-    expect(sandboxProductionPopulation(state, "verdant").reservedPopulation).toBe(6);
+    )).toEqual(["training", "queued", "queued", "queued", "queued"]);
+    expect(sandboxProductionPopulation(state, "verdant").reservedPopulation).toBe(5);
 
     const rejected = enqueue(state, economy, "spearman");
     expect(rejected).toMatchObject({
@@ -265,7 +265,7 @@ describe("sandbox production queue", () => {
     const nearlyEmpty = trySpendGold(
       economy,
       "verdant",
-      900,
+      920,
       SANDBOX_ECONOMY_POLICY,
     ).state;
     const insufficient = enqueue(state, nearlyEmpty, "spearman");
@@ -282,8 +282,9 @@ describe("sandbox production queue", () => {
     { living: 50, troop: "spearman", expected: true },
     { living: 79, troop: "archer", expected: true },
     { living: 98, troop: "mage", expected: true },
-    { living: 98, troop: "catapult", expected: false },
-    { living: 99, troop: "spearman", expected: false },
+    { living: 96, troop: "catapult", expected: true },
+    { living: 97, troop: "catapult", expected: false },
+    { living: 99, troop: "spearman", expected: true },
     { living: 100, troop: "spearman", expected: false },
   ] as const)(
     "applies the population cap at $living + $troop",
@@ -301,24 +302,24 @@ describe("sandbox production queue", () => {
   it("counts existing reservations and ready-blocked orders in cap admission", () => {
     let state = stateWithBuilding();
     let economy = createEconomyState(SANDBOX_ECONOMY_POLICY);
-    const first = enqueue(state, economy, "spearman", { livingVerdant: 96 });
+    const first = enqueue(state, economy, "spearman", { livingVerdant: 98 });
     if (!first.accepted) throw new Error("expected first enqueue success");
     state = first.state;
     economy = first.economy;
 
     const blocked = advanceSandboxProduction(state, {
       elapsedSeconds: 0,
-      deltaSeconds: 6,
+      deltaSeconds: 3,
       isExitBlocked: () => true,
     });
     expect(blocked.populationAfter.verdant).toEqual({
       reservedPopulation: 0,
-      readyBlockedPopulation: 2,
-      totalQueuePopulation: 2,
+      readyBlockedPopulation: 1,
+      totalQueuePopulation: 1,
     });
 
     const second = enqueue(blocked.state, economy, "spearman", {
-      livingVerdant: 98,
+      livingVerdant: 99,
     });
     expect(second).toMatchObject({ accepted: false, reason: "population-cap" });
   });
@@ -347,11 +348,10 @@ describe("sandbox production queue", () => {
       expect(exact.spawns).toHaveLength(1);
       expect(exact.spawns[0]).toMatchObject({
         troopKind,
-        entityCount: spec.entityCount,
         populationCost: spec.populationCost,
       });
       expect(exact.spawns[0].scheduledAtSeconds).toBeCloseTo(spec.trainingSeconds, 8);
-      expect(exact.spawns[0].unitIds).toHaveLength(spec.entityCount);
+      expect(exact.spawns[0].unitId).toBe("producer-1:unit:1");
       expect(exact.populationBefore.verdant.reservedPopulation)
         .toBe(spec.populationCost);
       expect(exact.populationAfter.verdant.totalQueuePopulation).toBe(0);
@@ -369,26 +369,26 @@ describe("sandbox production queue", () => {
 
     const blocked = advanceSandboxProduction(queued.state, {
       elapsedSeconds: 0,
-      deltaSeconds: 6,
+      deltaSeconds: 3,
       isExitBlocked: () => true,
     });
     expect(blocked.spawns).toHaveLength(0);
     expect(sandboxProductionQueueFor(blocked.state, "producer-1")?.entries[0])
       .toMatchObject({
         status: "ready-blocked",
-        trainingProgressSeconds: 6,
+        trainingProgressSeconds: 3,
       });
     expect(blocked.populationBefore.verdant).toMatchObject({
-      reservedPopulation: 2,
+      reservedPopulation: 1,
       readyBlockedPopulation: 0,
     });
     expect(blocked.populationAfter.verdant).toMatchObject({
       reservedPopulation: 0,
-      readyBlockedPopulation: 2,
+      readyBlockedPopulation: 1,
     });
 
     const stillBlocked = advanceSandboxProduction(blocked.state, {
-      elapsedSeconds: 6,
+      elapsedSeconds: 3,
       deltaSeconds: 1,
       isExitBlocked: () => true,
     });
@@ -396,13 +396,13 @@ describe("sandbox production queue", () => {
     expect(stillBlocked.spawns).toHaveLength(0);
 
     const released = advanceSandboxProduction(stillBlocked.state, {
-      elapsedSeconds: 7,
+      elapsedSeconds: 4,
       deltaSeconds: 0.25,
       isExitBlocked: () => false,
     });
     expect(released.spawns).toHaveLength(1);
-    expect(released.spawns[0].scheduledAtSeconds).toBe(7);
-    expect(released.populationBefore.verdant.readyBlockedPopulation).toBe(2);
+    expect(released.spawns[0].scheduledAtSeconds).toBe(4);
+    expect(released.populationBefore.verdant.readyBlockedPopulation).toBe(1);
     expect(released.populationAfter.verdant.totalQueuePopulation).toBe(0);
   });
 
@@ -424,7 +424,7 @@ describe("sandbox production queue", () => {
     expect(result.spawns.map((spawn) => spawn.troopKind))
       .toEqual(["spearman", "swordsman", "spearman"]);
     expect(result.spawns.map((spawn) => spawn.scheduledAtSeconds))
-      .toEqual([16, 24, 30]);
+      .toEqual([13, 17, 20]);
     expect(sandboxProductionQueueFor(result.state, "producer-1")?.entries)
       .toHaveLength(0);
   });
@@ -440,17 +440,17 @@ describe("sandbox production queue", () => {
     }
     state = advanceSandboxProduction(state, {
       elapsedSeconds: 0,
-      deltaSeconds: 6,
+      deltaSeconds: 3,
       isExitBlocked: () => true,
     }).state;
 
     const released = advanceSandboxProduction(state, {
-      elapsedSeconds: 6,
+      elapsedSeconds: 3,
       deltaSeconds: 3,
     });
 
     expect(released.spawns).toHaveLength(1);
-    expect(released.spawns[0].scheduledAtSeconds).toBe(6);
+    expect(released.spawns[0].scheduledAtSeconds).toBe(3);
     expect(sandboxProductionQueueFor(released.state, "producer-1")?.entries[0])
       .toMatchObject({
         troopKind: "swordsman",
@@ -474,14 +474,14 @@ describe("sandbox production queue", () => {
 
     const result = advanceSandboxProduction(state, {
       elapsedSeconds: 0,
-      deltaSeconds: 6,
+      deltaSeconds: 3,
     });
 
     expect(result.spawns.map((spawn) => spawn.buildingId))
       .toEqual(["a-barracks", "z-barracks"]);
-    expect(new Set(result.spawns.map((spawn) => spawn.squadId)).size).toBe(2);
+    expect(new Set(result.spawns.map((spawn) => spawn.unitId)).size).toBe(2);
     expect(Object.isFrozen(result.spawns)).toBe(true);
-    expect(Object.isFrozen(result.spawns[0].unitIds)).toBe(true);
+    expect(result.spawns.every((spawn) => spawn.unitId.includes(":unit:"))).toBe(true);
   });
 
   it("destroys all queue states, releasing both reservation classes without refund", () => {
@@ -495,7 +495,7 @@ describe("sandbox production queue", () => {
     }
     state = advanceSandboxProduction(state, {
       elapsedSeconds: 0,
-      deltaSeconds: 6,
+      deltaSeconds: 3,
       isExitBlocked: () => true,
     }).state;
 
@@ -505,14 +505,14 @@ describe("sandbox production queue", () => {
     expect(destroyed).toMatchObject({
       destroyed: true,
       faction: "verdant",
-      releasedReservedPopulation: 5,
-      releasedReadyBlockedPopulation: 2,
+      releasedReservedPopulation: 2,
+      releasedReadyBlockedPopulation: 1,
     });
     expect(destroyed.discardedEntries.map((entry) => entry.status))
       .toEqual(["ready-blocked", "queued", "queued"]);
     expect(sandboxProductionQueueFor(destroyed.state, "producer-1")).toBeNull();
     expect(economy.accounts.verdant.gold).toBe(goldBeforeDestruction);
-    expect(goldBeforeDestruction).toBe(200);
+    expect(goldBeforeDestruction).toBe(660);
 
     const missing = destroySandboxProductionBuilding(destroyed.state, "producer-1");
     expect(missing).toMatchObject({

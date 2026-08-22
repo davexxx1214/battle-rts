@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   fieldPointerCoordinates,
   fieldPointerDistance,
+  fieldPrimaryDragBehavior,
   pinchZoomFactor,
   pointerDragExceedsThreshold,
   shouldStartFieldPointerInteraction,
@@ -67,5 +68,11 @@ describe("battlefield pointer input", () => {
       { x: 28, y: 30 },
       8,
     )).toBe(true);
+  });
+
+  it("uses primary drag for camera travel and reserves Shift-drag for sandbox boxes", () => {
+    expect(fieldPrimaryDragBehavior(false, true)).toBe("camera");
+    expect(fieldPrimaryDragBehavior(true, true)).toBe("selection-box");
+    expect(fieldPrimaryDragBehavior(true, false)).toBe("camera");
   });
 });

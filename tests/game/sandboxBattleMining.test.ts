@@ -167,7 +167,7 @@ describe("sandbox mining in the battle clock", () => {
     });
   });
 
-  it("vacates a destroyed mine while advancing an already resolved battle", () => {
+  it("freezes mine occupancy while advancing an already resolved battle", () => {
     const construction = startSandboxMineConstruction(
       createBattleState([], { modeId: "sandbox" }),
       { faction: "verdant", pitId: "P-W" },
@@ -193,8 +193,9 @@ describe("sandbox mining in the battle clock", () => {
     const cleaned = stepBattle(resolved, 0.1);
     expect(cleaned.buildings.some((building) => building.id === construction.buildingId))
       .toBe(false);
+    expect(cleaned.mining).toBe(resolved.mining);
     expect(cleaned.mining?.pitsById["P-W"]).toMatchObject({
-      occupyingMineId: null,
+      occupyingMineId: construction.buildingId,
       remainingOre: 3_000,
     });
   });

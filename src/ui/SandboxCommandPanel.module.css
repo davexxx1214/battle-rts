@@ -49,7 +49,7 @@
 
 .resources {
   display: grid;
-  grid-template-columns: 0.8fr 1.35fr 0.8fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 5px;
   padding-bottom: 9px;
   border-bottom: 1px solid var(--line);
@@ -91,9 +91,54 @@
 }
 
 .buildSection,
+.mineSection,
 .productionSection {
   display: grid;
   gap: 7px;
+}
+
+.economyStrip {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 5px;
+  align-items: center;
+  padding: 6px 7px;
+  border: 1px solid rgb(222 211 183 / 12%);
+  background: rgb(8 9 8 / 52%);
+}
+
+.economyStrip > div {
+  display: grid;
+}
+
+.economyStrip span,
+.economyStrip small {
+  color: var(--muted);
+  font-size: 6px;
+}
+
+.economyStrip strong {
+  color: var(--amber);
+  font-size: 10px;
+}
+
+.economyStrip small {
+  text-align: right;
+}
+
+.economyPrompt {
+  padding: 6px 7px;
+  border: 1px solid rgb(229 184 77 / 36%);
+  color: #f3d88f;
+  background: rgb(97 67 20 / 28%);
+  font-size: 7px;
+  line-height: 1.45;
+}
+
+.economyPrompt[data-tone="permit"] {
+  border-color: rgb(90 174 255 / 38%);
+  color: #b8ddff;
+  background: rgb(34 83 121 / 24%);
 }
 
 .sectionHeading {
@@ -151,6 +196,10 @@
   filter: grayscale(1);
 }
 
+.buildGrid button[data-affordable="false"] strong {
+  color: #ffaaa7;
+}
+
 .buildGrid button[data-unlocked="false"] strong,
 .buildGrid button[data-unlocked="false"] small {
   color: rgb(151 153 146 / 68%);
@@ -185,6 +234,67 @@
   color: var(--muted);
   font-size: 8px;
   line-height: 1.55;
+}
+
+.mineEconomy {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.mineEconomy span {
+  padding: 4px;
+  color: var(--muted);
+  background: rgb(255 255 255 / 3%);
+  font-size: 6px;
+  text-align: center;
+}
+
+.mineEconomy b {
+  color: var(--parchment);
+  font-size: 8px;
+}
+
+.mineList {
+  display: grid;
+  gap: 3px;
+}
+
+.mineList > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 6px;
+  padding: 5px 6px;
+  border-left: 2px solid rgb(90 174 255 / 48%);
+  background: rgb(255 255 255 / 3%);
+  font-size: 7px;
+}
+
+.mineList > div[data-roi-warning="true"] {
+  border-left-color: #ef8f73;
+  background: rgb(111 47 32 / 21%);
+}
+
+.mineList span,
+.mineList small {
+  display: block;
+}
+
+.mineList span:last-of-type {
+  text-align: right;
+}
+
+.mineList small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 6px;
+}
+
+.mineList em {
+  grid-column: 1 / -1;
+  color: #ffaaa7;
+  font-size: 6px;
+  font-style: normal;
 }
 
 .queueList {
@@ -230,6 +340,11 @@
   color: var(--muted);
   font-size: 6px;
   white-space: nowrap;
+}
+
+.rallyPoint {
+  color: var(--muted);
+  font-size: 6px;
 }
 
 .queueEntries {

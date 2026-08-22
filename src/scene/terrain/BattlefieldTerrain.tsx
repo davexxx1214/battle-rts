@@ -806,9 +806,12 @@ function SceneryInstances({
   readonly factionRaces: FactionRaces;
 }) {
   const { map, scenery } = useBattlefieldDefinition();
-  const asset = SCENERY_SCENE_ASSETS[kind];
+  const asset: ScenerySceneAsset = SCENERY_SCENE_ASSETS[kind];
   const gltf = useLoader(GLTFLoader, asset.url);
-  const template = useMemo(() => extractGroundedMeshTemplate(gltf.scene), [gltf.scene]);
+  const template = useMemo(
+    () => extractGroundedMeshTemplate(gltf.scene, asset.grounding),
+    [asset.grounding, gltf.scene],
+  );
   const items = useMemo(
     () => scenery.filter((item) => (
       item.kind === kind
@@ -840,8 +843,8 @@ function SceneryInstances({
     <instancedMesh
       ref={instances}
       args={[template.geometry, template.material, items.length]}
-      castShadow
-      receiveShadow
+      castShadow={asset.castsShadow !== false}
+      receiveShadow={asset.castsShadow !== false}
       frustumCulled={false}
     />
   );
@@ -1093,12 +1096,17 @@ function extractMeshTemplate(source: Object3D): TileTemplate {
   return { geometry, material };
 }
 
-function extractGroundedMeshTemplate(source: Object3D): TileTemplate {
+function extractGroundedMeshTemplate(
+  source: Object3D,
+  grounding: ScenerySceneAsset["grounding"] = "base",
+): TileTemplate {
   const template = extractMeshTemplate(source);
   template.geometry.computeBoundingBox();
-  const minimumY = template.geometry.boundingBox?.min.y;
-  if (minimumY !== undefined && Number.isFinite(minimumY)) {
-    template.geometry.translate(0, -minimumY, 0);
+  const boundY = grounding === "top"
+    ? template.geometry.boundingBox?.max.y
+    : template.geometry.boundingBox?.min.y;
+  if (boundY !== undefined && Number.isFinite(boundY)) {
+    template.geometry.translate(0, -boundY, 0);
   }
   return template;
 }

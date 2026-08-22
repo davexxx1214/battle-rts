@@ -7,11 +7,18 @@ import {
   DEFAULT_AUDIO_ENABLED,
   DeploymentAudioEventRouter,
   ReusableAudioPool,
+  SandboxAudioEventRouter,
   UI_AUDIO_CUES,
   scaleAudioGain,
   type AudioVoice,
 } from "../../src/audio/battleAudio";
 import { stampBattleEvent } from "../../src/game/events";
+import { createBattleBuilding } from "../../src/game/buildings";
+import {
+  createSandboxMiningState,
+  replaceMinePitState,
+} from "../../src/game/miningEconomy";
+import { SANDBOX_LARGE_MINE_PITS } from "../../src/map/sandboxLargeBattlefield";
 
 describe("battle audio", () => {
   it("keeps audio on by default and keeps the shared mix restrained", () => {
@@ -54,6 +61,14 @@ describe("battle audio", () => {
     expect(voice.loop).toBe(false);
   });
 
+  it("uses a neutral result cue for a draw", () => {
+    const voice = createFakeVoice();
+    const player = new BattleMusicPlayer(() => voice);
+    player.setEnabled(true);
+    player.setScene("draw", 1);
+    expect(voice.src).toBe("/audio/ui/organic/select.mp3");
+  });
+
   it("keeps the current outcome track for the same revision and rerolls after a reset", () => {
     const voice = createFakeVoice();
     const random = vi.fn()
@@ -78,6 +93,13 @@ describe("battle audio", () => {
       select: { src: "/audio/ui/organic/hover.mp3", gain: 0.25 },
       "place-unit": { src: "/audio/ui/organic/drop.mp3", gain: 1 },
       "place-building": { src: "/audio/ui/organic/snap.mp3", gain: 0.35 },
+      "construction-started": { src: "/audio/ui/organic/snap.mp3", gain: 0.38 },
+      "construction-complete": { src: "/audio/ui/organic/snap.mp3", gain: 0.58 },
+      "queue-complete": { src: "/audio/ui/organic/drop.mp3", gain: 0.58 },
+      "exit-blocked": { src: "/audio/ui/organic/select.mp3", gain: 0.42 },
+      "mine-captured": { src: "/audio/ui/organic/snap.mp3", gain: 0.64 },
+      "mine-depleted": { src: "/audio/ui/organic/select.mp3", gain: 0.5 },
+      "command-confirm": { src: "/audio/ui/organic/hover.mp3", gain: 0.35 },
     });
     expect(UI_AUDIO_CUES["place-unit"].gain).toBe(1);
   });
@@ -403,6 +425,91 @@ describe("battle audio", () => {
     }, 9, 3.5);
 
     expect(router.consume([enemyDeployment, combatEvent])).toEqual([]);
+  });
+
+  it("routes sandbox construction, production, capture, depletion, and blockage feedback", () => {
+    const router = new SandboxAudioEventRouter();
+    const castle = createBattleBuilding({
+      id: "verdant-castle",
+      kind: "castle",
+      faction: "verdant",
+      coordinate: { q: -8, r: 16 },
+      createdAt: 0,
+    });
+    const barracks = {
+      ...createBattleBuilding({
+        id: "verdant-barracks",
+        kind: "barracks",
+        faction: "verdant",
+        coordinate: { q: -10, r: 16 },
+        createdAt: 0,
+      }),
+      constructionCompletedAt: 8,
+    };
+    const mining = createSandboxMiningState(SANDBOX_LARGE_MINE_PITS);
+    const playerPit = mining.pitsById["P-W"]!;
+
+    expect(router.consume({
+      modeId: "sandbox",
+      events: [],
+      buildings: [castle, barracks],
+      mining,
+      matchElapsed: 7.9,
+    })).toEqual([]);
+
+    const depletedMining = replaceMinePitState(mining, {
+      ...playerPit,
+      remainingOre: 0,
+      depleted: true,
+    });
+    const events = [
+      stampBattleEvent({
+        type: "building-unit-spawned",
+        buildingId: "verdant-barracks",
+        faction: "verdant",
+        unitId: "verdant-unit-1",
+        race: "human",
+        role: "spearman",
+        position: { x: 0, z: 0 },
+        scheduledAt: 8,
+        spawnSequence: 1,
+      }, 20, 8),
+      stampBattleEvent({
+        type: "building-unit-spawn-skipped",
+        buildingId: "verdant-barracks",
+        faction: "verdant",
+        scheduledAt: 8,
+        spawnSequence: 2,
+        reason: "no-valid-position",
+      }, 21, 8),
+      stampBattleEvent({
+        type: "mine-pit-captured",
+        pitId: "N-NW",
+        previousController: null,
+        faction: "verdant",
+      }, 22, 8),
+    ];
+
+    expect(router.consume({
+      modeId: "sandbox",
+      events,
+      buildings: [castle, barracks],
+      mining: depletedMining,
+      matchElapsed: 8,
+    })).toEqual([
+      "construction-complete",
+      "queue-complete",
+      "exit-blocked",
+      "mine-captured",
+      "mine-depleted",
+    ]);
+    expect(router.consume({
+      modeId: "sandbox",
+      events,
+      buildings: [castle, barracks],
+      mining: depletedMining,
+      matchElapsed: 9,
+    })).toEqual([]);
   });
 
   it("reuses bounded audio voices instead of growing audio nodes", () => {

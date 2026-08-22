@@ -16,6 +16,10 @@ import type { Faction } from "../game/types";
 import {
   BATTLEFIELD_CLOUD_SCENE_ASSETS,
   CASTLE_BATTLE_FLAG_ASSET,
+  MINING_COIN_EFFECT_ASSET,
+  NEUTRAL_MONSTER_SCENE_ASSETS,
+  OASIS_SCENE_ASSETS,
+  SANDBOX_WILDLIFE_SCENE_ASSETS,
   SCENE_MODEL_URLS,
   SCENERY_SCENE_ASSETS,
   STRUCTURE_SCENE_ASSETS,
@@ -234,6 +238,11 @@ function collectSingleGltfUrls(): readonly string[] {
   }
     for (const asset of Object.values(UNDEAD_ENVIRONMENT_SCENE_ASSETS)) urls.add(asset.url);
   for (const url of Object.values(SCENE_MODEL_URLS)) urls.add(url);
+  urls.add(MINING_COIN_EFFECT_ASSET.url);
+  for (const asset of Object.values(NEUTRAL_MONSTER_SCENE_ASSETS)) urls.add(asset.url);
+  urls.add(OASIS_SCENE_ASSETS.water.url);
+  for (const asset of OASIS_SCENE_ASSETS.palms) urls.add(asset.url);
+  for (const asset of Object.values(SANDBOX_WILDLIFE_SCENE_ASSETS)) urls.add(asset.url);
   urls.add(CASTLE_BATTLE_FLAG_ASSET.url);
   urls.add(UNDEAD_CASTLE_BATTLE_FLAG_ASSET.url);
   return [...urls];

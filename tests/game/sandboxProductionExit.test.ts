@@ -135,11 +135,9 @@ describe("sandbox production exit fan", () => {
           faction,
           producer: "barracks",
           troopKind: "spearman",
-          entityCount: 2,
-          populationCost: 2,
-          scheduledAtSeconds: 6,
-          squadId: `${building.id}:squad:1`,
-          unitIds: [`${building.id}:unit:1`, `${building.id}:unit:2`],
+          populationCost: 1,
+          scheduledAtSeconds: 3,
+          unitId: `${building.id}:unit:1`,
           rallyPoint: null,
         };
         const blockers = plan.fan.candidates.map((coordinate) => ({
@@ -169,7 +167,6 @@ describe("sandbox production exit fan", () => {
           expect(released.status).toBe("available");
           if (released.status !== "available") continue;
           expect(released.coordinates).toEqual([
-            plan.fan.candidates[releasedIndex],
             plan.fan.candidates[releasedIndex],
           ]);
         }

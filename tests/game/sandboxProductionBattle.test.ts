@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createBattleState,
   createBattleUnit,
   createInitialBattle,
   stepBattle,
@@ -36,6 +37,34 @@ import {
 import { axialToWorld } from "../../src/map/battlefield";
 
 describe("sandbox production battle integration", () => {
+  it("normalizes imported sandbox units into independent one-unit control groups", () => {
+    const units = [
+      createBattleUnit({
+        id: "unit-alpha",
+        faction: "verdant",
+        role: "spearman",
+        squadId: "legacy-shared-squad",
+        position: { x: 0, z: 0 },
+      }),
+      createBattleUnit({
+        id: "unit-bravo",
+        faction: "verdant",
+        role: "spearman",
+        squadId: "legacy-shared-squad",
+        position: { x: 1, z: 0 },
+      }),
+    ];
+
+    const battle = createBattleState(units, { modeId: "sandbox" });
+
+    expect(battle.units.map((unit) => unit.squadId)).toEqual([
+      "unit-alpha",
+      "unit-bravo",
+    ]);
+    expect(battle.squads.map((controlGroup) => controlGroup.memberIds))
+      .toEqual([["unit-alpha"], ["unit-bravo"]]);
+  });
+
   it("keeps a guard-tower worksite from firing before construction completes", () => {
     const coordinate = SANDBOX_LARGE_BUILD_ANCHORS.verdant[0]!.coordinate;
     const tower = createBattleBuilding({
@@ -115,7 +144,7 @@ describe("sandbox production battle integration", () => {
     expect(newMageTower).toMatchObject({ ok: false, reason: "missing-prerequisite" });
   });
 
-  it("runs the paid barracks queue and spawns an idle two-unit squad", () => {
+  it("runs the paid barracks queue and spawns one independently controlled unit", () => {
     let battle = createInitialBattle({ modeId: "sandbox" });
     battle = construct(battle, "barracks", 0);
     expect(battle.economy.accounts.verdant.gold).toBe(600);
@@ -129,18 +158,21 @@ describe("sandbox production battle integration", () => {
     expect(enqueue.ok).toBe(true);
     if (!enqueue.ok) return;
     battle = enqueue.battle;
-    expect(battle.economy.accounts.verdant.gold).toBe(400);
+    expect(battle.economy.accounts.verdant.gold).toBe(500);
     expect(sandboxProductionPopulation(battle.production!, "verdant")).toMatchObject({
-      reservedPopulation: 2,
+      reservedPopulation: 1,
       readyBlockedPopulation: 0,
     });
 
-    battle = advanceSeconds(battle, 6);
+    battle = advanceSeconds(battle, 3);
     const recruits = battle.units.filter((unit) => (
-      unit.squadId === "verdant-barracks-1:squad:1"
+      unit.id === "verdant-barracks-1:unit:1"
     ));
-    expect(recruits).toHaveLength(2);
-    expect(recruits.map((unit) => unit.role)).toEqual(["spearman", "spearman"]);
+    expect(recruits).toHaveLength(1);
+    expect(recruits[0]).toMatchObject({
+      role: "spearman",
+      squadId: "verdant-barracks-1:unit:1",
+    });
     expect(recruits.every((unit) => unit.status === "idle")).toBe(true);
     expect(sandboxProductionQueueFor(
       battle.production!,
@@ -170,16 +202,16 @@ describe("sandbox production battle integration", () => {
       status: "training",
     });
 
-    battle = advanceSeconds(battle, 8);
+    battle = advanceSeconds(battle, 4);
     expect(battle.units.filter((unit) => (
-      unit.squadId === "verdant-barracks-1:squad:1"
-    ))).toHaveLength(3);
+      unit.id === "verdant-barracks-1:unit:1"
+    ))).toHaveLength(1);
   });
 
   it("uses living population for mining until completion, then taxes the same tick", () => {
     const populationUnits = SANDBOX_LARGE_BATTLEFIELD_MAP.cells
       .filter((cell) => Math.abs(cell.r) <= 5)
-      .slice(0, 49)
+      .slice(0, 50)
       .map((cell, index) => createBattleUnit({
         id: `population-${index + 1}`,
         faction: "verdant",
@@ -222,10 +254,10 @@ describe("sandbox production battle integration", () => {
       rate: event.incomeMultiplier,
       net: event.netCredited,
     }))).toEqual([
-      { used: 49, reserved: 2, rate: 1, net: 100 },
+      { used: 50, reserved: 1, rate: 1, net: 100 },
       { used: 51, reserved: 0, rate: 0.8, net: 80 },
     ]);
-    expect(battle.economy.accounts.verdant.gold).toBe(180);
+    expect(battle.economy.accounts.verdant.gold).toBe(280);
   });
 
   it("keeps a completed order ready-blocked and releases it exactly once", () => {
@@ -260,7 +292,7 @@ describe("sandbox production battle integration", () => {
       units: blockers,
       squads: buildSquads(blockers),
     };
-    battle = advanceSeconds(battle, 6);
+    battle = advanceSeconds(battle, 3);
     const blockedQueue = sandboxProductionQueueFor(
       battle.production!,
       barracks.id,
@@ -268,7 +300,7 @@ describe("sandbox production battle integration", () => {
     expect(blockedQueue?.entries[0]?.status).toBe("ready-blocked");
     expect(sandboxProductionPopulation(battle.production!, "verdant")).toMatchObject({
       reservedPopulation: 0,
-      readyBlockedPopulation: 2,
+      readyBlockedPopulation: 1,
     });
     expect(battle.units).toHaveLength(4);
 
@@ -283,7 +315,7 @@ describe("sandbox production battle integration", () => {
     };
     battle = stepBattle(battle, 0.1);
     expect(battle.units.filter((unit) => unit.id.includes(":production:"))).toHaveLength(0);
-    expect(battle.units.filter((unit) => unit.squadId === `${barracks.id}:squad:1`)).toHaveLength(2);
+    expect(battle.units.filter((unit) => unit.id === `${barracks.id}:unit:1`)).toHaveLength(1);
     expect(sandboxProductionPopulation(battle.production!, "verdant")).toMatchObject({
       reservedPopulation: 0,
       readyBlockedPopulation: 0,
@@ -356,8 +388,8 @@ describe("sandbox production battle integration", () => {
     });
     expect(enqueue.ok).toBe(true);
     if (!enqueue.ok) return;
-    battle = advanceSeconds(enqueue.battle, 6);
-    expect(battle.units).toHaveLength(2);
+    battle = advanceSeconds(enqueue.battle, 3);
+    expect(battle.units).toHaveLength(1);
     expect(battle.units.some((unit) => unit.status === "moving")).toBe(true);
 
     battle = advanceSeconds(battle, 5);

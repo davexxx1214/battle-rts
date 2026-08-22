@@ -6,10 +6,48 @@ export interface RenderCounters {
 export interface BenchmarkSnapshot {
   readonly complete: boolean;
   readonly frames: number;
+  readonly averageFps: number;
   readonly medianFps: number;
   readonly onePercentLowFps: number;
   readonly drawCalls: number;
   readonly triangles: number;
+}
+
+export type BenchmarkScenarioId = "legacy-80" | "sandbox-100" | "sandbox-200";
+
+export interface BenchmarkScenario {
+  readonly id: BenchmarkScenarioId;
+  readonly label: string;
+  readonly modeId: "normal" | "sandbox";
+  readonly unitCount: number;
+}
+
+const BENCHMARK_SCENARIOS = Object.freeze({
+  "80": Object.freeze({
+    id: "legacy-80",
+    label: "LEGACY 80",
+    modeId: "normal",
+    unitCount: 80,
+  }),
+  "sandbox-100": Object.freeze({
+    id: "sandbox-100",
+    label: "SANDBOX 100",
+    modeId: "sandbox",
+    unitCount: 100,
+  }),
+  "sandbox-200": Object.freeze({
+    id: "sandbox-200",
+    label: "SANDBOX 200",
+    modeId: "sandbox",
+    unitCount: 200,
+  }),
+} as const satisfies Readonly<Record<string, BenchmarkScenario>>);
+
+export function benchmarkScenarioFromSearch(search: string): BenchmarkScenario | null {
+  const requested = new URLSearchParams(search).get("benchmark");
+  return requested && Object.hasOwn(BENCHMARK_SCENARIOS, requested)
+    ? BENCHMARK_SCENARIOS[requested as keyof typeof BENCHMARK_SCENARIOS]
+    : null;
 }
 
 export class FrameBenchmark {
@@ -41,9 +79,13 @@ export class FrameBenchmark {
     const lowFrameTime = slowest.length > 0
       ? slowest.reduce((total, value) => total + value, 0) / slowest.length
       : 0;
+    const averageFrameTime = sorted.length > 0
+      ? sorted.reduce((total, value) => total + value, 0) / sorted.length
+      : 0;
     return {
       complete: this.complete,
       frames: sorted.length,
+      averageFps: averageFrameTime > 0 ? round(1000 / averageFrameTime) : 0,
       medianFps: sorted.length > 0 ? round(1000 / sorted[medianIndex]!) : 0,
       onePercentLowFps: lowFrameTime > 0 ? round(1000 / lowFrameTime) : 0,
       drawCalls: this.#counters.calls,
@@ -52,22 +94,48 @@ export class FrameBenchmark {
   }
 }
 
-export function createBenchmarkBattle(unitCount = 80): BattleState {
+export function createBenchmarkBattle(
+  unitCount = 80,
+  modeId: "normal" | "sandbox" = "normal",
+): BattleState {
   if (!Number.isInteger(unitCount) || unitCount <= 0) {
     throw new Error("Benchmark unitCount must be a positive integer.");
   }
   const verdantCount = Math.ceil(unitCount / 2);
   const crimsonCount = unitCount - verdantCount;
-  return createBattleState([
-    ...createBenchmarkFaction("verdant", verdantCount),
-    ...createBenchmarkFaction("crimson", crimsonCount),
-  ]);
+  const battle = createBattleState([
+    ...createBenchmarkFaction("verdant", verdantCount, modeId),
+    ...createBenchmarkFaction("crimson", crimsonCount, modeId),
+  ], { modeId });
+  return {
+    ...battle,
+    units: battle.units.map((unit) => ({
+      ...unit,
+      maxHealth: 1_000_000_000,
+      health: 1_000_000_000,
+    })),
+    buildings: battle.buildings.map((building) => (
+      building.kind === "castle"
+        ? {
+            ...building,
+            maxHealth: 1_000_000_000,
+            health: 1_000_000_000,
+          }
+        : building
+    )),
+  };
 }
 
-function createBenchmarkFaction(faction: Faction, count: number) {
-  const roles: readonly UnitRole[] = ["knight", "ranger", "mage", "catapult"];
+function createBenchmarkFaction(
+  faction: Faction,
+  count: number,
+  modeId: "normal" | "sandbox" = "normal",
+) {
+  const roles: readonly UnitRole[] = modeId === "sandbox"
+    ? ["knight", "ranger", "mage"]
+    : ["knight", "ranger", "mage", "catapult"];
   const map = battlefieldDefinitionFor(
-    battleModeDefinitionFor("normal").defaultMapId,
+    battleModeDefinitionFor(modeId).defaultMapId,
   ).map;
   const cells = map.cells.filter((cell) => (
     cell.territory === faction && cell.walkable

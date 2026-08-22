@@ -25,10 +25,14 @@ export interface AutomaticCombatUnit extends CombatTarget {
   readonly navigationKey: string | null;
 }
 
+export interface AutomaticPlayerCombatUnit extends AutomaticCombatUnit {
+  readonly faction: Faction;
+}
+
 export type AutomaticCombatTarget = AutomaticCombatUnit | BattleBuilding;
 
 export interface AutomaticTargetSelectionInput {
-  readonly unit: AutomaticCombatUnit;
+  readonly unit: AutomaticPlayerCombatUnit;
   readonly units: readonly AutomaticCombatUnit[];
   readonly buildings: readonly BattleBuilding[];
   readonly map?: BattlefieldMap;
@@ -116,7 +120,7 @@ export function selectAutomaticTarget(
 }
 
 function castleAttackRoute(
-  unit: AutomaticCombatUnit,
+  unit: AutomaticPlayerCombatUnit,
   map: BattlefieldMap,
   navigationContext?: NavigationContext,
 ) {

@@ -494,7 +494,7 @@
   inset: 0;
   min-width: 0;
   overflow: hidden;
-  cursor: crosshair;
+  cursor: grab;
   touch-action: none;
   user-select: none;
 }
@@ -503,17 +503,12 @@
   cursor: copy;
 }
 
-.battlefield[data-sandbox-interaction="move-armed"],
-.battlefield[data-sandbox-interaction="attack-move-armed"] {
+.battlefield[data-sandbox-interaction="box-selecting"] {
   cursor: crosshair;
 }
 
-.battlefield[data-sandbox-interaction="attack-armed"] {
-  cursor: cell;
-}
-
-.battlefield[data-sandbox-interaction="box-selecting"] {
-  cursor: default;
+.battlefield[data-sandbox-interaction="camera-dragging"] {
+  cursor: grabbing;
 }
 
 .sandboxSelectionBox {
@@ -657,6 +652,15 @@
 .victoryBanner span,
 .victoryBanner strong {
   display: block;
+}
+
+.resultReason {
+  display: block;
+  max-width: 430px;
+  margin: -8px auto 18px;
+  color: var(--muted);
+  font-size: 8px;
+  line-height: 1.5;
 }
 
 .victoryBanner span {

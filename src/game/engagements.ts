@@ -1,4 +1,4 @@
-import type { BattleUnit } from "./battle";
+import type { CombatBattleUnit } from "./battle";
 import type { CombatTarget, CombatTargetType } from "./combat";
 import type { WorldPoint } from "./types";
 
@@ -11,7 +11,7 @@ export interface MeleeEngagementSlot {
 }
 
 interface MeleeEngagementRequest {
-  readonly attacker: BattleUnit;
+  readonly attacker: CombatBattleUnit;
   readonly target: CombatTarget;
   readonly previousSlotIndex?: number;
 }

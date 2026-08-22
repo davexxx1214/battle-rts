@@ -1,4 +1,4 @@
-import type { Faction, WorldPoint } from "./types";
+import type { CombatFaction, WorldPoint } from "./types";
 
 export type CombatTargetType = "unit" | "building";
 
@@ -10,7 +10,7 @@ export interface CombatTargetRef {
 export interface CombatTarget {
   readonly targetType: CombatTargetType;
   readonly id: string;
-  readonly faction: Faction;
+  readonly faction: CombatFaction;
   readonly health: number;
   readonly position: WorldPoint;
 }

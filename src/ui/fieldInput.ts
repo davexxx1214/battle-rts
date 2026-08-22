@@ -7,6 +7,8 @@ export interface FieldPoint {
   readonly y: number;
 }
 
+export type FieldPrimaryDragBehavior = "camera" | "selection-box";
+
 interface FieldBounds {
   readonly left: number;
   readonly right: number;
@@ -63,4 +65,15 @@ export function pointerDragExceedsThreshold(
   threshold: number,
 ): boolean {
   return fieldPointerDistance(start, current) >= Math.max(0, threshold);
+}
+
+/**
+ * Left-drag pans by default on every battlefield. Sandbox players can retain
+ * deliberate multi-selection by holding Shift before starting the drag.
+ */
+export function fieldPrimaryDragBehavior(
+  shiftKey: boolean,
+  boxSelectionAllowed: boolean,
+): FieldPrimaryDragBehavior {
+  return shiftKey && boxSelectionAllowed ? "selection-box" : "camera";
 }

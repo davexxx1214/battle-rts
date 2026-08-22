@@ -8,6 +8,7 @@ import {
   CombatAudioEventRouter,
   DeploymentAudioEventRouter,
   ReusableAudioPool,
+  SandboxAudioEventRouter,
   UI_AUDIO_CUES,
   resolveCombatAudioPlayback,
   scaleAudioGain,
@@ -50,8 +51,8 @@ export function useBattleAudio({
   }, [resetToken]);
 
   useEffect(() => {
-    system.current?.process(battle.events, battle.units);
-  }, [battle.events, battle.units]);
+    system.current?.process(battle);
+  }, [battle]);
 
   useEffect(() => {
     system.current?.setScene(musicSceneForWinner(battle.winner), resetToken);
@@ -69,6 +70,7 @@ export function useBattleAudio({
 class BrowserBattleAudioSystem {
   readonly #deploymentRouter = new DeploymentAudioEventRouter();
   readonly #combatRouter = new CombatAudioEventRouter();
+  readonly #sandboxRouter = new SandboxAudioEventRouter();
   readonly #uiPool = new ReusableAudioPool(1, createHtmlAudioVoice);
   readonly #combatPools = createCombatAudioPools();
   readonly #music = new BattleMusicPlayer(createHtmlAudioVoice);
@@ -105,9 +107,13 @@ class BrowserBattleAudioSystem {
     this.#music.setScene(scene, revision);
   }
 
-  process(events: BattleState["events"], units: BattleState["units"]): void {
-    for (const cue of this.#deploymentRouter.consume(events)) this.playUiCue(cue);
-    for (const request of this.#combatRouter.consume(events, units)) this.#playCombatCue(request);
+  process(battle: BattleState): void {
+    for (const cue of this.#deploymentRouter.consume(battle.events)) this.playUiCue(cue);
+    for (const cue of this.#sandboxRouter.consume(battle)) this.playUiCue(cue);
+    for (const request of this.#combatRouter.consume(
+      battle.events,
+      [...battle.units, ...battle.neutralMonsters],
+    )) this.#playCombatCue(request);
   }
 
   playUiCue(cue: UiAudioCue): void {
@@ -119,6 +125,7 @@ class BrowserBattleAudioSystem {
   reset(): void {
     this.#deploymentRouter.reset();
     this.#combatRouter.reset();
+    this.#sandboxRouter.reset();
     this.#uiPool.stopAll();
     for (const pool of this.#combatPools.values()) pool.stopAll();
   }
@@ -127,6 +134,7 @@ class BrowserBattleAudioSystem {
     this.#disposed = true;
     this.#deploymentRouter.reset();
     this.#combatRouter.reset();
+    this.#sandboxRouter.reset();
     this.#uiPool.stopAll();
     for (const pool of this.#combatPools.values()) pool.stopAll();
     for (const voice of this.#preloads) voice.pause();
@@ -161,8 +169,11 @@ function createCombatAudioPools(): ReadonlyMap<CombatAudioBus, ReusableAudioPool
   return pools;
 }
 
-function musicSceneForWinner(winner: BattleState["winner"]): BattleMusicScene | null {
+export function musicSceneForWinner(
+  winner: BattleState["winner"],
+): BattleMusicScene | null {
   if (winner === null) return null;
+  if (winner === "draw") return "draw";
   return winner === "verdant" ? "victory" : "defeat";
 }
 

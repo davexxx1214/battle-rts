@@ -18,13 +18,19 @@ import {
 } from "three";
 import { useEffect, useMemo, useRef } from "react";
 
-import type { BattleState, UnitRole, WorldPoint } from "../../game/battle";
+import type {
+  BattleState,
+  CombatBattleUnit,
+  UnitRole,
+  WorldPoint,
+} from "../../game/battle";
 import type { BattleProjectile } from "../../game/projectiles";
 import { unitSpecFor } from "../../game/rules";
 import { terrainHeightAtMap } from "../../map/battlefield";
 import { boneDragonTerrainSupportHeight } from "../boneDragonPresentation";
 import { useBattlefieldDefinition } from "../battlefieldSceneContext";
 import { FixedObjectPool } from "./effectPool";
+import { MiningIncomeEffects } from "./MiningIncomeEffects";
 import {
   BATTLE_FX_SEQUENCES,
   BATTLE_FX_URLS,
@@ -92,7 +98,13 @@ const FROST_MIST = "#9ee6ff";
 const FROST_CRYSTAL = "#c9f4ff";
 const FROST_SHEET_VERTICAL_OFFSET = -0.06;
 
-export function BattleEffects({ battle }: { readonly battle: BattleState }) {
+export function BattleEffects({
+  battle,
+  combatUnits = battle.units,
+}: {
+  readonly battle: BattleState;
+  readonly combatUnits?: readonly CombatBattleUnit[];
+}) {
   const fxTextures = useBattleFxTextures();
   const recentImpacts = battle.events.filter((event) => {
     if (event.type !== "projectile-hit") return false;
@@ -120,19 +132,20 @@ export function BattleEffects({ battle }: { readonly battle: BattleState }) {
   const visibleProjectiles = battle.projectiles.filter((projectile) => (
     !mageAttackUsesSkyLightning(
       projectile.role,
-      combatProfileForAttacker(battle.units, projectile.attackerId),
+      combatProfileForAttacker(combatUnits, projectile.attackerId),
     )
   ));
   const recentLightning = battle.events.filter((event) => (
     event.type === "projectile-hit"
     && mageAttackUsesSkyLightning(
       event.role,
-      combatProfileForAttacker(battle.units, event.attackerId),
+      combatProfileForAttacker(combatUnits, event.attackerId),
     )
     && battle.elapsed - event.time <= LIGHTNING_STRIKE_DURATION_SECONDS
   ));
   return (
     <group>
+      <MiningIncomeEffects battle={battle} />
       <ProjectilePool projectiles={visibleProjectiles} fxTextures={fxTextures} />
       {recentPoisonMuzzles.map((event) => {
         if (event.type !== "attack-started" || event.visualKind !== "poison-cloud") return null;

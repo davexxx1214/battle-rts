@@ -60,14 +60,17 @@ describe("sandbox command panel", () => {
     }));
 
     expect(markup).toContain("生产队列");
-    expect(markup).toContain("1/3");
+    expect(markup).toContain("1/5");
     expect(markup).toContain("长枪兵");
     expect(markup).toContain("剑士");
     expect(markup).toContain("训练中");
-    expect(markup).toContain("0 + 2");
+    expect(markup).toContain("0 + 1");
+    expect(markup).toContain("单次 1 个单位");
+    expect(markup).toContain("完成后 used≥1");
+    expect(markup).toContain("committed 2/100");
     expect(markup.match(/data-unlocked="true"/g)).toHaveLength(6);
     expect(markup).toContain("每栋独立训练 · 多栋并行");
-    expect(markup).not.toContain(">弓箭手</span><strong>300 金");
+    expect(markup).not.toContain(">弓箭手</span><strong>160 金");
   });
 
   it("uses the selected race presentation without changing rule slots", () => {

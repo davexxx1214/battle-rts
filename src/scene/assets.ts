@@ -15,6 +15,8 @@ export interface ScenerySceneAsset {
   readonly url: string;
   readonly scale: number;
   readonly renderMode?: "full-scene" | "instanced";
+  readonly grounding?: "base" | "top";
+  readonly castsShadow?: boolean;
   readonly factionUrls?: Readonly<Partial<Record<Faction, string>>>;
 }
 
@@ -33,6 +35,56 @@ export const SCENE_MODEL_URLS = {
   mobileCatapult: "/assets/generated/tripo/runtime/mobile-catapult.glb",
   catapultOperator: "/assets/kaykit/adventurers/characters/Knight.glb",
   undeadBoneDragon: "/assets/mesh2motion/dragon.glb",
+} as const;
+
+export const MINING_COIN_EFFECT_ASSET = {
+  url: "/assets/quaternius/platformer-game-kit/coin.gltf",
+  scale: 0.42,
+} as const;
+
+const PIRATE_KIT_ASSET_ROOT = "/assets/quaternius/pirate-kit";
+
+export const NEUTRAL_MONSTER_SCENE_ASSETS = {
+  skeleton: {
+    url: `${PIRATE_KIT_ASSET_ROOT}/Characters_Skeleton.gltf`,
+    targetHeight: 1.15,
+  },
+  sharky: {
+    url: `${PIRATE_KIT_ASSET_ROOT}/Characters_Sharky.gltf`,
+    targetHeight: 1.35,
+  },
+  mako: {
+    url: `${PIRATE_KIT_ASSET_ROOT}/Characters_Mako.gltf`,
+    targetHeight: 1.7,
+  },
+} as const;
+
+export const OASIS_SCENE_ASSETS = {
+  water: {
+    url: "/assets/kaykit/medieval-hex/tiles/base/hex_water.gltf",
+    scale: 0.78,
+  },
+  palms: [1, 2, 3].map((variant) => ({
+    url: `${PIRATE_KIT_ASSET_ROOT}/Environment_PalmTree_${variant}.gltf`,
+    targetHeight: 2.2,
+  })),
+} as const;
+
+const ANIMATED_ANIMAL_ASSET_ROOT = "/assets/quaternius/animated-animals";
+
+export const SANDBOX_WILDLIFE_SCENE_ASSETS = {
+  cow: {
+    url: `${ANIMATED_ANIMAL_ASSET_ROOT}/Cow.gltf`,
+    targetHeight: 0.9,
+  },
+  deer: {
+    url: `${ANIMATED_ANIMAL_ASSET_ROOT}/Deer.gltf`,
+    targetHeight: 0.92,
+  },
+  fox: {
+    url: `${ANIMATED_ANIMAL_ASSET_ROOT}/Fox.gltf`,
+    targetHeight: 0.58,
+  },
 } as const;
 
 export const UNDEAD_BONE_DRAGON_ASSET = {
@@ -361,6 +413,37 @@ export const SCENERY_SCENE_ASSETS = {
       verdant: "/assets/kaykit/medieval-hex/buildings/blue/building_watermill_blue.gltf",
       crimson: "/assets/kaykit/medieval-hex/buildings/red/building_watermill_red.gltf",
     },
+  },
+  "shallow-water": {
+    url: "/assets/kaykit/medieval-hex/tiles/base/hex_water.gltf",
+    scale: 1,
+    grounding: "top",
+    castsShadow: false,
+  },
+  "river-bridge": {
+    url: "/assets/kaykit/medieval-hex/buildings/neutral/building_bridge_A.gltf",
+    scale: 1,
+    renderMode: "full-scene",
+  },
+  "water-lily-a": {
+    url: "/assets/kaykit/medieval-hex/decoration/nature/waterlily_A.gltf",
+    scale: 1.18,
+    castsShadow: false,
+  },
+  "water-lily-b": {
+    url: "/assets/kaykit/medieval-hex/decoration/nature/waterlily_B.gltf",
+    scale: 1.12,
+    castsShadow: false,
+  },
+  "water-plant-a": {
+    url: "/assets/kaykit/medieval-hex/decoration/nature/waterplant_A.gltf",
+    scale: 1.04,
+    castsShadow: false,
+  },
+  "water-plant-c": {
+    url: "/assets/kaykit/medieval-hex/decoration/nature/waterplant_C.gltf",
+    scale: 1.04,
+    castsShadow: false,
   },
   "village-house": {
     url: "/assets/kenney/hexagon-kit/building-house.glb",

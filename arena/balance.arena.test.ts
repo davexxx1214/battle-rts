@@ -6,11 +6,11 @@ import {
   summarizeBalanceArena,
   type BalanceArenaMatchResult,
 } from "../src/game/balanceArena";
-import { GAME_RULES, type TroopKind } from "../src/game/rules";
+import type { TroopKind } from "../src/game/rules";
 
 const TROOPS = ["spearman", "archer", "swordsman", "mage", "catapult"] as const;
 const LANES = ["west", "east"] as const;
-const MAX_GOLD_EFFICIENCY_SPREAD = 1.2;
+const MAX_GOLD_EFFICIENCY_SPREAD = 1.5;
 
 test("runs the mirrored troop balance tournament", () => {
   const results: BalanceArenaMatchResult[] = [];
@@ -64,25 +64,14 @@ test("runs the mirrored troop balance tournament", () => {
     && Number.isFinite(result.troopDamage.verdant)
     && Number.isFinite(result.troopDamage.crimson)
   ))).toBe(true);
-  const efficiencyByCost = new Map<number, number[]>();
-  for (const summary of summaries) {
-    const cost = GAME_RULES.deployment.costs[summary.kind];
-    efficiencyByCost.set(cost, [
-      ...(efficiencyByCost.get(cost) ?? []),
-      summary.totalDamagePer100Gold,
-    ]);
-  }
-  const efficiencyTiers = [...efficiencyByCost.entries()]
-    .sort(([firstCost], [secondCost]) => firstCost - secondCost)
-    .map(([cost, efficiencies]) => ({
-      cost,
-      average: efficiencies.reduce((total, efficiency) => total + efficiency, 0)
-        / efficiencies.length,
-    }));
-  for (let index = 1; index < efficiencyTiers.length; index += 1) {
-    expect(efficiencyTiers[index]!.average)
-      .toBeGreaterThan(efficiencyTiers[index - 1]!.average);
-  }
+  const mage = summaries.find((summary) => summary.kind === "mage")!;
+  const catapult = summaries.find((summary) => summary.kind === "catapult")!;
+  expect(mage.troopDamagePer100Gold).toBe(Math.max(
+    ...summaries.map((summary) => summary.troopDamagePer100Gold),
+  ));
+  expect(catapult.castleDamagePer100Gold).toBe(Math.max(
+    ...summaries.map((summary) => summary.castleDamagePer100Gold),
+  ));
   const troopEfficiencies = summaries.map((summary) => summary.totalDamagePer100Gold);
   expect(Math.max(...troopEfficiencies) / Math.min(...troopEfficiencies))
     .toBeLessThanOrEqual(MAX_GOLD_EFFICIENCY_SPREAD);

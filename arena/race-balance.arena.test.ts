@@ -122,7 +122,11 @@ test("compares complete equal-value arena armies with a side swap", () => {
     && row.亡灵单位伤害 > 0
     && row.人类单位伤害 > 0
   ))).toBe(true);
-  expect(rows.filter((row) => row.胜者 === row.亡灵方位)).toHaveLength(1);
+  expect(new Set(rows.map((row) => row.胜者))).toEqual(new Set(["verdant", "crimson"]));
+  expect(rows.every((row) => (
+    Math.max(row.亡灵单位伤害, row.人类单位伤害)
+      / Math.min(row.亡灵单位伤害, row.人类单位伤害) <= 1.25
+  ))).toBe(true);
   expect(rows.every((row) => Math.abs(row.亡灵存活数 - row.人类存活数) <= 2)).toBe(true);
 }, 120_000);
 

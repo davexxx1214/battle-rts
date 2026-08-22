@@ -27,6 +27,19 @@
   stroke-width: 2.2;
 }
 
+.healingZoneAura {
+  fill: rgb(74 222 128 / 18%);
+  stroke: rgb(134 239 172 / 88%);
+  stroke-dasharray: 1.4 1.1;
+  stroke-width: 0.9;
+}
+
+.healingZoneCore {
+  fill: rgb(52 211 153 / 84%);
+  stroke: rgb(220 252 231 / 92%);
+  stroke-width: 0.7;
+}
+
 .buildZone {
   fill: rgb(255 255 255 / 10%);
   stroke-width: 0.8;
@@ -89,21 +102,26 @@
 
 .castle,
 .building,
-.squad {
+.unit {
   stroke: rgb(245 241 218 / 88%);
   stroke-width: 0.8;
 }
 
 .castle[data-faction="verdant"],
 .building[data-faction="verdant"],
-.squad[data-faction="verdant"] {
+.unit[data-faction="verdant"] {
   fill: rgb(62 204 118);
 }
 
 .castle[data-faction="crimson"],
 .building[data-faction="crimson"],
-.squad[data-faction="crimson"] {
+.unit[data-faction="crimson"] {
   fill: rgb(231 77 88);
+}
+
+.unit[data-faction="neutral"] {
+  fill: rgb(236 181 71);
+  stroke: rgb(255 245 205 / 96%);
 }
 
 .castle[data-status="destroyed"] {

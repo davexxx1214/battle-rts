@@ -1,15 +1,15 @@
 .bar {
   position: absolute;
   z-index: 28;
-  right: 200px;
   bottom: 12px;
   left: 310px;
+  width: min(460px, calc(100% - 520px));
   min-width: 0;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 8px;
+  grid-template-columns: auto minmax(180px, 1fr);
+  gap: 12px;
   align-items: center;
-  padding: 7px 9px;
+  padding: 8px 11px;
   border: 1px solid rgb(222 211 183 / 24%);
   border-bottom: 3px solid rgb(90 174 255 / 72%);
   color: var(--parchment);
@@ -23,15 +23,30 @@
 }
 
 .selectionSummary {
-  min-width: 58px;
+  min-width: 96px;
   display: grid;
   grid-template-columns: auto auto;
   gap: 5px;
   align-items: baseline;
 }
 
-.selectionSummary span,
-.bar > small {
+.squadDetails {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 1px;
+  max-height: 34px;
+  overflow: hidden auto;
+}
+
+.squadDetails small {
+  overflow: hidden;
+  color: #b7c8d6;
+  font-size: 6px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selectionSummary span {
   color: var(--muted);
   font-size: 7px;
   white-space: nowrap;
@@ -43,61 +58,38 @@
   font-size: 15px;
 }
 
-.commands {
+.guidance {
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(5, minmax(42px, 1fr));
-  gap: 4px;
+  gap: 2px;
+  padding-left: 12px;
+  border-left: 1px solid rgb(222 211 183 / 18%);
 }
 
-.commands button {
-  min-width: 0;
-  min-height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 5px;
-  border: 1px solid rgb(222 211 183 / 18%);
-  color: var(--parchment);
-  background: rgb(33 35 30 / 94%);
-  cursor: pointer;
-}
-
-.commands button:hover:not(:disabled),
-.commands button:focus-visible,
-.commands button[data-armed="true"] {
-  border-color: var(--amber);
+.guidance strong {
   color: #fff2bd;
-  background: rgb(92 69 25 / 82%);
-  outline: none;
-}
-
-.commands button:disabled {
-  cursor: not-allowed;
-  opacity: 0.38;
-}
-
-.commands span {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 900;
-  white-space: nowrap;
 }
 
-.commands kbd {
+.guidance small {
   color: var(--muted);
-  font: 7px/1 ui-monospace, "Cascadia Mono", monospace;
+  font-size: 7px;
+  line-height: 1.45;
+}
+
+.guidance[data-enabled="false"] strong {
+  color: var(--parchment);
 }
 
 @media (max-width: 900px) {
   .bar {
-    right: 132px;
     left: 302px;
+    width: min(400px, calc(100% - 450px));
   }
 
-  .bar > small,
-  .commands kbd {
-    display: none;
+  .guidance small {
+    white-space: normal;
   }
 }
 
@@ -107,49 +99,28 @@
     right: max(6px, var(--game-safe-right));
     bottom: max(6px, var(--game-safe-bottom));
     left: max(6px, var(--game-safe-left));
+    width: auto;
     grid-template-columns: auto minmax(0, 1fr);
     gap: 5px;
     padding: 5px;
   }
 
   .selectionSummary {
-    min-width: 42px;
+    min-width: 56px;
     grid-template-columns: 1fr;
     gap: 0;
     text-align: center;
+  }
+
+  .squadDetails {
+    display: none;
   }
 
   .selectionSummary span {
     font-size: 6px;
   }
 
-  .commands {
-    grid-template-columns: repeat(5, minmax(44px, 1fr));
-  }
-
-  .commands button {
-    min-height: 44px;
-  }
-
-  .commands span {
-    font-size: 8px;
-  }
-
-  .bar > small {
-    display: none;
-  }
-}
-
-@media (max-width: 390px) {
-  .bar {
-    grid-template-columns: 38px minmax(0, 1fr);
-  }
-
-  .commands {
-    gap: 2px;
-  }
-
-  .commands button {
-    padding-inline: 2px;
+  .guidance {
+    padding-left: 8px;
   }
 }

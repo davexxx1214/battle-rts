@@ -17,6 +17,8 @@ import type { MutableRefObject } from "react";
 import {
   createBattleUnit,
   type BattleState,
+  type CombatBattleUnit,
+  type NeutralBattleUnit,
   type WorldPoint,
 } from "../game/battle";
 import type { SandboxBuildingConstructionPreview } from "../game/sandboxBattleTransactions";
@@ -60,8 +62,11 @@ import {
 } from "./DeploymentAreaMask";
 import { BattlefieldTerrain } from "./terrain/BattlefieldTerrain";
 import { SandboxGrayboxOverlay } from "./terrain/SandboxGrayboxOverlay";
+import { OasisLayer } from "./terrain/OasisLayer";
+import { SandboxWildlifeLayer } from "./terrain/SandboxWildlifeLayer";
 import { createSandboxGrayboxPresentation } from "./terrain/sandboxGrayboxPresentation";
 import { UnitModel } from "./units/UnitModel";
+import { TacticalUnitLayer } from "./units/TacticalUnitLayer";
 import { deploymentPreviewRingGeometry } from "./units/unitRingPresentation";
 import { FrameBenchmark, type BenchmarkSnapshot } from "../game/benchmark";
 import {
@@ -139,6 +144,10 @@ export function BattlefieldCanvas({
     ? battlefield.cameraPreset.startZoom - 1
     : battlefield.cameraPreset.startZoom;
   const attackPresentations = useAttackPresentationCache(battle);
+  const combatUnits = useMemo<readonly CombatBattleUnit[]>(
+    () => [...battle.units, ...(battle.neutralMonsters ?? [])],
+    [battle.neutralMonsters, battle.units],
+  );
   const selectedSquads = useMemo(() => new Set(selectedSquadIds), [selectedSquadIds]);
   const deploymentMaskCoordinates = useMemo(() => (
     deploymentKind
@@ -211,10 +220,12 @@ export function BattlefieldCanvas({
         onViewChange={cameraViewStore.publish}
         bridgeRef={bridgeRef}
       />
-      <SceneBridge battle={battle} bridgeRef={bridgeRef} />
+      <SceneBridge battle={battle} bridgeRef={bridgeRef} combatUnits={combatUnits} />
       {onBenchmarkUpdate && <BenchmarkProbe onUpdate={onBenchmarkUpdate} />}
       <Suspense fallback={<ArenaFallback presentation={scenePresentation} />}>
         <BattlefieldTerrain factionRaces={resolvedFactionRaces} />
+        {(battlefield.healingZones?.length ?? 0) > 0 && <OasisLayer />}
+        {(battlefield.wildlife?.length ?? 0) > 0 && <SandboxWildlifeLayer />}
         {sandboxGrayboxPlan && (
           <SandboxGrayboxOverlay
             mining={battle.mining}
@@ -227,30 +238,25 @@ export function BattlefieldCanvas({
         <BattleBuildingLayer battle={battle} factionRaces={resolvedFactionRaces} />
       </Suspense>
       <DeploymentAreaMask coordinates={deploymentMaskCoordinates} />
-      <UnitShadowInstances battle={battle} />
-      {battle.units.map((unit) => {
-        const damage = latestDamagePresentation(battle, unit.id);
-        const attack = attackPresentations.get(unit.id);
-        return (
-          <Suspense fallback={null} key={unit.id}>
-            <UnitModel
-              unit={unit}
-              selected={unit.faction === "verdant" && selectedSquads.has(unit.squadId)}
-              attackSequence={attack?.sequence}
-              attackTime={attack?.time}
-              battleTime={battle.elapsed}
-              damageTime={damage?.time}
-              damageSourcePosition={damage?.sourcePosition}
-              race={resolvedFactionRaces[unit.faction]}
-            />
-          </Suspense>
-        );
-      })}
+      <UnitShadowInstances battle={battle} units={combatUnits} />
+      <TacticalUnitLayer battle={battle} selectedSquadIds={selectedSquads}>
+        <DetailedUnitModels
+          attackPresentations={attackPresentations}
+          battle={battle}
+          factionRaces={resolvedFactionRaces}
+          selectedSquads={selectedSquads}
+        />
+      </TacticalUnitLayer>
+      <DetailedNeutralMonsterModels
+        attackPresentations={attackPresentations}
+        battle={battle}
+        units={battle.neutralMonsters ?? []}
+      />
       <Suspense fallback={null}>
-        <UnitStatusEffectLayer units={battle.units} elapsed={battle.elapsed} />
+        <UnitStatusEffectLayer units={combatUnits} elapsed={battle.elapsed} />
       </Suspense>
       <Suspense fallback={null}>
-        <BattleEffects battle={battle} />
+        <BattleEffects battle={battle} combatUnits={combatUnits} />
       </Suspense>
       {deploymentPreview && (
         <DeploymentPreviewVisual
@@ -270,6 +276,65 @@ export function BattlefieldCanvas({
       </BattlefieldSceneProvider>
     </Canvas>
   );
+}
+
+function DetailedNeutralMonsterModels({
+  attackPresentations,
+  battle,
+  units,
+}: {
+  readonly attackPresentations: ReadonlyMap<string, AttackPresentation>;
+  readonly battle: BattleState;
+  readonly units: readonly NeutralBattleUnit[];
+}) {
+  return units.map((unit) => {
+    const damage = latestDamagePresentation(battle, unit.id);
+    const attack = attackPresentations.get(unit.id);
+    return (
+      <Suspense fallback={null} key={unit.id}>
+        <UnitModel
+          unit={unit}
+          selected={false}
+          attackSequence={attack?.sequence}
+          attackTime={attack?.time}
+          battleTime={battle.elapsed}
+          damageTime={damage?.time}
+          damageSourcePosition={damage?.sourcePosition}
+        />
+      </Suspense>
+    );
+  });
+}
+
+function DetailedUnitModels({
+  attackPresentations,
+  battle,
+  factionRaces,
+  selectedSquads,
+}: {
+  readonly attackPresentations: ReadonlyMap<string, AttackPresentation>;
+  readonly battle: BattleState;
+  readonly factionRaces: FactionRaces;
+  readonly selectedSquads: ReadonlySet<string>;
+}) {
+  return battle.units.map((unit) => {
+    const damage = latestDamagePresentation(battle, unit.id);
+    const attack = attackPresentations.get(unit.id);
+    return (
+      <Suspense fallback={null} key={unit.id}>
+        <UnitModel
+          unit={unit}
+          selected={unit.faction === "verdant" && selectedSquads.has(unit.squadId)}
+          attackSequence={attack?.sequence}
+          attackTime={attack?.time}
+          battleTime={battle.elapsed}
+          damageTime={damage?.time}
+          damageSourcePosition={damage?.sourcePosition}
+          race={factionRaces[unit.faction]}
+        />
+      </Suspense>
+    );
+  });
 }
 
 function SandboxCommandMarkerVisual({
@@ -572,13 +637,19 @@ function createInvalidDeploymentTexture(): CanvasTexture {
   return texture;
 }
 
-function UnitShadowInstances({ battle }: { readonly battle: BattleState }) {
+function UnitShadowInstances({
+  battle,
+  units,
+}: {
+  readonly battle: BattleState;
+  readonly units: readonly CombatBattleUnit[];
+}) {
   const { map } = useBattlefieldDefinition();
   const mesh = useRef<InstancedMesh>(null);
   const dummy = useMemo(() => new Object3D(), []);
   useFrame(() => {
     if (!mesh.current) return;
-    battle.units.forEach((unit, index) => {
+    units.forEach((unit, index) => {
       const visible = unit.health > 0 || (
         unit.diedAt !== null && battle.elapsed - unit.diedAt < 6.85
       );
@@ -598,7 +669,7 @@ function UnitShadowInstances({ battle }: { readonly battle: BattleState }) {
     mesh.current.instanceMatrix.needsUpdate = true;
   });
   return (
-    <instancedMesh ref={mesh} args={[undefined, undefined, battle.units.length]} frustumCulled={false}>
+    <instancedMesh ref={mesh} args={[undefined, undefined, units.length]} frustumCulled={false}>
       <circleGeometry args={[1, 16]} />
       <meshBasicMaterial color="#171b17" transparent opacity={0.24} depthWrite={false} />
     </instancedMesh>
@@ -609,7 +680,6 @@ function BenchmarkProbe({ onUpdate }: {
   readonly onUpdate: (snapshot: BenchmarkSnapshot) => void;
 }) {
   const benchmark = useMemo(() => new FrameBenchmark(10), []);
-  const updateElapsed = useRef(0);
   const warmupElapsed = useRef(0);
   const reportedComplete = useRef(false);
   useFrame(({ gl }, delta) => {
@@ -621,12 +691,8 @@ function BenchmarkProbe({ onUpdate }: {
       calls: gl.info.render.calls,
       triangles: gl.info.render.triangles,
     });
-    updateElapsed.current += delta;
     if (benchmark.complete && !reportedComplete.current) {
       reportedComplete.current = true;
-      onUpdate(benchmark.snapshot());
-    } else if (!benchmark.complete && updateElapsed.current >= 0.5) {
-      updateElapsed.current = 0;
       onUpdate(benchmark.snapshot());
     }
   });
@@ -636,9 +702,11 @@ function BenchmarkProbe({ onUpdate }: {
 function SceneBridge({
   battle,
   bridgeRef,
+  combatUnits,
 }: {
   readonly battle: BattleState;
   readonly bridgeRef: MutableRefObject<SceneInteractionBridge>;
+  readonly combatUnits: readonly CombatBattleUnit[];
 }) {
   const { map } = useBattlefieldDefinition();
   const { camera, size } = useThree();
@@ -673,7 +741,7 @@ function SceneBridge({
         readonly priority: number;
         readonly pick: ReturnType<SceneInteractionBridge["pickBattlefieldEntity"]>;
       } | null = null;
-      for (const unit of battle.units) {
+      for (const unit of combatUnits) {
         if (unit.health <= 0 || unit.status === "dead") continue;
         const screen = project(unit.position, unit.role === "bone-dragon" ? 1.3 : 0.55);
         if (!screen) continue;

@@ -17,6 +17,7 @@ import {
   type BattleBuilding,
 } from "./buildings";
 import {
+  SANDBOX_PRODUCTION_MAX_QUEUE_LENGTH,
   sandboxProductionPopulation,
   sandboxProductionQueueFor,
 } from "./sandboxProductionQueue";
@@ -163,8 +164,8 @@ const TECH_ORDER: readonly Exclude<
 >[] = Object.freeze(["archery-range", "mage-tower", "siege-workshop"]);
 const FACTION: Faction = SANDBOX_AI_FACTION;
 const DESIRED_MINE_COUNT = 4;
-const ATTACK_WAVE_MINIMUM_SQUADS = 3;
-const ATTACK_WAVE_MINIMUM_POPULATION = 10;
+export const SANDBOX_AI_ATTACK_WAVE_MINIMUM_UNITS = 3;
+export const SANDBOX_AI_ATTACK_WAVE_MINIMUM_POPULATION = 10;
 const DEFENSE_CASTLE_RADIUS = 10;
 const DEFENSE_BUILDING_RADIUS = 5;
 const ROUTE_ARRIVAL_RADIUS = 3;
@@ -361,7 +362,11 @@ export function advanceSandboxOpponentAi(battle: BattleState): BattleState {
     if (production) return settleAction(battle, ai, production);
   }
 
-  setPhase(ai, population >= ATTACK_WAVE_MINIMUM_POPULATION ? "attack" : "rally", battle.matchElapsed);
+  setPhase(
+    ai,
+    population >= SANDBOX_AI_ATTACK_WAVE_MINIMUM_POPULATION ? "attack" : "rally",
+    battle.matchElapsed,
+  );
   return attachState(battle, ai);
 }
 
@@ -526,11 +531,11 @@ function beginAttackWave(
       : null;
     return order === null || order.kind === "stop" || order.kind === "hold";
   });
-  if (candidates.length < ATTACK_WAVE_MINIMUM_SQUADS) return null;
+  if (candidates.length < SANDBOX_AI_ATTACK_WAVE_MINIMUM_UNITS) return null;
   const wavePopulation = candidates.reduce((sum, squadId) => (
     sum + squadPopulation(battle, squadId)
   ), 0);
-  if (wavePopulation < ATTACK_WAVE_MINIMUM_POPULATION) return null;
+  if (wavePopulation < SANDBOX_AI_ATTACK_WAVE_MINIMUM_POPULATION) return null;
   const routes = sortedRoutes(battlefield);
   if (routes.length === 0) return null;
   const route = routes[ai.routeCursor % routes.length]!;
@@ -576,7 +581,8 @@ function attemptProduction(
     const producer = operational.find((building) => (
       building.kind === sandboxTroopSpec(troop).producer
       && (battle.production
-        ? (sandboxProductionQueueFor(battle.production, building.id)?.entries.length ?? 3) < 3
+        ? (sandboxProductionQueueFor(battle.production, building.id)?.entries.length
+            ?? SANDBOX_PRODUCTION_MAX_QUEUE_LENGTH) < SANDBOX_PRODUCTION_MAX_QUEUE_LENGTH
         : false)
     ));
     if (!producer) continue;

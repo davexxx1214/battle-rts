@@ -6,9 +6,6 @@ export type SandboxInteractionMode =
   | "neutral"
   | "box-selecting"
   | "placing-building"
-  | "move-armed"
-  | "attack-armed"
-  | "attack-move-armed"
   | "camera-dragging";
 
 export interface SandboxSelectionBox {
@@ -20,7 +17,6 @@ export interface SandboxSelectionBox {
 
 export type SandboxInteractionEvent =
   | { readonly type: "select-building"; readonly selected: boolean }
-  | { readonly type: "arm-order"; readonly order: "move" | "attack" | "attack-move" }
   | { readonly type: "begin-box" }
   | { readonly type: "begin-camera" }
   | { readonly type: "finish" }
@@ -92,12 +88,6 @@ export function transitionSandboxInteraction(
   if (event.type === "cancel" || event.type === "finish") return "neutral";
   if (event.type === "select-building") {
     return event.selected ? "placing-building" : "neutral";
-  }
-  if (event.type === "arm-order") {
-    const armed = event.order === "move"
-      ? "move-armed"
-      : event.order === "attack" ? "attack-armed" : "attack-move-armed";
-    return current === armed ? "neutral" : armed;
   }
   if (event.type === "begin-camera") return "camera-dragging";
   return current === "neutral" ? "box-selecting" : current;

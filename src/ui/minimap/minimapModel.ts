@@ -1,5 +1,5 @@
 import type { BattleState } from "../../game/battle";
-import type { Faction, WorldPoint } from "../../game/types";
+import type { CombatFaction, Faction, WorldPoint } from "../../game/types";
 import { axialToWorld, coordinateKey } from "../../map/battlefield";
 import type { BattlefieldDefinition } from "../../map/battlefieldDefinition";
 import type { CameraViewSnapshot } from "../../scene/camera/cameraViewStore";
@@ -43,11 +43,17 @@ export interface MinimapBuildingMarker {
   readonly point: MinimapPoint;
 }
 
-export interface MinimapSquadMarker {
+export interface MinimapUnitMarker {
   readonly id: string;
-  readonly faction: Faction;
+  readonly faction: CombatFaction;
   readonly role: string;
-  readonly livingMembers: number;
+  readonly point: MinimapPoint;
+}
+
+export interface MinimapHealingZoneMarker {
+  readonly id: string;
+  readonly radiusCells: number;
+  readonly healingPerSecond: number;
   readonly point: MinimapPoint;
 }
 
@@ -58,7 +64,8 @@ export interface SandboxMinimapModel {
   readonly minePits: readonly MinimapMineMarker[];
   readonly castles: readonly MinimapCastleMarker[];
   readonly buildings: readonly MinimapBuildingMarker[];
-  readonly squads: readonly MinimapSquadMarker[];
+  readonly units: readonly MinimapUnitMarker[];
+  readonly healingZones: readonly MinimapHealingZoneMarker[];
   readonly viewport: readonly MinimapPoint[];
 }
 
@@ -170,25 +177,20 @@ export function createSandboxMinimapModel(
       kind: building.kind,
       point: freezePoint(projection.project(axialToWorld(building.coordinate))),
     }));
-  const unitById = new Map(battle.units.map((unit) => [unit.id, unit] as const));
-  const squads = battle.squads.flatMap((squad): MinimapSquadMarker[] => {
-    const living = squad.memberIds.flatMap((id) => {
-      const unit = unitById.get(id);
-      return unit && unit.health > 0 && unit.status !== "dead" ? [unit] : [];
-    });
-    if (living.length === 0) return [];
-    const center = living.reduce<WorldPoint>((sum, unit) => ({
-      x: sum.x + unit.position.x / living.length,
-      z: sum.z + unit.position.z / living.length,
-    }), { x: 0, z: 0 });
-    return [Object.freeze({
-      id: squad.id,
-      faction: squad.faction,
-      role: squad.role,
-      livingMembers: living.length,
-      point: freezePoint(projection.project(center)),
-    })];
-  });
+  const units = [...battle.units, ...(battle.neutralMonsters ?? [])]
+    .filter((unit) => unit.health > 0 && unit.status !== "dead")
+    .map((unit): MinimapUnitMarker => Object.freeze({
+      id: unit.id,
+      faction: unit.faction,
+      role: unit.role,
+      point: freezePoint(projection.project(unit.position)),
+    }));
+  const healingZones = (battlefield.healingZones ?? []).map((zone) => Object.freeze({
+    id: zone.id,
+    radiusCells: zone.radiusCells,
+    healingPerSecond: zone.healingPerSecond,
+    point: freezePoint(projection.project(axialToWorld(zone.coordinate))),
+  }));
 
   return Object.freeze({
     boundary: freezePoints(convexHull(battlefield.map.cells.map((cell) => (
@@ -199,7 +201,8 @@ export function createSandboxMinimapModel(
     minePits: Object.freeze(minePits),
     castles: Object.freeze(castles),
     buildings: Object.freeze(buildings),
-    squads: Object.freeze(squads),
+    units: Object.freeze(units),
+    healingZones: Object.freeze(healingZones),
     viewport: freezePoints(cameraViewportCorners(cameraView).map(projection.project)),
   });
 }

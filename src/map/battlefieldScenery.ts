@@ -44,6 +44,12 @@ export const BATTLEFIELD_SCENERY_KINDS = [
   "farm-home-a",
   "farm-home-b",
   "farm-watermill",
+  "shallow-water",
+  "river-bridge",
+  "water-lily-a",
+  "water-lily-b",
+  "water-plant-a",
+  "water-plant-c",
   "village-house",
   "village-market",
   "village-farm",
@@ -58,6 +64,9 @@ export type BattlefieldSceneryZone =
   | "right-mine"
   | "right-farm"
   | "left-farm"
+  | "sandbox-farm"
+  | "sandbox-river"
+  | "sandbox-forest"
   | "verdant-camp"
   | "crimson-camp";
 

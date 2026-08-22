@@ -107,6 +107,19 @@ export function SandboxMinimap({
           />
         ))}
       </g>
+      <g aria-label="绿洲治疗区">
+        {model.healingZones.map((zone) => (
+          <g
+            data-healing-per-second={zone.healingPerSecond}
+            data-minimap-healing-zone={zone.id}
+            key={zone.id}
+            transform={`translate(${round(zone.point.x)} ${round(zone.point.y)})`}
+          >
+            <circle className={styles.healingZoneAura} cx={0} cy={0} r={5.2} />
+            <circle className={styles.healingZoneCore} cx={0} cy={0} r={2.2} />
+          </g>
+        ))}
+      </g>
       <g aria-label="矿坑">
         {model.minePits.map((pit) => (
           <g
@@ -166,17 +179,16 @@ export function SandboxMinimap({
           />
         ))}
       </g>
-      <g aria-label="兵团">
-        {model.squads.map((squad) => (
+      <g aria-label="单位">
+        {model.units.map((unit) => (
           <circle
-            className={styles.squad}
-            cx={squad.point.x}
-            cy={squad.point.y}
-            data-faction={squad.faction}
-            data-living-members={squad.livingMembers}
-            data-minimap-squad={squad.id}
-            data-role={squad.role}
-            key={squad.id}
+            className={styles.unit}
+            cx={unit.point.x}
+            cy={unit.point.y}
+            data-faction={unit.faction}
+            data-minimap-unit={unit.id}
+            data-role={unit.role}
+            key={unit.id}
             r={2.4}
           />
         ))}

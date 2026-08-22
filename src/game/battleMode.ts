@@ -132,11 +132,11 @@ const SANDBOX_POPULATION_POLICY: PopulationPolicy = Object.freeze({
   kind: "capped",
   maximumPopulation: 100,
   troopCosts: Object.freeze({
-    spearman: 2,
-    swordsman: 3,
-    archer: 2,
+    spearman: 1,
+    swordsman: 1,
+    archer: 1,
     mage: 2,
-    catapult: 3,
+    catapult: 4,
   }),
   populationIncomeBands: Object.freeze([
     Object.freeze({ maximumPopulation: 50, multiplier: 1 }),
@@ -170,7 +170,7 @@ const LEGACY_PRODUCTION_POLICY: ProductionPolicy = Object.freeze({
 const SANDBOX_PRODUCTION_POLICY: ProductionPolicy = Object.freeze({
   kind: "building-queue",
   queueDiscipline: "fifo",
-  maximumQueueLength: 3,
+  maximumQueueLength: 5,
   reservesPopulation: true,
   blockedExit: "wait",
 });

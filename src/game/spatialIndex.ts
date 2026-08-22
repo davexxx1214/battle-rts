@@ -1,17 +1,17 @@
-import type { BattleUnit } from "./battle";
+import type { CombatBattleUnit } from "./battle";
 
 interface EnemyQueryOptions {
-  readonly include?: (unit: BattleUnit) => boolean;
+  readonly include?: (unit: CombatBattleUnit) => boolean;
 }
 
 const DEFAULT_CELL_SIZE = 4;
 
 export class BattleSpatialIndex {
   readonly #cellSize: number;
-  readonly #livingByCell = new Map<string, BattleUnit[]>();
-  readonly #unitsById = new Map<string, BattleUnit>();
+  readonly #livingByCell = new Map<string, CombatBattleUnit[]>();
+  readonly #unitsById = new Map<string, CombatBattleUnit>();
 
-  constructor(units: readonly BattleUnit[], cellSize = DEFAULT_CELL_SIZE) {
+  constructor(units: readonly CombatBattleUnit[], cellSize = DEFAULT_CELL_SIZE) {
     this.#cellSize = cellSize;
     for (const unit of units) {
       this.#unitsById.set(unit.id, unit);
@@ -26,20 +26,20 @@ export class BattleSpatialIndex {
     }
   }
 
-  unitById(id: string): BattleUnit | undefined {
+  unitById(id: string): CombatBattleUnit | undefined {
     return this.#unitsById.get(id);
   }
 
   enemiesWithin(
-    unit: BattleUnit,
+    unit: CombatBattleUnit,
     radius: number,
     options: EnemyQueryOptions = {},
-  ): BattleUnit[] {
+  ): CombatBattleUnit[] {
     const minimumX = Math.floor((unit.position.x - radius) / this.#cellSize);
     const maximumX = Math.floor((unit.position.x + radius) / this.#cellSize);
     const minimumZ = Math.floor((unit.position.z - radius) / this.#cellSize);
     const maximumZ = Math.floor((unit.position.z + radius) / this.#cellSize);
-    const matches: Array<{ unit: BattleUnit; distance: number }> = [];
+    const matches: Array<{ unit: CombatBattleUnit; distance: number }> = [];
     for (let cellX = minimumX; cellX <= maximumX; cellX += 1) {
       for (let cellZ = minimumZ; cellZ <= maximumZ; cellZ += 1) {
         for (const candidate of this.#livingByCell.get(`${cellX}:${cellZ}`) ?? []) {

@@ -300,6 +300,51 @@ export const UNDEAD_UNIT_SPECS = {
   "bone-dragon": UNIT_SPECS["bone-dragon"],
 } as const satisfies Readonly<Partial<Record<UnitRole, UnitSpec>>>;
 
+export const NEUTRAL_MONSTER_SPECS = {
+  "neutral-skeleton": {
+    attackMode: "melee",
+    movementMode: "ground",
+    maxHealth: 120,
+    damage: 5.5,
+    damageReduction: 0,
+    attackRange: 1.28,
+    attackCooldown: 1.1,
+    moveSpeed: 2.35,
+    aggroRange: 6,
+    splashRadius: 0,
+    projectileSpeed: 0,
+  },
+  "neutral-sharky": {
+    attackMode: "melee",
+    movementMode: "ground",
+    maxHealth: 260,
+    damage: 9,
+    damageReduction: 0.1,
+    attackRange: 1.35,
+    attackCooldown: 1.35,
+    moveSpeed: 2.25,
+    aggroRange: 6.5,
+    splashRadius: 0,
+    projectileSpeed: 0,
+  },
+  "neutral-mako": {
+    attackMode: "melee",
+    movementMode: "ground",
+    maxHealth: 650,
+    damage: 17,
+    damageReduction: 0.18,
+    attackRange: 1.5,
+    attackCooldown: 1.6,
+    moveSpeed: 1.9,
+    aggroRange: 7,
+    splashRadius: 0,
+    projectileSpeed: 0,
+  },
+} as const satisfies Readonly<Record<
+  Exclude<UnitCombatProfile, "human" | "undead">,
+  UnitSpec
+>>;
+
 export const TROOP_ROLE_BY_DEPLOYABLE = {
   spearman: "spearman",
   swordsman: "knight",
@@ -464,6 +509,11 @@ export function unitSpecFor(
 ): UnitSpec {
   if (combatProfile === "undead" && role in UNDEAD_UNIT_SPECS) {
     return UNDEAD_UNIT_SPECS[role as keyof typeof UNDEAD_UNIT_SPECS];
+  }
+  if (combatProfile in NEUTRAL_MONSTER_SPECS) {
+    return NEUTRAL_MONSTER_SPECS[
+      combatProfile as keyof typeof NEUTRAL_MONSTER_SPECS
+    ];
   }
   return UNIT_SPECS[role];
 }

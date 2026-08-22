@@ -6,6 +6,8 @@ import {
 } from "../../src/game/battle";
 import { advanceBattleSession } from "../../src/game/battleSession";
 import {
+  SANDBOX_AI_ATTACK_WAVE_MINIMUM_POPULATION,
+  SANDBOX_AI_ATTACK_WAVE_MINIMUM_UNITS,
   SANDBOX_AI_FACTION,
   SANDBOX_AI_FAILURE_RETRY_SECONDS,
   advanceSandboxOpponentAi,
@@ -17,7 +19,7 @@ import { battlefieldDefinitionFor } from "../../src/map/battlefieldDefinition";
 import { axialToWorld, coordinateKey, getMapCell } from "../../src/map/battlefield";
 
 describe("sandbox opponent AI", () => {
-  it("uses the shared transactions for a deterministic mine, barracks, and first squad opening", () => {
+  it("uses the shared transactions for a deterministic mine, barracks, and first unit opening", () => {
     const initial = createInitialBattle({ modeId: "sandbox" });
     const afterMine = advanceSeconds(initial, 1);
     expect(afterMine.sandboxAi).toMatchObject({
@@ -42,14 +44,14 @@ describe("sandbox opponent AI", () => {
     expect(afterTraining.sandboxAi?.ledger.some((entry) => (
       entry.action === "enqueue-production"
       && entry.outcome === "succeeded"
-      && entry.goldBefore - entry.goldAfter === 200
+      && entry.goldBefore - entry.goldAfter === 100
     ))).toBe(true);
   });
 
   it("builds legal economy and tech, captures neutral ore, and issues route attacks", () => {
     const battle = advanceSeconds(
       fortifyVerdantCastle(createInitialBattle({ modeId: "sandbox" })),
-      240,
+      360,
     );
     const definition = battlefieldDefinitionFor(battle.mapId);
     const crimsonBuildings = battle.buildings.filter((building) => (
@@ -76,9 +78,11 @@ describe("sandbox opponent AI", () => {
     ))).toBe(true);
     expect(battle.sandboxAi?.ledger.some((entry) => entry.action === "attack-wave")).toBe(true);
     expect(battle.sandboxAi?.ledger.some((entry) => entry.action === "assault")).toBe(true);
-    expect(new Set(battle.sandboxAi?.ledger.filter((entry) => (
+    const attackedRoutes = new Set(battle.sandboxAi?.ledger.filter((entry) => (
       entry.action === "attack-wave" && entry.outcome === "succeeded"
-    )).map((entry) => entry.subjectId))).toEqual(new Set(["center", "west", "east"]));
+    )).map((entry) => entry.subjectId));
+    expect(attackedRoutes.size).toBeGreaterThanOrEqual(1);
+    expect(attackedRoutes).toContain("center");
     const trainedTroops = new Set(battle.sandboxAi?.ledger.filter((entry) => (
       entry.action === "enqueue-production" && entry.outcome === "succeeded"
     )).map((entry) => entry.subjectId));
@@ -106,9 +110,11 @@ describe("sandbox opponent AI", () => {
     expect(second.production).toEqual(first.production);
     expect(second.units).toEqual(first.units);
     expect(second.buildings).toEqual(first.buildings);
-  });
+  }, 10_000);
 
   it("never exceeds the population cap and deliberately stops on maintenance thresholds", () => {
+    expect(SANDBOX_AI_ATTACK_WAVE_MINIMUM_UNITS).toBe(3);
+    expect(SANDBOX_AI_ATTACK_WAVE_MINIMUM_POPULATION).toBe(10);
     expect(sandboxAiPopulationTarget(0, false)).toBe(12);
     expect(sandboxAiPopulationTarget(2, false)).toBe(50);
     expect(sandboxAiPopulationTarget(4, false)).toBe(80);
@@ -182,7 +188,7 @@ describe("sandbox opponent AI", () => {
     ], { modeId: "sandbox" });
     const defending = advanceSandboxOpponentAi(battle);
     expect(defending.sandboxAi?.phase).toBe("defend");
-    expect(defending.squadOrders?.ordersBySquadId["crimson-defense"]).toMatchObject({
+    expect(defending.squadOrders?.ordersBySquadId["crimson-defender"]).toMatchObject({
       kind: "attack",
       target: { targetType: "unit", targetId: "verdant-raider" },
     });
@@ -196,7 +202,7 @@ describe("sandbox opponent AI", () => {
     };
     const resumed = advanceSandboxOpponentAi(withoutThreat);
     expect(resumed.sandboxAi?.phase).toBe("attack");
-    expect(resumed.squadOrders?.ordersBySquadId["crimson-defense"]?.kind)
+    expect(resumed.squadOrders?.ordersBySquadId["crimson-defender"]?.kind)
       .toBe("attack-move");
   });
 

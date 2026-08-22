@@ -47,7 +47,7 @@ describe("sandbox selection state", () => {
     });
   });
 
-  it("keeps construction, armed commands, box selection, and camera drag exclusive", () => {
+  it("keeps construction, box selection, and camera drag exclusive", () => {
     let mode = transitionSandboxInteraction("neutral", {
       type: "select-building",
       selected: true,
@@ -55,11 +55,6 @@ describe("sandbox selection state", () => {
     expect(mode).toBe("placing-building");
     expect(transitionSandboxInteraction(mode, { type: "begin-box" }))
       .toBe("placing-building");
-    mode = transitionSandboxInteraction(mode, {
-      type: "arm-order",
-      order: "attack-move",
-    });
-    expect(mode).toBe("attack-move-armed");
     mode = transitionSandboxInteraction(mode, { type: "begin-camera" });
     expect(mode).toBe("camera-dragging");
     expect(transitionSandboxInteraction(mode, { type: "cancel" })).toBe("neutral");

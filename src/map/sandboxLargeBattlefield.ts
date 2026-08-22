@@ -23,6 +23,7 @@ export type BattlefieldMineRegion =
   | "far-neutral"
   | "crimson-safe";
 export type BattlefieldBuildWing = "west" | "east";
+export type NeutralMonsterKind = "skeleton" | "sharky" | "mako";
 
 export interface BattlefieldRouteDefinition {
   readonly id: BattlefieldRouteId;
@@ -44,6 +45,26 @@ export interface BattlefieldMineDistrictDefinition {
   readonly pitId: string;
   readonly wing: BattlefieldBuildWing;
   readonly cells: readonly HexCoordinate[];
+}
+
+export interface BattlefieldNeutralGuardDefinition {
+  readonly id: string;
+  readonly kind: NeutralMonsterKind;
+  readonly coordinate: HexCoordinate;
+}
+
+export interface BattlefieldNeutralEncounterDefinition {
+  readonly id: string;
+  readonly anchor: HexCoordinate;
+  readonly guardRadiusCells: number;
+  readonly guards: readonly BattlefieldNeutralGuardDefinition[];
+}
+
+export interface BattlefieldHealingZoneDefinition {
+  readonly id: string;
+  readonly coordinate: HexCoordinate;
+  readonly radiusCells: number;
+  readonly healingPerSecond: number;
 }
 
 export interface BattlefieldBuildAnchor {
@@ -170,6 +191,38 @@ export const SANDBOX_LARGE_MINE_PITS: readonly BattlefieldMinePitDefinition[] =
       "crimson",
     ),
   ]);
+
+export const SANDBOX_LARGE_OASIS: BattlefieldHealingZoneDefinition = Object.freeze({
+  id: "central-oasis",
+  coordinate: freezeCoordinate({ q: 0, r: 0 }),
+  radiusCells: 1,
+  healingPerSecond: 4,
+});
+
+export const SANDBOX_LARGE_NEUTRAL_ENCOUNTERS:
+readonly BattlefieldNeutralEncounterDefinition[] = Object.freeze([
+  neutralEncounter("mine-N-NW", { q: -11, r: 4 }, 3, [
+    neutralGuard("mine-N-NW-skeleton-a", "skeleton", { q: -10, r: 4 }),
+    neutralGuard("mine-N-NW-skeleton-b", "skeleton", { q: -11, r: 5 }),
+  ]),
+  neutralEncounter("mine-N-NE", { q: 7, r: 4 }, 3, [
+    neutralGuard("mine-N-NE-skeleton-a", "skeleton", { q: 6, r: 4 }),
+    neutralGuard("mine-N-NE-skeleton-b", "skeleton", { q: 6, r: 5 }),
+  ]),
+  neutralEncounter("mine-N-SW", { q: -7, r: -4 }, 3, [
+    neutralGuard("mine-N-SW-skeleton", "skeleton", { q: -6, r: -4 }),
+    neutralGuard("mine-N-SW-sharky", "sharky", { q: -6, r: -5 }),
+  ]),
+  neutralEncounter("mine-N-SE", { q: 11, r: -4 }, 3, [
+    neutralGuard("mine-N-SE-skeleton", "skeleton", { q: 10, r: -4 }),
+    neutralGuard("mine-N-SE-sharky", "sharky", { q: 11, r: -5 }),
+  ]),
+  neutralEncounter("central-oasis", SANDBOX_LARGE_OASIS.coordinate, 3, [
+    neutralGuard("oasis-sharky-west", "sharky", { q: -1, r: 0 }),
+    neutralGuard("oasis-mako", "mako", { q: 1, r: 0 }),
+    neutralGuard("oasis-sharky-south", "sharky", { q: 0, r: 1 }),
+  ]),
+]);
 
 const SANDBOX_LARGE_COORDINATES = generateSandboxLargeCoordinates();
 const SANDBOX_LARGE_ROAD_RESERVE_KEYS = new Set(
@@ -586,6 +639,28 @@ function roundAxial(q: number, r: number): HexCoordinate {
   }
   void roundedS;
   return { q: roundedQ, r: roundedR };
+}
+
+function neutralGuard(
+  id: string,
+  kind: NeutralMonsterKind,
+  coordinate: HexCoordinate,
+): BattlefieldNeutralGuardDefinition {
+  return Object.freeze({ id, kind, coordinate: freezeCoordinate(coordinate) });
+}
+
+function neutralEncounter(
+  id: string,
+  anchor: HexCoordinate,
+  guardRadiusCells: number,
+  guards: readonly BattlefieldNeutralGuardDefinition[],
+): BattlefieldNeutralEncounterDefinition {
+  return Object.freeze({
+    id,
+    anchor: freezeCoordinate(anchor),
+    guardRadiusCells,
+    guards: Object.freeze([...guards]),
+  });
 }
 
 function minePit(

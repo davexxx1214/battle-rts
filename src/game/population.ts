@@ -17,7 +17,8 @@ export interface FactionPopulationSnapshot {
 }
 
 export function sandboxPopulationCostForUnitRole(role: UnitRole): number {
-  return role === "catapult" || role === "bone-dragon" ? 3 : 1;
+  if (role === "catapult" || role === "bone-dragon") return 4;
+  return role === "mage" ? 2 : 1;
 }
 
 export function sandboxUsedPopulation(

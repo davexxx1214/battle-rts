@@ -1,4 +1,4 @@
-import type { Faction, WorldPoint } from "../game/types";
+import type { CombatFaction, Faction, WorldPoint } from "../game/types";
 
 export interface SceneScreenRect {
   readonly left: number;
@@ -12,7 +12,7 @@ export type SceneBattlefieldPick =
       readonly targetType: "unit";
       readonly id: string;
       readonly squadId: string;
-      readonly faction: Faction;
+      readonly faction: CombatFaction;
       readonly position: WorldPoint;
     }
   | {

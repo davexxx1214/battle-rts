@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import type { BattleBuildingKind } from "../../src/game/buildings";
-import { BATTLE_BUILDING_PRELOAD_KINDS } from "../../src/scene/SceneAssetPreloader";
+import {
+  BATTLE_BUILDING_PRELOAD_KINDS,
+  SCENE_SINGLE_GLTF_URLS,
+} from "../../src/scene/SceneAssetPreloader";
 import {
   BATTLE_BUILDING_DETAIL_URLS,
   BATTLE_BUILDING_ASSET_KEYS,
   FACTION_SCENE_COLORS,
+  MINING_COIN_EFFECT_ASSET,
+  NEUTRAL_MONSTER_SCENE_ASSETS,
+  OASIS_SCENE_ASSETS,
+  SANDBOX_WILDLIFE_SCENE_ASSETS,
   SCENERY_SCENE_ASSETS,
   SCENE_MODEL_URLS,
   STRUCTURE_SCENE_ASSETS,
@@ -25,6 +32,55 @@ import {
 } from "../../src/scene/assets";
 
 describe("scene asset presentation", () => {
+  it("preloads the Quaternius coin used by mine income effects", () => {
+    expect(MINING_COIN_EFFECT_ASSET).toEqual({
+      url: "/assets/quaternius/platformer-game-kit/coin.gltf",
+      scale: 0.42,
+    });
+    expect(SCENE_SINGLE_GLTF_URLS).toContain(MINING_COIN_EFFECT_ASSET.url);
+  });
+
+  it("preloads distinct Pirate Kit monsters and the central oasis dressing", () => {
+    expect(Object.keys(NEUTRAL_MONSTER_SCENE_ASSETS)).toEqual([
+      "skeleton",
+      "sharky",
+      "mako",
+    ]);
+    for (const asset of Object.values(NEUTRAL_MONSTER_SCENE_ASSETS)) {
+      expect(asset.url).toContain("/assets/quaternius/pirate-kit/");
+      expect(asset.url).toMatch(/\.gltf$/);
+      expect(asset.targetHeight).toBeGreaterThan(1);
+      expect(SCENE_SINGLE_GLTF_URLS).toContain(asset.url);
+    }
+    expect(OASIS_SCENE_ASSETS.palms).toHaveLength(3);
+    expect(SCENE_SINGLE_GLTF_URLS).toContain(OASIS_SCENE_ASSETS.water.url);
+    for (const palm of OASIS_SCENE_ASSETS.palms) {
+      expect(SCENE_SINGLE_GLTF_URLS).toContain(palm.url);
+    }
+  });
+
+  it("preloads the stage 10 river kit and animated wildlife subset", () => {
+    for (const kind of [
+      "shallow-water",
+      "river-bridge",
+      "water-lily-a",
+      "water-lily-b",
+      "water-plant-a",
+      "water-plant-c",
+    ] as const) {
+      const asset = SCENERY_SCENE_ASSETS[kind];
+      expect(asset.url).toContain("/assets/kaykit/medieval-hex/");
+      expect(SCENE_SINGLE_GLTF_URLS).toContain(asset.url);
+    }
+    expect(SCENERY_SCENE_ASSETS["shallow-water"].grounding).toBe("top");
+    expect(Object.keys(SANDBOX_WILDLIFE_SCENE_ASSETS)).toEqual(["cow", "deer", "fox"]);
+    for (const asset of Object.values(SANDBOX_WILDLIFE_SCENE_ASSETS)) {
+      expect(asset.url).toContain("/assets/quaternius/animated-animals/");
+      expect(asset.targetHeight).toBeGreaterThan(0.5);
+      expect(SCENE_SINGLE_GLTF_URLS).toContain(asset.url);
+    }
+  });
+
   it("maps and preloads every battle building for both presentation races", () => {
     const kinds = Object.keys(BATTLE_BUILDING_ASSET_KEYS) as BattleBuildingKind[];
 
@@ -252,13 +308,19 @@ describe("scene asset presentation", () => {
       "mine-mountain-c",
       "mine-rock-c",
       "mine-rock-e",
+      "river-bridge",
       "rock-hills",
+      "shallow-water",
       "stone",
       "tent",
       "tree",
       "village-farm",
       "village-house",
       "village-market",
+      "water-lily-a",
+      "water-lily-b",
+      "water-plant-a",
+      "water-plant-c",
       "wheelbarrow",
     ]);
     for (const [kind, asset] of Object.entries(SCENERY_SCENE_ASSETS)) {

@@ -71,7 +71,12 @@ import {
   type AiDifficulty,
   type DeployableKind,
 } from "./game/rules";
-import { createBenchmarkBattle, type BenchmarkSnapshot } from "./game/benchmark";
+import {
+  benchmarkScenarioFromSearch,
+  createBenchmarkBattle,
+  type BenchmarkScenario,
+  type BenchmarkSnapshot,
+} from "./game/benchmark";
 import {
   previewSandboxBuildingConstruction,
   startSandboxBuildingConstruction,
@@ -84,11 +89,7 @@ import {
 } from "./game/sandboxCatalog";
 import { sandboxBuildingMissingPrerequisites } from "./game/sandboxConstruction";
 import { enqueueSandboxBattleProduction } from "./game/sandboxProductionTransactions";
-import {
-  issueSandboxSquadOrder,
-  type SandboxSquadOrderKind,
-  type SandboxSquadOrderTarget,
-} from "./game/sandboxOrders";
+import { issueSandboxSquadOrder } from "./game/sandboxOrders";
 import { battlefieldDefinitionFor } from "./map/battlefieldDefinition";
 import {
   BattlefieldCanvas,
@@ -114,6 +115,7 @@ import { deployableLabelForRace } from "./ui/deployablePresentation";
 import {
   fieldPointerCoordinates,
   fieldPointerDistance,
+  fieldPrimaryDragBehavior,
   pinchZoomFactor,
   pointerDragExceedsThreshold,
   shouldStartFieldPointerInteraction,
@@ -156,17 +158,19 @@ interface ActiveDeploymentDrag {
   readonly kind: DeployableKind;
 }
 
-interface SandboxSelectionDrag {
+interface MouseFieldDragState {
   readonly pointerId: number;
   readonly startField: FieldPoint;
   readonly additive: boolean;
+  readonly behavior: "camera" | "selection-box";
+  previousField: FieldPoint;
   currentField: FieldPoint;
   dragging: boolean;
 }
 
 interface SandboxCommandMarkerState {
   readonly sequence: number;
-  readonly kind: SandboxSquadOrderKind;
+  readonly kind: "attack-move";
   readonly position: WorldPoint;
 }
 
@@ -179,9 +183,10 @@ const FEEDBACK_LIFETIME_MS = {
 } as const satisfies Readonly<Record<DeploymentFeedback["tone"], number>>;
 
 export function App() {
-  const benchmarkMode = useMemo(() => (
-    new URLSearchParams(window.location.search).get("benchmark") === "80"
+  const benchmarkScenario = useMemo(() => (
+    benchmarkScenarioFromSearch(window.location.search)
   ), []);
+  const benchmarkMode = benchmarkScenario !== null;
   const frostPreview = useMemo(() => (
     isFrostBreathPreviewRequest(window.location.search)
   ), []);
@@ -201,7 +206,7 @@ export function App() {
   const [mobileMatchSetupOpen, setMobileMatchSetupOpen] = useState(false);
   const [app, setApp] = useState<AppState>(() => (
     createAppState(
-      benchmarkMode,
+      benchmarkScenario,
       initialMode,
       null,
       frostPreview,
@@ -259,14 +264,13 @@ export function App() {
   const suppressTouchDeploymentRef = useRef(false);
   const deploymentDragRef = useRef<ActiveDeploymentDrag | null>(null);
   const deploymentDragReleasePointerRef = useRef<number | null>(null);
-  const sandboxSelectionDragRef = useRef<SandboxSelectionDrag | null>(null);
+  const mouseFieldDragRef = useRef<MouseFieldDragState | null>(null);
   const nextSandboxCommandMarkerSequence = useRef(1);
   const [deploymentDragActive, setDeploymentDragActive] = useState(false);
   const [deploymentDragOverBattlefield, setDeploymentDragOverBattlefield] = useState(false);
   const cameraViewStore = useMemo(createCameraViewStore, []);
   const clock = getBattleMatchClock(battle);
   const sandboxMode = battle.modeId === "sandbox";
-  const armedSandboxOrder = sandboxOrderForInteractionMode(sandboxInteractionMode);
   const deploymentEnabled = !sandboxMode
     && battlePhase === "engaged"
     && battle.winner === null;
@@ -362,20 +366,27 @@ export function App() {
 
   useEffect(() => {
     if (sandboxMode && battlePhase === "engaged" && battle.winner === null) return;
-    sandboxSelectionDragRef.current = null;
+    deploymentDragRef.current = null;
+    mouseFieldDragRef.current = null;
+    setDeploymentDragActive(false);
+    setDeploymentDragOverBattlefield(false);
     setSelectedSandboxBuilding(null);
     setCursorWorld(null);
     setSandboxSelectionRect(null);
     setSandboxInteractionMode("neutral");
     if (!sandboxMode || battle.winner !== null) {
       setSandboxSelection(createSandboxSelectionState());
+      setSandboxCommandMarker(null);
+      setApp((current) => current.selectedDeployable === null
+        ? current
+        : { ...current, selectedDeployable: null });
     }
   }, [battle.winner, battlePhase, sandboxMode]);
 
   useEffect(() => {
     const cancel = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      sandboxSelectionDragRef.current = null;
+      mouseFieldDragRef.current = null;
       setCursorWorld(null);
       setSelectedSandboxBuilding(null);
       setSandboxSelectionRect(null);
@@ -386,33 +397,33 @@ export function App() {
             selectedDeployable: null,
             feedback: { tone: "info", message: "已取消部署" },
           }
-        : selectedSandboxBuilding || armedSandboxOrder
+        : selectedSandboxBuilding
           ? {
               ...current,
               feedback: {
                 tone: "info",
-                message: selectedSandboxBuilding ? "已取消建造" : "已取消命令",
+                message: "已取消建造",
               },
             }
           : current);
     };
     window.addEventListener("keydown", cancel);
     return () => window.removeEventListener("keydown", cancel);
-  }, [armedSandboxOrder, selectedSandboxBuilding]);
+  }, [selectedSandboxBuilding]);
 
   const resetBattle = useCallback(() => {
     deploymentDragRef.current = null;
     setDeploymentDragActive(false);
     setDeploymentDragOverBattlefield(false);
     setSelectedSandboxBuilding(null);
-    sandboxSelectionDragRef.current = null;
+    mouseFieldDragRef.current = null;
     setSandboxSelection(createSandboxSelectionState());
     setSandboxSelectionRect(null);
     setSandboxInteractionMode("neutral");
     setSandboxCommandMarker(null);
     setMobileMatchSetupOpen(false);
     setApp(createAppState(
-      benchmarkMode,
+      benchmarkScenario,
       mode,
       activeCampaignMission,
       frostPreview,
@@ -425,7 +436,7 @@ export function App() {
     setBattleInstanceRevision((current) => current + 1);
   }, [
     activeCampaignMission,
-    benchmarkMode,
+    benchmarkScenario,
     cameraViewStore,
     factionRaces,
     fireballPreview,
@@ -439,7 +450,7 @@ export function App() {
     setDeploymentDragActive(false);
     setDeploymentDragOverBattlefield(false);
     setSelectedSandboxBuilding(null);
-    sandboxSelectionDragRef.current = null;
+    mouseFieldDragRef.current = null;
     setSandboxSelection(createSandboxSelectionState());
     setSandboxSelectionRect(null);
     setSandboxInteractionMode("neutral");
@@ -456,7 +467,7 @@ export function App() {
     setMobileMatchSetupOpen(false);
     setFactionRaces(nextFactionRaces);
     setActiveCampaignMissionId(null);
-    setApp(createAppState(benchmarkMode, nextMode, null, false, nextFactionRaces));
+    setApp(createAppState(benchmarkScenario, nextMode, null, false, nextFactionRaces));
     if (reloadSceneAssets) setAssetsReady(false);
     setAssetLoadProgress({ loaded: 0, total: 0 });
     setAssetLoadError(null);
@@ -464,14 +475,14 @@ export function App() {
     setCameraResetToken((current) => current + 1);
     cameraViewStore.publish(DEFAULT_CAMERA_VIEW);
     setBattleInstanceRevision((current) => current + 1);
-  }, [activeCampaignMission, benchmarkMode, cameraViewStore, mode, selectedCampaignId]);
+  }, [activeCampaignMission, benchmarkScenario, cameraViewStore, mode, selectedCampaignId]);
 
   const changeFactionRace = useCallback((faction: Faction, race: BattleRace) => {
     if (battlePhase !== "briefing" || factionRaces[faction] === race) return;
     const nextFactionRaces = createFactionRaces({ ...factionRaces, [faction]: race });
     setFactionRaces(nextFactionRaces);
     setApp(createAppState(
-      benchmarkMode,
+      benchmarkScenario,
       mode,
       activeCampaignMission,
       false,
@@ -484,7 +495,7 @@ export function App() {
   }, [
     activeCampaignMission,
     battlePhase,
-    benchmarkMode,
+    benchmarkScenario,
     cameraViewStore,
     factionRaces,
     mode,
@@ -495,7 +506,7 @@ export function App() {
     setSelectedCampaignId(mission.campaignId);
     setFactionRaces(nextFactionRaces);
     setActiveCampaignMissionId(mission.id);
-    setApp(createAppState(false, "campaign", mission, false, nextFactionRaces));
+    setApp(createAppState(null, "campaign", mission, false, nextFactionRaces));
     setAssetsReady(false);
     setAssetLoadProgress({ loaded: 0, total: 0 });
     setAssetLoadError(null);
@@ -518,7 +529,7 @@ export function App() {
     setMobileMatchSetupOpen(false);
     setFactionRaces(nextFactionRaces);
     setActiveCampaignMissionId(null);
-    setApp(createAppState(false, "campaign", null, false, nextFactionRaces));
+    setApp(createAppState(null, "campaign", null, false, nextFactionRaces));
     setAssetsReady(false);
     setAssetLoadProgress({ loaded: 0, total: 0 });
     setAssetLoadError(null);
@@ -661,21 +672,15 @@ export function App() {
     });
   }, [playUiCue]);
 
-  const issueSelectedSandboxOrder = useCallback((
-    kind: SandboxSquadOrderKind,
-    options: {
-      readonly destination?: WorldPoint;
-      readonly target?: SandboxSquadOrderTarget;
-    } = {},
-  ) => {
+  const issueSelectedSandboxAdvance = useCallback((destination: WorldPoint) => {
     const selectedSquadIds = sandboxSelection.selectedSquadIds;
     setApp((current) => {
       if (current.session.phase !== "engaged") return current;
       const result = issueSandboxSquadOrder(current.session.battle, {
         faction: "verdant",
         squadIds: selectedSquadIds,
-        kind,
-        ...options,
+        kind: "attack-move",
+        destination,
       });
       if (!result.ok) {
         return {
@@ -689,101 +694,24 @@ export function App() {
       if (result.markerPosition) {
         const marker = {
           sequence: nextSandboxCommandMarkerSequence.current,
-          kind,
+          kind: "attack-move",
           position: result.markerPosition,
         } as const;
         nextSandboxCommandMarkerSequence.current += 1;
         queueMicrotask(() => setSandboxCommandMarker(marker));
       }
+      queueMicrotask(() => playUiCue("command-confirm"));
       queueMicrotask(() => setSandboxInteractionMode("neutral"));
       return {
         ...current,
         session: { ...current.session, battle: result.battle },
         feedback: {
           tone: "success",
-          message: sandboxOrderSuccessLabel(kind, result.orders.length),
+          message: `${result.orders.length} 个单位开始索敌前进`,
         },
       };
     });
-  }, [sandboxSelection.selectedSquadIds]);
-
-  const armSandboxOrder = useCallback((
-    kind: "move" | "attack" | "attack-move",
-  ) => {
-    if (
-      !sandboxMode
-      || battlePhase !== "engaged"
-      || battle.winner !== null
-      || sandboxSelection.selectedSquadIds.length === 0
-    ) return;
-    setSelectedSandboxBuilding(null);
-    setCursorWorld(null);
-    setSandboxSelectionRect(null);
-    setSandboxInteractionMode((current) => transitionSandboxInteraction(current, {
-      type: "arm-order",
-      order: kind,
-    }));
-    setApp((current) => ({
-      ...current,
-      selectedDeployable: null,
-      feedback: {
-        tone: "info",
-        message: kind === "attack"
-          ? "点击敌军或敌方建筑下达攻击命令"
-          : "点击地图选择命令目标",
-      },
-    }));
-  }, [
-    battle.winner,
-    battlePhase,
-    sandboxMode,
-    sandboxSelection.selectedSquadIds.length,
-  ]);
-
-  const issueImmediateSandboxOrder = useCallback((kind: "stop" | "hold") => {
-    issueSelectedSandboxOrder(kind);
-  }, [issueSelectedSandboxOrder]);
-
-  useEffect(() => {
-    const handleSandboxShortcut = (event: KeyboardEvent) => {
-      if (
-        !sandboxMode
-        || battlePhase !== "engaged"
-        || battle.winner !== null
-        || event.ctrlKey
-        || event.metaKey
-        || event.altKey
-        || (event.target as Element | null)?.closest?.("input, textarea, select")
-      ) return;
-      const key = event.key.toLowerCase();
-      if (key === "a") armSandboxOrder("attack-move");
-      else if (key === "m") armSandboxOrder("move");
-      else if (key === "r") armSandboxOrder("attack");
-      else if (key === "s") issueImmediateSandboxOrder("stop");
-      else if (key === "h") issueImmediateSandboxOrder("hold");
-      else return;
-      event.preventDefault();
-    };
-    const clearTransientInteraction = () => {
-      sandboxSelectionDragRef.current = null;
-      setSelectedSandboxBuilding(null);
-      setSandboxSelectionRect(null);
-      setSandboxInteractionMode("neutral");
-      setCursorWorld(null);
-    };
-    window.addEventListener("keydown", handleSandboxShortcut);
-    window.addEventListener("blur", clearTransientInteraction);
-    return () => {
-      window.removeEventListener("keydown", handleSandboxShortcut);
-      window.removeEventListener("blur", clearTransientInteraction);
-    };
-  }, [
-    armSandboxOrder,
-    battle.winner,
-    battlePhase,
-    issueImmediateSandboxOrder,
-    sandboxMode,
-  ]);
+  }, [playUiCue, sandboxSelection.selectedSquadIds]);
 
   const resolveDeploymentDragTarget = useCallback((client: FieldPoint) => {
     const battlefield = battlefieldRef.current;
@@ -973,22 +901,22 @@ export function App() {
       event.button,
       event.target as Element | null,
     );
-    if (
-      event.pointerType !== "touch"
-      && sandboxMode
-      && battlePhase === "engaged"
-      && battle.winner === null
-      && selectedSandboxBuilding === null
-      && sandboxInteractionMode === "neutral"
-      && fieldInteractionAllowed
-    ) {
+    if (event.pointerType !== "touch" && fieldInteractionAllowed) {
       const point = localPointer(event);
       event.currentTarget.setPointerCapture(event.pointerId);
-      sandboxSelectionDragRef.current = {
+      const boxSelectionAllowed = sandboxMode
+        && battlePhase === "engaged"
+        && battle.winner === null
+        && selectedSandboxBuilding === null
+        && app.selectedDeployable === null
+        && sandboxInteractionMode === "neutral";
+      mouseFieldDragRef.current = {
         pointerId: event.pointerId,
         startField: point,
+        previousField: point,
         currentField: point,
         additive: event.shiftKey,
+        behavior: fieldPrimaryDragBehavior(event.shiftKey, boxSelectionAllowed),
         dragging: false,
       };
       return;
@@ -1017,6 +945,7 @@ export function App() {
     setCursorWorld(null);
     event.preventDefault();
   }, [
+    app.selectedDeployable,
     battle.winner,
     battlePhase,
     sandboxInteractionMode,
@@ -1026,24 +955,37 @@ export function App() {
 
   const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (deploymentDragRef.current?.pointerId === event.pointerId) return;
-    const selectionDrag = sandboxSelectionDragRef.current;
-    if (selectionDrag?.pointerId === event.pointerId) {
+    const mouseDrag = mouseFieldDragRef.current;
+    if (mouseDrag?.pointerId === event.pointerId) {
       const currentField = localPointer(event);
-      selectionDrag.currentField = currentField;
-      selectionDrag.dragging = selectionDrag.dragging || pointerDragExceedsThreshold(
-        selectionDrag.startField,
+      mouseDrag.currentField = currentField;
+      mouseDrag.dragging = mouseDrag.dragging || pointerDragExceedsThreshold(
+        mouseDrag.startField,
         currentField,
         TOUCH_DRAG_THRESHOLD_PX,
       );
-      if (selectionDrag.dragging) {
-        setSandboxInteractionMode((current) => transitionSandboxInteraction(
-          current,
-          { type: "begin-box" },
-        ));
-        setSandboxSelectionRect(sandboxSelectionBox(
-          selectionDrag.startField,
-          currentField,
-        ));
+      if (mouseDrag.dragging) {
+        if (mouseDrag.behavior === "selection-box") {
+          setSandboxInteractionMode((current) => transitionSandboxInteraction(
+            current,
+            { type: "begin-box" },
+          ));
+          setSandboxSelectionRect(sandboxSelectionBox(
+            mouseDrag.startField,
+            currentField,
+          ));
+        } else {
+          bridgeRef.current.panByScreenDelta(
+            currentField.x - mouseDrag.previousField.x,
+            currentField.y - mouseDrag.previousField.y,
+          );
+          setSandboxInteractionMode((current) => transitionSandboxInteraction(
+            current,
+            { type: "begin-camera" },
+          ));
+          setCursorWorld(null);
+        }
+        mouseDrag.previousField = currentField;
         event.preventDefault();
       }
       return;
@@ -1114,36 +1056,26 @@ export function App() {
       deploymentDragRef.current?.pointerId === event.pointerId
       || deploymentDragReleasePointerRef.current === event.pointerId
     ) return;
-    const selectionDrag = sandboxSelectionDragRef.current;
-    if (selectionDrag?.pointerId === event.pointerId) {
-      sandboxSelectionDragRef.current = null;
+    const mouseDrag = mouseFieldDragRef.current;
+    if (mouseDrag?.pointerId === event.pointerId) {
+      mouseFieldDragRef.current = null;
       setSandboxSelectionRect(null);
       setSandboxInteractionMode("neutral");
-      if (selectionDrag.dragging) {
-        const squadIds = bridgeRef.current.squadIdsInScreenRect(
-          sandboxSelectionBox(selectionDrag.startField, selectionDrag.currentField),
-          "verdant",
-        );
-        setSandboxSelection((current) => selectSandboxSquadsInBox(
-          current,
-          squadIds,
-          selectionDrag.additive,
-        ));
-      } else {
-        const pick = bridgeRef.current.pickBattlefieldEntity(
-          selectionDrag.currentField.x,
-          selectionDrag.currentField.y,
-        );
-        setSandboxSelection((current) => selectSandboxSquad(
-          current,
-          pick?.targetType === "unit" && pick.faction === "verdant"
-            ? pick.squadId
-            : null,
-          selectionDrag.additive,
-        ));
+      if (mouseDrag.dragging) {
+        if (mouseDrag.behavior === "selection-box") {
+          const squadIds = bridgeRef.current.squadIdsInScreenRect(
+            sandboxSelectionBox(mouseDrag.startField, mouseDrag.currentField),
+            "verdant",
+          );
+          setSandboxSelection((current) => selectSandboxSquadsInBox(
+            current,
+            squadIds,
+            mouseDrag.additive,
+          ));
+        }
+        event.preventDefault();
+        return;
       }
-      event.preventDefault();
-      return;
     }
     if (event.pointerType === "touch") {
       const trackedPointer = activeTouchPointersRef.current.has(event.pointerId);
@@ -1169,39 +1101,18 @@ export function App() {
       && selectedSandboxBuilding !== null
       && battlePhase === "engaged"
       && battle.winner === null;
-    const armedOrder = sandboxOrderForInteractionMode(sandboxInteractionMode);
     const selectingSandboxSquad = sandboxMode
       && battlePhase === "engaged"
       && battle.winner === null
-      && selectedSandboxBuilding === null
-      && armedOrder === null;
+      && selectedSandboxBuilding === null;
     if (
       !placingSandboxBuilding
-      && !armedOrder
       && !selectingSandboxSquad
       && (!app.selectedDeployable || !deploymentEnabled)
     ) return;
     const point = localPointer(event);
     const worldPosition = bridgeRef.current.screenToWorld(point.x, point.y);
     if (!worldPosition) return;
-    if (armedOrder) {
-      if (armedOrder === "attack") {
-        const pick = bridgeRef.current.pickBattlefieldEntity(point.x, point.y);
-        if (!pick || pick.faction === "verdant") {
-          setApp((current) => ({
-            ...current,
-            feedback: { tone: "error", message: "请选择敌军或敌方建筑" },
-          }));
-          return;
-        }
-        issueSelectedSandboxOrder("attack", {
-          target: { targetType: pick.targetType, targetId: pick.id },
-        });
-      } else {
-        issueSelectedSandboxOrder(armedOrder, { destination: worldPosition });
-      }
-      return;
-    }
     if (placingSandboxBuilding) {
       const slot = selectedSandboxBuilding;
       setCursorWorld(null);
@@ -1231,6 +1142,7 @@ export function App() {
             },
           };
         }
+        queueMicrotask(() => playUiCue("construction-started"));
         return {
           ...current,
           session: { ...current.session, battle: result.battle },
@@ -1246,13 +1158,20 @@ export function App() {
     }
     if (selectingSandboxSquad) {
       const pick = bridgeRef.current.pickBattlefieldEntity(point.x, point.y);
-      setSandboxSelection((current) => selectSandboxSquad(
-        current,
-        pick?.targetType === "unit" && pick.faction === "verdant"
-          ? pick.squadId
-          : null,
-        event.shiftKey,
-      ));
+      const friendlySquadId = pick?.targetType === "unit" && pick.faction === "verdant"
+        ? pick.squadId
+        : null;
+      if (friendlySquadId) {
+        setSandboxSelection((current) => selectSandboxSquad(
+          current,
+          friendlySquadId,
+          event.shiftKey,
+        ));
+      } else if (sandboxSelection.selectedSquadIds.length > 0) {
+        issueSelectedSandboxAdvance(worldPosition);
+      } else if (!event.shiftKey) {
+        setSandboxSelection(createSandboxSelectionState());
+      }
       setSandboxInteractionMode("neutral");
       return;
     }
@@ -1284,15 +1203,17 @@ export function App() {
     battlePhase,
     campaignDeployables,
     deploymentEnabled,
-    issueSelectedSandboxOrder,
+    issueSelectedSandboxAdvance,
+    playUiCue,
     sandboxInteractionMode,
     sandboxMode,
+    sandboxSelection.selectedSquadIds.length,
     selectedSandboxBuilding,
   ]);
 
   const handlePointerCancel = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
-    if (sandboxSelectionDragRef.current?.pointerId === event.pointerId) {
-      sandboxSelectionDragRef.current = null;
+    if (mouseFieldDragRef.current?.pointerId === event.pointerId) {
+      mouseFieldDragRef.current = null;
       setSandboxSelectionRect(null);
       setSandboxInteractionMode("neutral");
     }
@@ -1316,7 +1237,7 @@ export function App() {
     setDeploymentDragOverBattlefield(false);
     setCursorWorld(null);
     setSelectedSandboxBuilding(null);
-    sandboxSelectionDragRef.current = null;
+    mouseFieldDragRef.current = null;
     setSandboxSelectionRect(null);
     setSandboxInteractionMode("neutral");
     setApp((current) => current.selectedDeployable
@@ -1348,21 +1269,14 @@ export function App() {
       || sandboxSelection.selectedSquadIds.length === 0
     ) return;
     const point = localPointer(event);
-    const pick = bridgeRef.current.pickBattlefieldEntity(point.x, point.y);
-    if (pick && pick.faction !== "verdant") {
-      issueSelectedSandboxOrder("attack", {
-        target: { targetType: pick.targetType, targetId: pick.id },
-      });
-      return;
-    }
     const destination = bridgeRef.current.screenToWorld(point.x, point.y);
-    if (destination) issueSelectedSandboxOrder("move", { destination });
+    if (destination) issueSelectedSandboxAdvance(destination);
   }, [
     app.selectedDeployable,
     battle.winner,
     battlePhase,
     cancelDeployment,
-    issueSelectedSandboxOrder,
+    issueSelectedSandboxAdvance,
     sandboxMode,
     sandboxSelection.selectedSquadIds.length,
     selectedSandboxBuilding,
@@ -1591,11 +1505,9 @@ export function App() {
         ))}
         {battle.winner === null && sandboxMode && (
           <SandboxSquadCommandBar
-            selectedCount={sandboxSelection.selectedSquadIds.length}
-            armedOrder={armedSandboxOrder}
+            battle={battle}
+            selectedSquadIds={sandboxSelection.selectedSquadIds}
             disabled={battlePhase !== "engaged"}
-            onArmOrder={armSandboxOrder}
-            onImmediateOrder={issueImmediateSandboxOrder}
           />
         )}
 
@@ -1651,7 +1563,8 @@ export function App() {
           />
           {benchmarkMode && (
             <output className={styles.benchmarkPanel} data-complete={benchmark?.complete ?? false}>
-              <strong>BENCHMARK 80 · {benchmark?.complete ? "完成" : "采样中"}</strong>
+              <strong>{benchmarkScenario?.label} · {benchmark?.complete ? "完成" : "采样中"}</strong>
+              <span>平均 FPS：{benchmark?.averageFps ?? "—"}</span>
               <span>中位 FPS：{benchmark?.medianFps ?? "—"}</span>
               <span>1% LOW：{benchmark?.onePercentLowFps ?? "—"}</span>
               <span>Draw calls：{benchmark?.drawCalls ?? "—"}</span>
@@ -1660,15 +1573,15 @@ export function App() {
             </output>
           )}
           <div className={styles.fieldCaption}>
-            <span>方向键平移</span>
-            <span>滚轮缩放</span>
+            <span>左键拖动平移</span>
+            <span>滚轮 / 双指缩放</span>
             <span>中键旋转</span>
             <span>{selectedSandboxBuilding
               ? "左键建造 · 右键取消"
               : app.selectedDeployable
                 ? "左键部署 · 右键取消"
                 : sandboxMode
-                  ? "从左侧选择建筑或训练单位"
+                  ? "Shift + 左键拖框多选"
                   : "从左侧选择部署单位"}</span>
           </div>
           <div className={styles.objectiveFlag} data-tone={fieldFeedback?.tone ?? "info"}>
@@ -1734,7 +1647,11 @@ export function App() {
             aria-hidden={battle.winner === null}
             inert={battle.winner === null}
           >
-            <span>{activeCampaignMission ? "MISSION REPORT" : "THE FIELD IS DECIDED"}</span>
+            <span>{activeCampaignMission
+              ? "MISSION REPORT"
+              : sandboxMode
+                ? "SANDBOX REPORT"
+                : "THE FIELD IS DECIDED"}</span>
             <strong>{campaignResult
               ? campaignResult.success
                 ? `任务完成 · ${"★".repeat(campaignResult.stars)}${"☆".repeat(3 - campaignResult.stars)}`
@@ -1742,6 +1659,11 @@ export function App() {
                   ? "试炼条件未完成"
                   : winnerLabel(battle.winner, factionRaces)
               : winnerLabel(battle.winner, factionRaces)}</strong>
+            {sandboxMode && battle.resolutionReason && (
+              <small className={styles.resultReason}>
+                {resolutionReasonLabel(battle.resolutionReason)}
+              </small>
+            )}
             {campaignResult && (
               <div className={styles.campaignObjectives}>
                 <small data-complete={campaignResult.primaryConditionMet}>
@@ -1767,8 +1689,13 @@ export function App() {
                 </button>
               )}
               <button type="button" onClick={resetBattle}>
-                {activeCampaignMission ? "重新挑战" : "再次交锋"}
+                {activeCampaignMission ? "重新挑战" : sandboxMode ? "重新开始" : "再次交锋"}
               </button>
+              {sandboxMode && (
+                <button type="button" onClick={() => changeMode("normal")}>
+                  退出沙盒
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1837,17 +1764,21 @@ function AssetLoadingScreen({
 }
 
 function createAppState(
-  benchmarkMode: boolean,
+  benchmarkScenario: BenchmarkScenario | null,
   mode: GameMode,
   campaignMission: CampaignMission | null = null,
   frostPreview = false,
   factionRaces: FactionRaces = factionRacesForGameMode(mode),
   fireballPreview = false,
 ): AppState {
+  const benchmarkMode = benchmarkScenario !== null;
   return {
     session: {
       battle: benchmarkMode
-        ? createBenchmarkBattle(80)
+        ? createBenchmarkBattle(
+            benchmarkScenario.unitCount,
+            benchmarkScenario.modeId,
+          )
         : frostPreview
           ? createFrostBreathPreviewBattle()
           : fireballPreview
@@ -1936,27 +1867,6 @@ function matchBriefingLabel(remainingSeconds: number | null): string {
   return `点击交战，开始${Number.isInteger(minutes) ? minutes : minutes.toFixed(1)}分钟攻防`;
 }
 
-function sandboxOrderForInteractionMode(
-  mode: SandboxInteractionMode,
-): "move" | "attack" | "attack-move" | null {
-  if (mode === "move-armed") return "move";
-  if (mode === "attack-armed") return "attack";
-  if (mode === "attack-move-armed") return "attack-move";
-  return null;
-}
-
-function sandboxOrderSuccessLabel(
-  kind: SandboxSquadOrderKind,
-  squadCount: number,
-): string {
-  const label = kind === "move"
-    ? "移动"
-    : kind === "attack" ? "攻击"
-      : kind === "attack-move" ? "攻击移动"
-        : kind === "stop" ? "停止" : "坚守";
-  return `${squadCount} 支兵团已执行${label}命令`;
-}
-
 function sandboxActionReasonLabel(reason: string): string {
   const labels: Readonly<Record<string, string>> = {
     "sandbox-mode-required": "此操作只在沙盒模式可用",
@@ -1986,13 +1896,13 @@ function sandboxActionReasonLabel(reason: string): string {
     "population-cap": "人口预留将超过 100 上限",
     "insufficient-gold": "金币不足",
     "building-not-operational": "建筑尚未完工",
-    "empty-selection": "请先选择己方兵团",
-    "squad-not-found": "所选兵团已不存在",
+    "empty-selection": "请先选择己方单位",
+    "squad-not-found": "所选单位已不存在",
     "invalid-destination": "命令目标不在可行走地图内",
-    "no-path": "所选兵团无法到达目标",
+    "no-path": "所选单位无法到达目标",
     "target-not-found": "攻击目标已经消失",
     "friendly-target": "不能攻击己方目标",
-    "invalid-order": "无效的兵团命令",
+    "invalid-order": "无效的单位命令",
   };
   return labels[reason] ?? `操作失败：${reason}`;
 }
@@ -2002,6 +1912,16 @@ function winnerLabel(winner: BattleState["winner"], factionRaces: FactionRaces):
   if (winner === "crimson") return `${BATTLE_RACE_LABELS[factionRaces.crimson]}·猩红军团获胜`;
   if (winner === "draw") return "双方平局";
   return "";
+}
+
+function resolutionReasonLabel(reason: NonNullable<BattleState["resolutionReason"]>): string {
+  const labels: Readonly<Record<NonNullable<BattleState["resolutionReason"]>, string>> = {
+    "castle-destroyed": "结算原因：一方城堡被摧毁",
+    "simultaneous-destruction": "结算原因：双方城堡同帧被摧毁",
+    "resource-stalemate": "结算原因：资源枯竭且双方均无法恢复作战能力",
+    timeout: "结算原因：时间结束后按城堡生命值判定",
+  };
+  return labels[reason];
 }
 
 function battleMatchupLabel(factionRaces: FactionRaces): string {

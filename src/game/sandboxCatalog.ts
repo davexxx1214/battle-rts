@@ -159,7 +159,6 @@ export interface SandboxTroopCatalogEntry {
   readonly producer: SandboxProductionBuildingSlot;
   readonly cost: number;
   readonly trainingSeconds: number;
-  readonly entityCount: number;
   readonly populationCost: number;
   readonly roleByRace: Readonly<Record<BattleRace, UnitRole>>;
   readonly displayByRace: Readonly<Record<BattleRace, SandboxCatalogDisplay>>;
@@ -181,29 +180,27 @@ export const SANDBOX_TROOP_CATALOG = Object.freeze({
   spearman: Object.freeze({
     slot: "spearman",
     producer: "barracks",
-    cost: 200,
-    trainingSeconds: 6,
-    entityCount: 2,
-    populationCost: 2,
+    cost: 100,
+    trainingSeconds: 3,
+    populationCost: 1,
     roleByRace: Object.freeze({ human: "spearman", undead: "spearman" }),
     displayByRace: troopDisplay(
       "长枪兵",
-      "低费长柄近战兵团。",
+      "低费、训练迅速的长柄近战单位。",
       "骸骨先锋",
-      "快速成群突进的亡灵兵团。",
+      "训练迅速、适合持续补充的亡灵先锋。",
     ),
   }),
   swordsman: Object.freeze({
     slot: "swordsman",
     producer: "barracks",
-    cost: 400,
-    trainingSeconds: 8,
-    entityCount: 3,
-    populationCost: 3,
+    cost: 140,
+    trainingSeconds: 4,
+    populationCost: 1,
     roleByRace: Object.freeze({ human: "knight", undead: "knight" }),
     displayByRace: troopDisplay(
       "剑士",
-      "可靠的近战前锋兵团。",
+      "可靠且坚韧的近战前锋。",
       "墓穴卫士",
       "缓慢而坚韧的重甲亡灵。",
     ),
@@ -211,29 +208,27 @@ export const SANDBOX_TROOP_CATALOG = Object.freeze({
   archer: Object.freeze({
     slot: "archer",
     producer: "archery-range",
-    cost: 300,
-    trainingSeconds: 8,
-    entityCount: 2,
-    populationCost: 2,
+    cost: 160,
+    trainingSeconds: 5,
+    populationCost: 1,
     roleByRace: Object.freeze({ human: "ranger", undead: "ranger" }),
     displayByRace: troopDisplay(
       "弓箭手",
-      "远程单体火力兵团。",
+      "提供稳定单体火力的远程单位。",
       "骸骨弩手",
-      "远距离高伤弩手兵团。",
+      "射程较远的高伤弩手。",
     ),
   }),
   mage: Object.freeze({
     slot: "mage",
     producer: "mage-tower",
-    cost: 600,
-    trainingSeconds: 12,
-    entityCount: 2,
+    cost: 300,
+    trainingSeconds: 7,
     populationCost: 2,
     roleByRace: Object.freeze({ human: "mage", undead: "mage" }),
     displayByRace: troopDisplay(
       "法师",
-      "使用范围法术的远程兵团。",
+      "占用两人口、使用范围法术的远程单位。",
       "亡魂术士",
       "释放范围灵魂弹的亡灵术士。",
     ),
@@ -241,10 +236,9 @@ export const SANDBOX_TROOP_CATALOG = Object.freeze({
   catapult: Object.freeze({
     slot: "catapult",
     producer: "siege-workshop",
-    cost: 800,
-    trainingSeconds: 18,
-    entityCount: 1,
-    populationCost: 3,
+    cost: 700,
+    trainingSeconds: 16,
+    populationCost: 4,
     roleByRace: Object.freeze({ human: "catapult", undead: "bone-dragon" }),
     displayByRace: troopDisplay(
       "投石车",

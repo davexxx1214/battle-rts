@@ -8,6 +8,7 @@ import {
   SANDBOX_LARGE_MINE_DISTRICTS,
   SANDBOX_LARGE_MINE_PITS,
 } from "./sandboxLargeBattlefield";
+import { SANDBOX_LARGE_DRESSING_SCENERY } from "./sandboxLargeDressing";
 
 const MINE_RIDGE_KINDS = [
   "mine-mountain-a",
@@ -20,7 +21,7 @@ const MINE_RIDGE_KINDS = [
   "mine-rock-c",
 ] as const satisfies readonly BattlefieldSceneryKind[];
 
-export const SANDBOX_LARGE_SCENERY: readonly BattlefieldScenery[] = Object.freeze(
+const SANDBOX_LARGE_MINE_SCENERY: readonly BattlefieldScenery[] = Object.freeze(
   SANDBOX_LARGE_MINE_DISTRICTS.flatMap((district) => {
     const pit = SANDBOX_LARGE_MINE_PITS.find((candidate) => candidate.id === district.pitId);
     if (!pit) throw new Error(`Missing sandbox mine pit ${district.pitId}.`);
@@ -64,6 +65,11 @@ export const SANDBOX_LARGE_SCENERY: readonly BattlefieldScenery[] = Object.freez
     });
   }),
 );
+
+export const SANDBOX_LARGE_SCENERY: readonly BattlefieldScenery[] = Object.freeze([
+  ...SANDBOX_LARGE_MINE_SCENERY,
+  ...SANDBOX_LARGE_DRESSING_SCENERY,
+]);
 
 function createScenery(input: {
   readonly id: string;

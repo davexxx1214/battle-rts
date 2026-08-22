@@ -39,6 +39,14 @@ vi.mock("../../src/scene/terrain/SandboxGrayboxOverlay", () => ({
   },
 }));
 
+vi.mock("../../src/scene/terrain/OasisLayer", () => ({
+  OasisLayer: () => "oasis-stable",
+}));
+
+vi.mock("../../src/scene/terrain/SandboxWildlifeLayer", () => ({
+  SandboxWildlifeLayer: () => "wildlife-stable",
+}));
+
 vi.mock("../../src/scene/buildings/BattleBuildingLayer", () => ({
   BattleBuildingLayer: () => {
     if (suspension.buildings) throw suspension.pending;
@@ -106,6 +114,8 @@ describe("battlefield asset loading boundaries", () => {
       "verdant", "verdant", null, null, null, null, "crimson", "crimson",
     ]);
     expect(sandbox).toContain("graybox-stable");
+    expect(sandbox).toContain("oasis-stable");
+    expect(sandbox).toContain("wildlife-stable");
     expect(sandbox).toContain("terrain-stable");
   });
 
@@ -161,7 +171,7 @@ describe("battlefield asset loading boundaries", () => {
     expect(rendered.match(/sandbox-production-exit-reserve/g)).toHaveLength(3);
   });
 
-  it("renders whole-squad selection and the latest command marker", () => {
+  it("renders independent-unit selection and the latest command marker", () => {
     const unit = createBattleUnit({
       id: "sandbox-selected-unit",
       squadId: "sandbox-selected-squad",
@@ -176,7 +186,7 @@ describe("battlefield asset loading boundaries", () => {
       cameraResetToken: 0,
       cameraViewStore: createCameraViewStore(),
       deploymentPreview: null,
-      selectedSquadIds: [unit.squadId],
+      selectedSquadIds: [battle.units[0]!.squadId],
       sandboxCommandMarker: {
         sequence: 1,
         kind: "move",

@@ -31,14 +31,15 @@ describe("sandbox population", () => {
       unit(10, "catapult"),
     ];
 
-    expect(sandboxPopulationCostForUnitRole("catapult")).toBe(3);
-    expect(sandboxPopulationCostForUnitRole("bone-dragon")).toBe(3);
-    expect(sandboxUsedPopulation(units, "verdant")).toBe(12);
+    expect(sandboxPopulationCostForUnitRole("mage")).toBe(2);
+    expect(sandboxPopulationCostForUnitRole("catapult")).toBe(4);
+    expect(sandboxPopulationCostForUnitRole("bone-dragon")).toBe(4);
+    expect(sandboxUsedPopulation(units, "verdant")).toBe(15);
   });
 
   it("releases dead units immediately and includes ready-blocked population", () => {
     const units = [unit(1, "knight"), unit(2, "catapult", 0)];
-    expect(sandboxUsedPopulation(units, "verdant", 3)).toBe(4);
+    expect(sandboxUsedPopulation(units, "verdant", 4)).toBe(5);
   });
 
   it("admits exactly 100 committed population and rejects 101", () => {

@@ -84,7 +84,7 @@ describe("sandbox catalog", () => {
     });
   });
 
-  it("locks the five troop slots to one producer, price, timer, formation, and population cost", () => {
+  it("locks every troop order to one producer and the single-unit balance curve", () => {
     expect(SANDBOX_TROOP_SLOTS).toEqual([
       "spearman",
       "swordsman",
@@ -98,44 +98,38 @@ describe("sandbox catalog", () => {
         producer: spec.producer,
         cost: spec.cost,
         trainingSeconds: spec.trainingSeconds,
-        entityCount: spec.entityCount,
         populationCost: spec.populationCost,
       }];
     }))).toEqual({
       spearman: {
         producer: "barracks",
-        cost: 200,
-        trainingSeconds: 6,
-        entityCount: 2,
-        populationCost: 2,
+        cost: 100,
+        trainingSeconds: 3,
+        populationCost: 1,
       },
       swordsman: {
         producer: "barracks",
-        cost: 400,
-        trainingSeconds: 8,
-        entityCount: 3,
-        populationCost: 3,
+        cost: 140,
+        trainingSeconds: 4,
+        populationCost: 1,
       },
       archer: {
         producer: "archery-range",
-        cost: 300,
-        trainingSeconds: 8,
-        entityCount: 2,
-        populationCost: 2,
+        cost: 160,
+        trainingSeconds: 5,
+        populationCost: 1,
       },
       mage: {
         producer: "mage-tower",
-        cost: 600,
-        trainingSeconds: 12,
-        entityCount: 2,
+        cost: 300,
+        trainingSeconds: 7,
         populationCost: 2,
       },
       catapult: {
         producer: "siege-workshop",
-        cost: 800,
-        trainingSeconds: 18,
-        entityCount: 1,
-        populationCost: 3,
+        cost: 700,
+        trainingSeconds: 16,
+        populationCost: 4,
       },
     });
   });
@@ -211,7 +205,6 @@ describe("sandbox catalog", () => {
       const spec = SANDBOX_TROOP_CATALOG[slot];
       expect(Number.isInteger(spec.cost) && spec.cost > 0).toBe(true);
       expect(Number.isInteger(spec.trainingSeconds) && spec.trainingSeconds > 0).toBe(true);
-      expect(Number.isInteger(spec.entityCount) && spec.entityCount > 0).toBe(true);
       expect(Number.isInteger(spec.populationCost) && spec.populationCost > 0).toBe(true);
       expect(SANDBOX_BUILDING_CATALOG[spec.producer].kind).toBe(spec.producer);
     }

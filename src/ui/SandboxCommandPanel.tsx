@@ -1,7 +1,5 @@
 import type { BattleState } from "../game/battle";
 import { battleBuildingConstructionPhaseAt } from "../game/buildings";
-import { miningIncomeMultiplier } from "../game/miningEconomy";
-import { sandboxUsedPopulation } from "../game/population";
 import { sandboxBuildingMissingPrerequisites } from "../game/sandboxConstruction";
 import {
   SANDBOX_BUILDING_SLOTS,
@@ -15,9 +13,9 @@ import {
 import {
   SANDBOX_PRODUCTION_MAX_QUEUE_LENGTH,
   SANDBOX_PRODUCTION_POPULATION_CAP,
-  sandboxProductionPopulation,
   type SandboxProductionBuildingQueue,
 } from "../game/sandboxProductionQueue";
+import { createSandboxHudModel } from "./sandboxHudModel";
 import styles from "./SandboxCommandPanel.module.css";
 
 interface SandboxCommandPanelProps {
@@ -47,16 +45,7 @@ export function SandboxCommandPanel({
   const faction = "verdant" as const;
   const race = battle.factionRaces[faction];
   const production = battle.production;
-  const queuePopulation = production
-    ? sandboxProductionPopulation(production, faction)
-    : { reservedPopulation: 0, readyBlockedPopulation: 0, totalQueuePopulation: 0 };
-  const usedPopulation = sandboxUsedPopulation(
-    battle.units,
-    faction,
-    queuePopulation.readyBlockedPopulation,
-  );
-  const committedPopulation = usedPopulation + queuePopulation.reservedPopulation;
-  const maintenanceMultiplier = miningIncomeMultiplier(usedPopulation);
+  const hud = createSandboxHudModel(battle, faction);
   const queues = production
     ? Object.values(production.queuesByBuildingId)
         .filter((queue) => queue.faction === faction)
@@ -73,20 +62,43 @@ export function SandboxCommandPanel({
       <header className={styles.resources}>
         <div>
           <span>金币</span>
-          <strong>{battle.economy.accounts[faction].gold}</strong>
+          <strong>{hud.gold}<small> / {hud.goldCap}</small></strong>
+        </div>
+        <div>
+          <span>总剩余矿量</span>
+          <strong>{hud.totalRemainingOre.toLocaleString()}</strong>
         </div>
         <div>
           <span>人口 · 使用 + 预留</span>
           <strong>
-            {usedPopulation} + {queuePopulation.reservedPopulation}
-            <small> / {SANDBOX_PRODUCTION_POPULATION_CAP}</small>
+            {hud.usedPopulation} + {hud.reservedPopulation}
+            <small> / {hud.populationCap}</small>
           </strong>
         </div>
         <div>
-          <span>采矿收入</span>
-          <strong>{Math.round(maintenanceMultiplier * 100)}%</strong>
+          <span>时间限制</span>
+          <strong>无限</strong>
         </div>
       </header>
+
+      <section className={styles.economyStrip} aria-label="采矿维护费">
+        <div>
+          <span>维护费</span>
+          <strong>{hud.upkeepPercent}%</strong>
+        </div>
+        <div>
+          <span>净收入</span>
+          <strong>{hud.incomePercent}%</strong>
+        </div>
+        <small>{hud.nextThresholdLabel}</small>
+      </section>
+      {(hud.walletFull || hud.emergencyMinePermitAvailable) && (
+        <p className={styles.economyPrompt} data-tone={hud.walletFull ? "warning" : "permit"}>
+          {hud.walletFull
+            ? `金库已满（${hud.goldCap}），继续开采会浪费收入。`
+            : "紧急采矿许可可用：无矿且金币不足时，可免费重建一次金矿。"}
+        </p>
+      )}
 
       <section className={styles.buildSection} aria-labelledby="sandbox-build-heading">
         <div className={styles.sectionHeading}>
@@ -104,6 +116,7 @@ export function SandboxCommandPanel({
               battle.matchElapsed,
             );
             const unlocked = missingPrerequisites.length === 0;
+            const lacksGold = hud.gold < spec.cost;
             const prerequisiteNames = missingPrerequisites.map((prerequisite) => (
               sandboxBuildingSpec(prerequisite).displayByRace[race].name
             ));
@@ -113,6 +126,7 @@ export function SandboxCommandPanel({
                 key={slot}
                 data-selected={selectedBuilding === slot}
                 data-unlocked={unlocked}
+                data-affordable={!lacksGold}
                 disabled={disabled || !unlocked}
                 aria-pressed={selectedBuilding === slot}
                 title={unlocked
@@ -121,7 +135,7 @@ export function SandboxCommandPanel({
                 onClick={() => onSelectBuilding(slot)}
               >
                 <span>{display.name}</span>
-                <strong>{spec.cost} 金</strong>
+                <strong>{spec.cost} 金{lacksGold ? " · 不足" : ""}</strong>
                 <small>{unlocked
                   ? `${spec.constructionSeconds} 秒`
                   : `未解锁 · 需 ${prerequisiteNames.join("、")}`}</small>
@@ -129,6 +143,33 @@ export function SandboxCommandPanel({
             );
           })}
         </div>
+      </section>
+
+      <section className={styles.mineSection} aria-labelledby="sandbox-mine-heading">
+        <div className={styles.sectionHeading}>
+          <h2 id="sandbox-mine-heading">金矿</h2>
+          <span>每 {hud.cycleSeconds} 秒结算</span>
+        </div>
+        <div className={styles.mineEconomy}>
+          <span>毛收入 <b>{hud.grossPerCycle}</b></span>
+          <span>维护费 <b>-{hud.upkeepPerCycle}</b></span>
+          <span>净收入 <b>{hud.netPerCycle}</b></span>
+        </div>
+        {hud.mines.length === 0 ? (
+          <p className={styles.emptyState}>尚未控制可开采矿坑。</p>
+        ) : (
+          <div className={styles.mineList}>
+            {hud.mines.map((mine) => (
+              <div key={mine.pitId} data-roi-warning={mine.roiWarning}>
+                <span><strong>{mine.pitId}</strong><small>{mine.statusLabel}</small></span>
+                <span><b>{mine.remainingOre}</b> 原矿<small>预计净值 {mine.projectedNetValue}</small></span>
+                {mine.roiWarning && (
+                  <em>回本警告：当前收入档至少需 {hud.roiOreThreshold} 原矿</em>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className={styles.productionSection} aria-labelledby="sandbox-production-heading">
@@ -146,7 +187,8 @@ export function SandboxCommandPanel({
                 battle={battle}
                 queue={queue}
                 disabled={disabled}
-                committedPopulation={committedPopulation}
+                usedPopulation={hud.usedPopulation}
+                committedPopulation={hud.committedPopulation}
                 onEnqueueProduction={onEnqueueProduction}
               />
             ))}
@@ -161,12 +203,14 @@ function ProductionBuildingCard({
   battle,
   queue,
   disabled,
+  usedPopulation,
   committedPopulation,
   onEnqueueProduction,
 }: {
   readonly battle: BattleState;
   readonly queue: SandboxProductionBuildingQueue;
   readonly disabled: boolean;
+  readonly usedPopulation: number;
   readonly committedPopulation: number;
   readonly onEnqueueProduction: (
     buildingId: string,
@@ -180,6 +224,9 @@ function ProductionBuildingCard({
   const display = sandboxBuildingSpec(queue.producer).displayByRace[race];
   const troops = troopsForProducer(queue.producer);
   const queueFull = queue.entries.length >= SANDBOX_PRODUCTION_MAX_QUEUE_LENGTH;
+  const rallyLabel = queue.rallyPoint
+    ? `${queue.rallyPoint.q}, ${queue.rallyPoint.r}`
+    : "未设置";
 
   return (
     <article className={styles.queueCard} data-operational={operational}>
@@ -190,6 +237,7 @@ function ProductionBuildingCard({
         </div>
         <span>{operational ? `${queue.entries.length}/${SANDBOX_PRODUCTION_MAX_QUEUE_LENGTH}` : "建造中"}</span>
       </div>
+      <small className={styles.rallyPoint}>集结点：{rallyLabel}</small>
 
       <ol className={styles.queueEntries} aria-label={`${display.name}生产队列`}>
         {queue.entries.length === 0 ? (
@@ -219,6 +267,18 @@ function ProductionBuildingCard({
           const lacksGold = battle.economy.accounts[queue.faction].gold < spec.cost;
           const populationFull = committedPopulation + spec.populationCost
             > SANDBOX_PRODUCTION_POPULATION_CAP;
+          const projectedUsedPopulation = usedPopulation + spec.populationCost;
+          const projectedCommittedPopulation = committedPopulation + spec.populationCost;
+          const projectedIncome = projectedCommittedPopulation <= 50
+            ? 100
+            : projectedCommittedPopulation <= 80
+              ? 80
+              : 60;
+          const currentIncome = usedPopulation <= 50
+            ? 100
+            : usedPopulation <= 80
+              ? 80
+              : 60;
           return (
             <button
               type="button"
@@ -229,7 +289,12 @@ function ProductionBuildingCard({
             >
               <span>{troopDisplay.name}</span>
               <strong>{spec.cost} 金</strong>
-              <small>{spec.entityCount} 人 · {spec.populationCost} 人口</small>
+              <small>
+                单次 1 个单位 · 人口 {spec.populationCost}
+                {` · 完成后 used≥${projectedUsedPopulation}`}
+                {` · committed ${projectedCommittedPopulation}/${SANDBOX_PRODUCTION_POPULATION_CAP}`}
+                {projectedIncome < currentIncome ? ` · 收入降至 ${projectedIncome}%` : ""}
+              </small>
             </button>
           );
         })}
