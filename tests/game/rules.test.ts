@@ -322,11 +322,15 @@ describe("central game rules", () => {
           deploymentPosture: "defensive",
         },
         normal: {
-          firstDecisionSeconds: 6,
-          decisionIntervalSeconds: 10,
-          buildingGoals: [{ kind: "gold-mine", desiredActive: 1 }],
-          troopCycle: ["spearman", "swordsman", "archer", "mage"],
-          deploymentPosture: "balanced",
+          firstDecisionSeconds: 1,
+          decisionIntervalSeconds: 1,
+          buildingGoals: [
+            { kind: "gold-mine", desiredActive: 1 },
+            { kind: "barracks", desiredActive: 1 },
+            { kind: "guard-tower", desiredActive: 1 },
+          ],
+          troopCycle: ["spearman", "swordsman", "archer", "mage", "catapult"],
+          deploymentPosture: "aggressive",
         },
         hard: {
           firstDecisionSeconds: 1,

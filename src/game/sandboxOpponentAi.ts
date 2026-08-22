@@ -11,6 +11,10 @@ import type {
   BattlefieldRouteDefinition,
 } from "../map/battlefieldDefinition";
 import type { BattleState, BattleUnit } from "./battle";
+import {
+  SANDBOX_POPULATION_CAP,
+  SANDBOX_POPULATION_INCOME_BANDS,
+} from "./battleMode";
 import { resolveBattleRuntimeContext } from "./battleRuntime";
 import {
   battleBuildingConstructionPhaseAt,
@@ -374,10 +378,14 @@ export function advanceSandboxOpponentAi(battle: BattleState): BattleState {
 export function sandboxAiPopulationTarget(
   activeMineCount: number,
   defending: boolean,
-): 12 | 50 | 80 | 100 {
-  if (defending) return 100;
-  if (activeMineCount >= 4) return 80;
-  if (activeMineCount >= 2) return 50;
+): number {
+  if (defending) return SANDBOX_POPULATION_CAP;
+  if (activeMineCount >= 4) {
+    return SANDBOX_POPULATION_INCOME_BANDS[1]!.maximumPopulation;
+  }
+  if (activeMineCount >= 2) {
+    return SANDBOX_POPULATION_INCOME_BANDS[0]!.maximumPopulation;
+  }
   return 12;
 }
 

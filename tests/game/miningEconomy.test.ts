@@ -45,9 +45,9 @@ describe("sandbox finite mining economy", () => {
   });
 
   it.each([
-    { usedPopulation: 50, expectedNet: 3_000, expectedUpkeep: 0 },
-    { usedPopulation: 80, expectedNet: 2_400, expectedUpkeep: 600 },
-    { usedPopulation: 100, expectedNet: 1_800, expectedUpkeep: 1_200 },
+    { usedPopulation: 20, expectedNet: 3_000, expectedUpkeep: 0 },
+    { usedPopulation: 40, expectedNet: 2_400, expectedUpkeep: 600 },
+    { usedPopulation: 60, expectedNet: 1_800, expectedUpkeep: 1_200 },
   ])(
     "exhausts one pit in 30 ticks at population $usedPopulation with exact totals",
     ({ usedPopulation, expectedNet, expectedUpkeep }) => {
@@ -124,7 +124,7 @@ describe("sandbox finite mining economy", () => {
       elapsedSeconds: 0,
       deltaSeconds: 4,
       walletGoldByFaction: { verdant: 4_999, crimson: 0 },
-      populationByFaction: populations(80),
+      populationByFaction: populations(40),
       productionSources: [SOURCE],
     });
 
@@ -147,7 +147,7 @@ describe("sandbox finite mining economy", () => {
       elapsedSeconds: 0,
       deltaSeconds: 4,
       walletGoldByFaction: { verdant: 0, crimson: 0 },
-      populationByFaction: populations(51),
+      populationByFaction: populations(21),
       productionSources: [SOURCE],
     });
     state = result.state;
@@ -166,29 +166,29 @@ describe("sandbox finite mining economy", () => {
     expect(state.pitsById[PIT_ID]?.remainingOre).toBe(0);
   });
 
-  it("uses the post-death used-population snapshot at the 80/81 boundary", () => {
-    const at81 = advanceSandboxMining(activeMineState(), {
+  it("uses the post-death used-population snapshot at the 40/41 boundary", () => {
+    const at41 = advanceSandboxMining(activeMineState(), {
       elapsedSeconds: 20,
       deltaSeconds: 4,
       walletGoldByFaction: { verdant: 0, crimson: 0 },
-      populationByFaction: populations(81),
+      populationByFaction: populations(41),
       productionSources: [SOURCE],
     });
     const afterDeath = advanceSandboxMining(activeMineState(), {
       elapsedSeconds: 20,
       deltaSeconds: 4,
       walletGoldByFaction: { verdant: 0, crimson: 0 },
-      populationByFaction: populations(80),
+      populationByFaction: populations(40),
       productionSources: [SOURCE],
     });
 
-    expect(at81.events[0]).toMatchObject({
-      usedPopulation: 81,
+    expect(at41.events[0]).toMatchObject({
+      usedPopulation: 41,
       incomeMultiplier: 0.6,
       netCredited: 60,
     });
     expect(afterDeath.events[0]).toMatchObject({
-      usedPopulation: 80,
+      usedPopulation: 40,
       incomeMultiplier: 0.8,
       netCredited: 80,
       scheduledAt: 24,
@@ -200,13 +200,13 @@ describe("sandbox finite mining economy", () => {
       elapsedSeconds: 0,
       deltaSeconds: 4,
       walletGoldByFaction: { verdant: 0, crimson: 0 },
-      populationByFaction: populations(49, 51),
+      populationByFaction: populations(19, 41),
       productionSources: [SOURCE],
     });
 
     expect(result.events[0]).toMatchObject({
-      usedPopulation: 49,
-      reservedPopulation: 51,
+      usedPopulation: 19,
+      reservedPopulation: 41,
       incomeMultiplier: 1,
       grossExtracted: 100,
       upkeepWithheld: 0,
@@ -237,11 +237,11 @@ describe("sandbox finite mining economy", () => {
     expect(completed.state.pitsById[PIT_ID]?.productionProgress).toBe(0);
   });
 
-  it("locks the exact 50/51 and 80/81 income boundaries", () => {
-    expect(miningIncomeMultiplier(50)).toBe(1);
-    expect(miningIncomeMultiplier(51)).toBe(0.8);
-    expect(miningIncomeMultiplier(80)).toBe(0.8);
-    expect(miningIncomeMultiplier(81)).toBe(0.6);
+  it("locks the exact 20/21 and 40/41 income boundaries", () => {
+    expect(miningIncomeMultiplier(20)).toBe(1);
+    expect(miningIncomeMultiplier(21)).toBe(0.8);
+    expect(miningIncomeMultiplier(40)).toBe(0.8);
+    expect(miningIncomeMultiplier(41)).toBe(0.6);
   });
 
   it("settles simultaneous mines in stable pit-id order", () => {

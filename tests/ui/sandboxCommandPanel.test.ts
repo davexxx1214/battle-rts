@@ -23,6 +23,11 @@ describe("sandbox command panel", () => {
     }));
 
     expect(markup).toContain('aria-label="沙盒指挥面板"');
+    expect(markup).toContain('aria-label="沙盒资源速览"');
+    expect(markup).toContain('aria-label="展开建造与生产面板"');
+    expect(markup).toContain('aria-label="关闭建造与生产面板"');
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).toContain('data-mobile-expanded="false"');
     expect(markup).toContain("1000");
     expect(markup).toContain("0 + 0");
     expect(markup).toContain("100%");
@@ -32,6 +37,8 @@ describe("sandbox command panel", () => {
     expect(markup).toContain("法师塔");
     expect(markup).toContain("攻城工坊");
     expect(markup).toContain("守卫塔");
+    expect(markup).toContain("⛏");
+    expect(markup).toContain("➶");
     expect(markup.match(/aria-pressed=/g)).toHaveLength(6);
     expect(markup).toContain('aria-pressed="true"');
     expect(markup).toContain("点击地图放置");
@@ -67,7 +74,7 @@ describe("sandbox command panel", () => {
     expect(markup).toContain("0 + 1");
     expect(markup).toContain("单次 1 个单位");
     expect(markup).toContain("完成后 used≥1");
-    expect(markup).toContain("committed 2/100");
+    expect(markup).toContain("committed 2/60");
     expect(markup.match(/data-unlocked="true"/g)).toHaveLength(6);
     expect(markup).toContain("每栋独立训练 · 多栋并行");
     expect(markup).not.toContain(">弓箭手</span><strong>160 金");

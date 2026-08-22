@@ -137,11 +137,13 @@ export function CatapultUnitModel({
 
   useEffect(() => () => {
     operatorMixer.stopAllAction();
-  }, [operatorMixer]);
+    operatorMixer.uncacheRoot(operator);
+  }, [operator, operatorMixer]);
   useEffect(() => {
-    if (!isGhost) return;
-    configureGhostMaterials(catapult.model);
-    configureGhostMaterials(operator);
+    if (isGhost) {
+      configureGhostMaterials(catapult.model);
+      configureGhostMaterials(operator);
+    }
     return () => {
       disposeOwnedModelMaterials(catapult.model);
       disposeOwnedModelMaterials(operator);

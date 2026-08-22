@@ -128,9 +128,16 @@ const LEGACY_POPULATION_POLICY: PopulationPolicy = Object.freeze({
   incomeMultiplier: 1,
 });
 
+export const SANDBOX_POPULATION_CAP = 60;
+export const SANDBOX_POPULATION_INCOME_BANDS: readonly PopulationIncomeBand[] = Object.freeze([
+  Object.freeze({ maximumPopulation: 20, multiplier: 1 }),
+  Object.freeze({ maximumPopulation: 40, multiplier: 0.8 }),
+  Object.freeze({ maximumPopulation: 60, multiplier: 0.6 }),
+]);
+
 const SANDBOX_POPULATION_POLICY: PopulationPolicy = Object.freeze({
   kind: "capped",
-  maximumPopulation: 100,
+  maximumPopulation: SANDBOX_POPULATION_CAP,
   troopCosts: Object.freeze({
     spearman: 1,
     swordsman: 1,
@@ -138,11 +145,7 @@ const SANDBOX_POPULATION_POLICY: PopulationPolicy = Object.freeze({
     mage: 2,
     catapult: 4,
   }),
-  populationIncomeBands: Object.freeze([
-    Object.freeze({ maximumPopulation: 50, multiplier: 1 }),
-    Object.freeze({ maximumPopulation: 80, multiplier: 0.8 }),
-    Object.freeze({ maximumPopulation: 100, multiplier: 0.6 }),
-  ]),
+  populationIncomeBands: SANDBOX_POPULATION_INCOME_BANDS,
 });
 
 const LEGACY_BUILDING_LIFECYCLE_POLICY: BuildingLifecyclePolicy = Object.freeze({

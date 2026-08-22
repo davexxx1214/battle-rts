@@ -1,4 +1,6 @@
+import { useState } from "react";
 import type { BattleState } from "../game/battle";
+import { populationIncomeMultiplier } from "../game/battleMode";
 import { battleBuildingConstructionPhaseAt } from "../game/buildings";
 import { sandboxBuildingMissingPrerequisites } from "../game/sandboxConstruction";
 import {
@@ -35,6 +37,15 @@ const ENTRY_STATUS_LABEL = {
   "ready-blocked": "出口阻塞",
 } as const;
 
+const BUILDING_ICON: Record<SandboxBuildingSlot, string> = {
+  mine: "⛏",
+  barracks: "⚔",
+  "archery-range": "➶",
+  "mage-tower": "✦",
+  "siege-workshop": "◉",
+  "guard-tower": "♜",
+};
+
 export function SandboxCommandPanel({
   battle,
   selectedBuilding,
@@ -42,6 +53,7 @@ export function SandboxCommandPanel({
   onSelectBuilding,
   onEnqueueProduction,
 }: SandboxCommandPanelProps) {
+  const [mobileExpanded, setMobileExpanded] = useState(false);
   const faction = "verdant" as const;
   const race = battle.factionRaces[faction];
   const production = battle.production;
@@ -57,31 +69,70 @@ export function SandboxCommandPanel({
       className={styles.panel}
       data-field-ui
       data-disabled={disabled}
+      data-mobile-expanded={mobileExpanded}
       aria-label="沙盒指挥面板"
     >
-      <header className={styles.resources}>
-        <div>
-          <span>金币</span>
-          <strong>{hud.gold}<small> / {hud.goldCap}</small></strong>
-        </div>
-        <div>
-          <span>总剩余矿量</span>
-          <strong>{hud.totalRemainingOre.toLocaleString()}</strong>
-        </div>
-        <div>
-          <span>人口 · 使用 + 预留</span>
-          <strong>
-            {hud.usedPopulation} + {hud.reservedPopulation}
-            <small> / {hud.populationCap}</small>
-          </strong>
-        </div>
-        <div>
-          <span>时间限制</span>
-          <strong>无限</strong>
-        </div>
+      <header className={styles.mobileSummary} aria-label="沙盒资源速览">
+        <span title={`金币 ${hud.gold} / ${hud.goldCap}`}>
+          <i aria-hidden="true">●</i>
+          <strong>{compactNumber(hud.gold)}</strong>
+        </span>
+        <span title={`人口 ${hud.usedPopulation} + ${hud.reservedPopulation} / ${hud.populationCap}`}>
+          <i aria-hidden="true">♟</i>
+          <strong>{hud.usedPopulation + hud.reservedPopulation}/{hud.populationCap}</strong>
+        </span>
+        <span title={`总剩余矿量 ${hud.totalRemainingOre}`}>
+          <i aria-hidden="true">◆</i>
+          <strong>{compactNumber(hud.totalRemainingOre)}</strong>
+        </span>
+        <button
+          type="button"
+          className={styles.mobilePanelToggle}
+          aria-label={mobileExpanded ? "收起建造与生产面板" : "展开建造与生产面板"}
+          aria-controls="sandbox-command-panel-content"
+          aria-expanded={mobileExpanded}
+          title={mobileExpanded ? "收起军务" : "建造与生产"}
+          onClick={() => setMobileExpanded((expanded) => !expanded)}
+        >
+          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+            <path d="m5 19 5.2-5.2M8.7 5.2a4 4 0 0 0 5.1 5.1l5-5a4 4 0 0 1-5.1 5.1l-8.5 8.5-2.1-2.1 5.6-5.6a4 4 0 0 1 0-6Z" />
+            <path d="m14.5 14.5 4.3 4.3M17 12l2-2 3 3-2 2" />
+          </svg>
+        </button>
       </header>
 
-      <section className={styles.economyStrip} aria-label="采矿维护费">
+      <button
+        type="button"
+        className={styles.mobileDismissLayer}
+        aria-label="关闭建造与生产面板"
+        tabIndex={mobileExpanded ? 0 : -1}
+        onClick={() => setMobileExpanded(false)}
+      />
+
+      <div id="sandbox-command-panel-content" className={styles.panelContent}>
+        <header className={styles.resources}>
+          <div>
+            <span>金币</span>
+            <strong>{hud.gold}<small> / {hud.goldCap}</small></strong>
+          </div>
+          <div>
+            <span>总剩余矿量</span>
+            <strong>{hud.totalRemainingOre.toLocaleString()}</strong>
+          </div>
+          <div>
+            <span>人口 · 使用 + 预留</span>
+            <strong>
+              {hud.usedPopulation} + {hud.reservedPopulation}
+              <small> / {hud.populationCap}</small>
+            </strong>
+          </div>
+          <div>
+            <span>时间限制</span>
+            <strong>无限</strong>
+          </div>
+        </header>
+
+        <section className={styles.economyStrip} aria-label="采矿维护费">
         <div>
           <span>维护费</span>
           <strong>{hud.upkeepPercent}%</strong>
@@ -91,14 +142,14 @@ export function SandboxCommandPanel({
           <strong>{hud.incomePercent}%</strong>
         </div>
         <small>{hud.nextThresholdLabel}</small>
-      </section>
-      {(hud.walletFull || hud.emergencyMinePermitAvailable) && (
-        <p className={styles.economyPrompt} data-tone={hud.walletFull ? "warning" : "permit"}>
-          {hud.walletFull
-            ? `金库已满（${hud.goldCap}），继续开采会浪费收入。`
-            : "紧急采矿许可可用：无矿且金币不足时，可免费重建一次金矿。"}
-        </p>
-      )}
+        </section>
+        {(hud.walletFull || hud.emergencyMinePermitAvailable) && (
+          <p className={styles.economyPrompt} data-tone={hud.walletFull ? "warning" : "permit"}>
+            {hud.walletFull
+              ? `金库已满（${hud.goldCap}），继续开采会浪费收入。`
+              : "紧急采矿许可可用：无矿且金币不足时，可免费重建一次金矿。"}
+          </p>
+        )}
 
       <section className={styles.buildSection} aria-labelledby="sandbox-build-heading">
         <div className={styles.sectionHeading}>
@@ -132,9 +183,15 @@ export function SandboxCommandPanel({
                 title={unlocked
                   ? display.description
                   : `未解锁：需要先建造完成${prerequisiteNames.join("、")}`}
-                onClick={() => onSelectBuilding(slot)}
+                onClick={() => {
+                  onSelectBuilding(slot);
+                  setMobileExpanded(false);
+                }}
               >
-                <span>{display.name}</span>
+                <span>
+                  <i className={styles.buildingIcon} aria-hidden="true">{BUILDING_ICON[slot]}</i>
+                  {display.name}
+                </span>
                 <strong>{spec.cost} 金{lacksGold ? " · 不足" : ""}</strong>
                 <small>{unlocked
                   ? `${spec.constructionSeconds} 秒`
@@ -195,6 +252,7 @@ export function SandboxCommandPanel({
           </div>
         )}
       </section>
+      </div>
     </aside>
   );
 }
@@ -269,16 +327,12 @@ function ProductionBuildingCard({
             > SANDBOX_PRODUCTION_POPULATION_CAP;
           const projectedUsedPopulation = usedPopulation + spec.populationCost;
           const projectedCommittedPopulation = committedPopulation + spec.populationCost;
-          const projectedIncome = projectedCommittedPopulation <= 50
-            ? 100
-            : projectedCommittedPopulation <= 80
-              ? 80
-              : 60;
-          const currentIncome = usedPopulation <= 50
-            ? 100
-            : usedPopulation <= 80
-              ? 80
-              : 60;
+          const projectedIncome = Math.round(
+            populationIncomeMultiplier("sandbox", projectedCommittedPopulation) * 100,
+          );
+          const currentIncome = Math.round(
+            populationIncomeMultiplier("sandbox", usedPopulation) * 100,
+          );
           return (
             <button
               type="button"
@@ -314,4 +368,10 @@ function troopsForProducer(
 function shortBuildingId(buildingId: string): string {
   const suffix = buildingId.split("-").at(-1);
   return suffix ? `#${suffix}` : buildingId;
+}
+
+function compactNumber(value: number): string {
+  if (value < 1_000) return value.toLocaleString();
+  if (value < 10_000) return `${(value / 1_000).toFixed(1).replace(/\.0$/, "")}k`;
+  return `${Math.round(value / 1_000)}k`;
 }

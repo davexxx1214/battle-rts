@@ -1,6 +1,7 @@
 import type { Faction, UnitRole } from "./types";
+import { SANDBOX_POPULATION_CAP } from "./battleMode";
 
-export const SANDBOX_POPULATION_CAP = 100;
+export { SANDBOX_POPULATION_CAP };
 
 export interface PopulationUnitSnapshot {
   readonly faction: Faction;

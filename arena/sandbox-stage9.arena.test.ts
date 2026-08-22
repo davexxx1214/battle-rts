@@ -96,7 +96,7 @@ test("records three deterministic 30-minute sandbox soak timelines", () => {
     expect(row.maximumEventWindow).toBeLessThanOrEqual(2_048);
     expect(row.aiLedgerEntries).toBeLessThanOrEqual(512);
     expect(row.remainingOre).toBeGreaterThanOrEqual(0);
-    expect(row.crimsonPopulation).toBeLessThanOrEqual(100);
+    expect(row.crimsonPopulation).toBeLessThanOrEqual(60);
   }
 }, 240_000);
 
@@ -313,7 +313,7 @@ function runStressScenario(totalEntities: number): StressResult {
 }
 
 function createStressBattle(totalEntities: number): BattleState {
-  const perFaction = totalEntities / 2;
+  const perFaction = Math.min(totalEntities / 2, 60);
   if (!Number.isInteger(perFaction)) throw new Error("Stress entity count must be even.");
   const units = (["verdant", "crimson"] as const).flatMap((faction) => (
     Array.from({ length: perFaction }, (_, index) => {
@@ -333,7 +333,30 @@ function createStressBattle(totalEntities: number): BattleState {
       return { ...unit, maxHealth: 1_000_000, health: 1_000_000 };
     })
   ));
-  return createBattleState(units, { modeId: "sandbox" });
+  const neutralCount = totalEntities - units.length;
+  const neutralMonsters = Array.from({ length: neutralCount }, (_, index) => {
+    const row = Math.floor(index / 10);
+    const column = index % 10;
+    const position = {
+      x: (column - 4.5) * 0.18,
+      z: (row - Math.floor(neutralCount / 20)) * 0.36,
+    };
+    const unit = createBattleUnit({
+      id: `stress-neutral-${index + 1}`,
+      squadId: `stress-neutral-${Math.floor(index / 5) + 1}`,
+      faction: "neutral" as const,
+      role: "spearman",
+      combatProfile: "neutral-skeleton",
+      neutralKind: "skeleton",
+      position,
+      guardAnchor: position,
+      guardLeashCenter: position,
+      guardRadiusCells: 20,
+    });
+    return { ...unit, maxHealth: 1_000_000, health: 1_000_000 };
+  });
+  const battle = createBattleState(units, { modeId: "sandbox" });
+  return { ...battle, neutralMonsters };
 }
 
 function percentile(values: readonly number[], percentileValue: number): number {

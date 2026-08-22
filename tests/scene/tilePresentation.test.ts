@@ -19,6 +19,7 @@ import {
   SANDBOX_LARGE_FOREST_BANK_CELLS,
   SANDBOX_LARGE_RIVER_CELLS,
 } from "../../src/map/sandboxLargeDressing";
+import { SANDBOX_LARGE_ENVIRONMENT_FILL_SCENERY } from "../../src/map/sandboxLargeScenery";
 import { UNDEAD_HALLOWEEN_ASSETS } from "../../src/scene/assets";
 import {
   TERRAIN_TILE_ASSETS,
@@ -132,6 +133,15 @@ describe("terrain tile presentation", () => {
     expect(new Set(SANDBOX_LARGE_FOREST_BANK_CELLS.map((coordinate) => (
       byKey.get(coordinateKey(coordinate))?.tint
     )))).toEqual(new Set(["#a9c987"]));
+    expect(new Set(SANDBOX_LARGE_ENVIRONMENT_FILL_SCENERY.map((item) => (
+      byKey.get(coordinateKey(item.coordinate))?.tint
+    )))).toEqual(new Set([
+      "#c2dca0",
+      "#c9caa0",
+      "#d4e6a6",
+      "#b7d18e",
+      "#e4e0a4",
+    ]));
     expect(Object.values(SANDBOX_LARGE_BUILD_ANCHORS).flat().every(({ coordinate }) => (
       byKey.get(coordinateKey(coordinate))?.tint === "#d8e9a0"
     ))).toBe(true);

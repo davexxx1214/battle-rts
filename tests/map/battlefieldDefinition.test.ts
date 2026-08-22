@@ -45,10 +45,10 @@ describe("battlefield definitions", () => {
     expect(definition.map).not.toBe(BATTLEFIELD_MAP);
     expect(definition).toMatchObject({
       id: "sandbox-large-v1",
-      navigationRevision: 3,
-      fingerprint: "fnv1a32:9c5df2be",
+      navigationRevision: 4,
+      fingerprint: "fnv1a32:b8047747",
       cameraPreset: {
-        initialTarget: axialToWorld({ q: -7, r: 14 }),
+        initialTarget: axialToWorld({ q: -8, r: 15 }),
         startZoom: 32,
         defaultZoom: 32,
         maximumZoom: 56,
@@ -56,12 +56,12 @@ describe("battlefield definitions", () => {
       },
     });
     expect(definition.routes).toHaveLength(3);
-    expect(definition.roadNetworkCells).toHaveLength(327);
-    expect(definition.roadReserve).toHaveLength(331);
+    expect(definition.roadNetworkCells).toHaveLength(337);
+    expect(definition.roadReserve).toHaveLength(341);
     expect(definition.minePits).toHaveLength(8);
-    expect(definition.buildAnchors?.verdant).toHaveLength(34);
-    expect(definition.buildAnchors?.crimson).toHaveLength(34);
-    expect(definition.scenery).toHaveLength(171);
+    expect(definition.buildAnchors?.verdant).toHaveLength(30);
+    expect(definition.buildAnchors?.crimson).toHaveLength(30);
+    expect(definition.scenery).toHaveLength(499);
     expect(definition.wildlife).toHaveLength(5);
   });
 

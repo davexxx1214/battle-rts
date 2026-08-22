@@ -210,8 +210,12 @@ describe("sandbox production battle integration", () => {
 
   it("uses living population for mining until completion, then taxes the same tick", () => {
     const populationUnits = SANDBOX_LARGE_BATTLEFIELD_MAP.cells
-      .filter((cell) => Math.abs(cell.r) <= 5)
-      .slice(0, 50)
+      .filter((cell) => (
+        cell.territory === "verdant"
+        && cell.walkable
+        && cell.buildPolicy === "forbidden"
+      ))
+      .slice(0, 20)
       .map((cell, index) => createBattleUnit({
         id: `population-${index + 1}`,
         faction: "verdant",
@@ -254,8 +258,8 @@ describe("sandbox production battle integration", () => {
       rate: event.incomeMultiplier,
       net: event.netCredited,
     }))).toEqual([
-      { used: 50, reserved: 1, rate: 1, net: 100 },
-      { used: 51, reserved: 0, rate: 0.8, net: 80 },
+      { used: 20, reserved: 1, rate: 1, net: 100 },
+      { used: 21, reserved: 0, rate: 0.8, net: 80 },
     ]);
     expect(battle.economy.accounts.verdant.gold).toBe(280);
   });

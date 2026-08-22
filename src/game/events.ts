@@ -10,6 +10,7 @@ import type { HexCoordinate } from "../map/battlefield";
 import type { CombatTargetType } from "./combat";
 import type { CastleActivationEvent } from "./castleCombat";
 import type { MineCapturedEvent } from "./mineCapture";
+import type { NeutralMonsterKind } from "../map/battlefieldDefinition";
 
 interface BattleEventBase {
   readonly sequence: number;
@@ -92,6 +93,15 @@ export type BattleEventInput =
       readonly type: "unit-died";
       readonly unitId: string;
       readonly killerId: string | null;
+    }
+  | {
+      readonly type: "neutral-kill-rewarded";
+      readonly faction: Faction;
+      readonly unitId: string;
+      readonly killerId: string;
+      readonly monsterKind: NeutralMonsterKind;
+      readonly gold: number;
+      readonly position: WorldPoint;
     };
 
 export type BattleEvent = BattleEventInput & BattleEventBase;

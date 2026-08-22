@@ -23,17 +23,17 @@ describe("sandbox HUD model", () => {
   });
 
   it("describes both population downgrade thresholds", () => {
-    expect(nextIncomeThresholdLabel(50)).toContain("1 人");
-    expect(nextIncomeThresholdLabel(50)).toContain("80%");
-    expect(nextIncomeThresholdLabel(80)).toContain("1 人");
-    expect(nextIncomeThresholdLabel(80)).toContain("60%");
-    expect(nextIncomeThresholdLabel(100)).toContain("最低");
+    expect(nextIncomeThresholdLabel(20)).toContain("1 人");
+    expect(nextIncomeThresholdLabel(20)).toContain("80%");
+    expect(nextIncomeThresholdLabel(40)).toContain("1 人");
+    expect(nextIncomeThresholdLabel(40)).toContain("60%");
+    expect(nextIncomeThresholdLabel(60)).toContain("最低");
   });
 
   it("uses the 400/500/667 ore break-even lines in all three income bands", () => {
-    expect(modelAtPopulation(50).roiOreThreshold).toBe(400);
-    expect(modelAtPopulation(51).roiOreThreshold).toBe(500);
-    expect(modelAtPopulation(81).roiOreThreshold).toBe(667);
+    expect(modelAtPopulation(20).roiOreThreshold).toBe(400);
+    expect(modelAtPopulation(21).roiOreThreshold).toBe(500);
+    expect(modelAtPopulation(41).roiOreThreshold).toBe(667);
   });
 });
 

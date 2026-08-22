@@ -13,7 +13,7 @@ import {
 } from "./battlefield";
 
 export const SANDBOX_LARGE_BATTLEFIELD_ID = "sandbox-large-v1" as const;
-export const SANDBOX_LARGE_NAVIGATION_REVISION = 3;
+export const SANDBOX_LARGE_NAVIGATION_REVISION = 4;
 export const SANDBOX_LARGE_MINE_CAPACITY = 3_000;
 
 export type BattlefieldRouteId = "center" | "west" | "east";
@@ -104,19 +104,19 @@ export interface SandboxLargeFingerprintSource {
 
 export const SANDBOX_LARGE_CASTLES: Readonly<Record<Faction, HexCoordinate>> =
   freezeFactionCoordinates({
-    verdant: { q: -8, r: 16 },
-    crimson: { q: 8, r: -16 },
+    verdant: { q: -9, r: 17 },
+    crimson: { q: 9, r: -17 },
   });
 
 export const SANDBOX_LARGE_GATES: Readonly<Record<Faction, BattlefieldGateDefinition>> =
   Object.freeze({
     verdant: Object.freeze({
-      cells: freezeCoordinatePair({ q: -8, r: 15 }, { q: -7, r: 15 }),
-      approach: freezeCoordinate({ q: -7, r: 14 }),
+      cells: freezeCoordinatePair({ q: -9, r: 16 }, { q: -8, r: 16 }),
+      approach: freezeCoordinate({ q: -8, r: 15 }),
     }),
     crimson: Object.freeze({
-      cells: freezeCoordinatePair({ q: 8, r: -15 }, { q: 7, r: -15 }),
-      approach: freezeCoordinate({ q: 7, r: -14 }),
+      cells: freezeCoordinatePair({ q: 9, r: -16 }, { q: 8, r: -16 }),
+      approach: freezeCoordinate({ q: 8, r: -15 }),
     }),
   });
 
@@ -257,28 +257,34 @@ export const SANDBOX_LARGE_BUILD_ANCHORS: Readonly<
 const ROUTE_WAYPOINTS: Readonly<Record<BattlefieldRouteId, readonly HexCoordinate[]>> =
   Object.freeze({
     center: freezeCoordinates([
+      { q: -9, r: 16 },
       { q: -8, r: 15 },
       { q: -7, r: 14 },
       { q: -5, r: 10 },
       { q: 5, r: -10 },
       { q: 7, r: -14 },
-      { q: 7, r: -15 },
+      { q: 8, r: -15 },
+      { q: 8, r: -16 },
     ]),
     west: freezeCoordinates([
+      { q: -9, r: 16 },
       { q: -8, r: 15 },
       { q: -7, r: 14 },
       { q: -11, r: 10 },
       { q: -1, r: -10 },
       { q: 7, r: -14 },
-      { q: 7, r: -15 },
+      { q: 8, r: -15 },
+      { q: 8, r: -16 },
     ]),
     east: freezeCoordinates([
-      { q: -7, r: 15 },
+      { q: -8, r: 16 },
+      { q: -8, r: 15 },
       { q: -7, r: 14 },
       { q: 1, r: 10 },
       { q: 11, r: -10 },
       { q: 7, r: -14 },
       { q: 8, r: -15 },
+      { q: 8, r: -16 },
     ]),
   });
 
@@ -339,6 +345,49 @@ export const SANDBOX_LARGE_BATTLE_STRUCTURES: readonly BattlefieldStructure[] =
     rotationY: faction === "verdant" ? 0 : Math.PI,
   })));
 
+const VERDANT_CASTLE_WALL_LAYOUT = [
+  ["wall-left", "wall-straight", -10, 16, Math.PI / 3, true],
+  ["wall-left-corner", "wall-corner", -9, 15, Math.PI, true],
+  ["front-gate", "wall-gate", -8, 15, 0, false],
+  ["wall-right-corner", "wall-corner", -7, 15, 2 * Math.PI / 3, true],
+  ["wall-right", "wall-straight", -7, 16, -Math.PI / 3, true],
+] as const;
+
+export const SANDBOX_LARGE_CASTLE_FORTIFICATIONS: readonly BattlefieldStructure[] =
+  Object.freeze((["verdant", "crimson"] as const).flatMap((faction) => {
+    const mirror = faction === "verdant" ? 1 : -1;
+    const facing = faction === "verdant" ? 0 : Math.PI;
+    return VERDANT_CASTLE_WALL_LAYOUT.map(([
+      name,
+      kind,
+      q,
+      r,
+      rotationY,
+      blocksMovement,
+    ]) => {
+      const coordinate = freezeCoordinate({ q: q * mirror, r: r * mirror });
+      return Object.freeze({
+        id: `sandbox-${faction}-castle-${name}`,
+        kind,
+        faction,
+        coordinate,
+        footprint: blocksMovement ? Object.freeze([coordinate]) : Object.freeze([]),
+        rotationY: facing + rotationY,
+      });
+    });
+  }));
+
+export const SANDBOX_LARGE_STRUCTURES: readonly BattlefieldStructure[] = Object.freeze([
+  ...SANDBOX_LARGE_BATTLE_STRUCTURES,
+  ...SANDBOX_LARGE_CASTLE_FORTIFICATIONS,
+]);
+
+const SANDBOX_LARGE_CASTLE_WALL_KEYS = new Set(
+  SANDBOX_LARGE_CASTLE_FORTIFICATIONS.flatMap(({ footprint }) => (
+    footprint.map(coordinateKey)
+  )),
+);
+
 export const SANDBOX_LARGE_BATTLEFIELD_MAP: BattlefieldMap = Object.freeze({
   id: SANDBOX_LARGE_BATTLEFIELD_ID,
   navigationRevision: SANDBOX_LARGE_NAVIGATION_REVISION,
@@ -380,15 +429,16 @@ function createSandboxLargeCell(coordinate: HexCoordinate): BattlefieldCell {
   if (!zoneDefinition) throw new Error(`Sandbox cell ${key} has no explicit zone.`);
   const buildPolicy = buildPolicyAt(coordinate);
   const isMineDistrict = SANDBOX_LARGE_MINE_DISTRICT_KEYS.has(key);
+  const isCastleWall = SANDBOX_LARGE_CASTLE_WALL_KEYS.has(key);
   return Object.freeze({
     ...coordinate,
     height: 0,
     surface: isMineDistrict
       ? "rock"
       : zoneDefinition.territory === null ? "grass" : "camp",
-    walkable: !isMineDistrict,
+    walkable: !isMineDistrict && !isCastleWall,
     territory: zoneDefinition.territory,
-    buildable: buildPolicy === "ordinary",
+    buildable: buildPolicy === "ordinary" && !isCastleWall,
     reservedForPath: SANDBOX_LARGE_ROAD_RESERVE_KEYS.has(key),
     zoneId: zoneDefinition.id,
     buildPolicy,
@@ -396,7 +446,9 @@ function createSandboxLargeCell(coordinate: HexCoordinate): BattlefieldCell {
       SANDBOX_LARGE_ROUTE_KEYS.get(route.id)?.has(key) ? [route.id] : []
     ))),
     visualRoad: SANDBOX_LARGE_VISUAL_ROAD_KEYS.has(key),
-    blocker: isMineDistrict ? "terrain" : "none",
+    blocker: isMineDistrict
+      ? "terrain"
+      : isCastleWall ? "fixed-structure" : "none",
   });
 }
 
@@ -418,7 +470,7 @@ function isMainRouteCell(coordinate: HexCoordinate): boolean {
 }
 
 function isGateFrontRoadCell(coordinate: HexCoordinate): boolean {
-  return Math.abs(coordinate.r) === 15
+  return (Math.abs(coordinate.r) === 15 || Math.abs(coordinate.r) === 16)
     && Math.abs(axialToWorld(coordinate).x) <= 4;
 }
 
@@ -440,6 +492,7 @@ function isRoadReserveCell(coordinate: HexCoordinate): boolean {
   return (
     Math.abs(coordinate.r) === 14
     || Math.abs(coordinate.r) === 15
+    || Math.abs(coordinate.r) === 16
   ) && Math.abs(axialToWorld(coordinate).x) <= 4;
 }
 
@@ -590,6 +643,8 @@ function pathThroughWaypoints(waypoints: readonly HexCoordinate[]): HexCoordinat
 function createSandboxLargeVisualRoadCells(): readonly HexCoordinate[] {
   const candidates = [
     ...SANDBOX_LARGE_ROUTES.flatMap((route) => route.referencePath),
+    ...SANDBOX_LARGE_GATES.verdant.cells,
+    ...SANDBOX_LARGE_GATES.crimson.cells,
     ...shortestHexSegment({ q: -8, r: 4 }, { q: 4, r: 4 }),
     ...shortestHexSegment({ q: -4, r: -4 }, { q: 8, r: -4 }),
   ];

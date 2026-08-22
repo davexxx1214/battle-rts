@@ -453,13 +453,13 @@ export const UNDEAD_TROOP_DESIGNS = {
 
 export const UNDEAD_AI_TROOP_CYCLES = {
   easy: ["spearman", "archer", "swordsman", "catapult"],
-  normal: ["spearman", "swordsman", "catapult", "archer", "mage"],
+  normal: ["catapult", "spearman", "swordsman", "archer", "mage"],
   hard: ["catapult", "spearman", "swordsman", "archer", "mage"],
 } as const satisfies Readonly<Record<AiDifficulty, readonly TroopKind[]>>;
 
 export const HUMAN_AI_TROOP_CYCLES = {
   easy: ["spearman", "archer", "swordsman"],
-  normal: ["spearman", "swordsman", "archer", "mage"],
+  normal: ["spearman", "swordsman", "archer", "mage", "catapult"],
   hard: ["spearman", "swordsman", "archer", "mage", "catapult"],
 } as const satisfies Readonly<Record<AiDifficulty, readonly TroopKind[]>>;
 
@@ -658,13 +658,15 @@ export const GAME_RULES = {
         deploymentPosture: "defensive",
       },
       normal: {
-        firstDecisionSeconds: 6,
-        decisionIntervalSeconds: 10,
+        firstDecisionSeconds: 1,
+        decisionIntervalSeconds: 1,
         buildingGoals: [
           { kind: "gold-mine", desiredActive: 1 },
+          { kind: "barracks", desiredActive: 1 },
+          { kind: "guard-tower", desiredActive: 1 },
         ],
         troopCycle: HUMAN_AI_TROOP_CYCLES.normal,
-        deploymentPosture: "balanced",
+        deploymentPosture: "aggressive",
       },
       hard: {
         firstDecisionSeconds: 1,

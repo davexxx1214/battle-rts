@@ -42,8 +42,8 @@ describe("sandbox population", () => {
     expect(sandboxUsedPopulation(units, "verdant", 4)).toBe(5);
   });
 
-  it("admits exactly 100 committed population and rejects 101", () => {
-    const snapshot = createFactionPopulationSnapshot([], "verdant", 98);
+  it("admits exactly 60 committed population and rejects 61", () => {
+    const snapshot = createFactionPopulationSnapshot([], "verdant", 58);
     expect(canCommitSandboxPopulation(snapshot, 2)).toBe(true);
     expect(canCommitSandboxPopulation(snapshot, 3)).toBe(false);
   });

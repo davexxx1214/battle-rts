@@ -329,6 +329,7 @@ describe("scene asset presentation", () => {
       "mine-mountain-c",
       "mine-rock-c",
       "mine-rock-e",
+      "mine-shaft",
       "river-bridge",
       "rock-hills",
       "shallow-water",
@@ -351,6 +352,10 @@ describe("scene asset presentation", () => {
       expect(asset.url).toMatch(/\.gl(?:tf|b)$/);
       expect(asset.scale).toBeGreaterThan(0);
     }
+    expect(SCENERY_SCENE_ASSETS["mine-shaft"]).toMatchObject({
+      url: "/assets/kaykit/medieval-hex/buildings/yellow/building_mine_yellow.gltf",
+      renderMode: "full-scene",
+    });
   });
 
   it("defines hollow faction rings for character and catapult bases", () => {

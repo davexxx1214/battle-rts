@@ -141,7 +141,39 @@ describe("battle session gate", () => {
       faction: "crimson",
       kind: "gold-mine",
     }));
-    expect(advanced.economy.accounts.crimson.gold).toBe(0);
+    expect(advanced.economy.accounts.crimson.gold).toBeLessThan(1_000);
+  });
+
+  it("starts hard at 1000 enemy gold", () => {
+    const initial = createBattleState([]);
+
+    const advanced = advanceBattleSession(initial, "engaged", 1, 0.1, "hard");
+
+    expect(advanced.economy.accounts.verdant.gold).toBe(500);
+    expect(advanced.economy.accounts.crimson.gold).toBe(1_000);
+  });
+
+  it("gives only the hard opponent thirty percent faster passive gold recovery", () => {
+    const created = createBattleState([]);
+    const initial = {
+      ...created,
+      matchElapsed: 0.1,
+      economy: {
+        ...created.economy,
+        accounts: {
+          ...created.economy.accounts,
+          crimson: { ...created.economy.accounts.crimson, gold: 0, isFull: false },
+        },
+      },
+    };
+
+    const normal = advanceBattleSession(initial, "engaged", 24, 0.1, "normal");
+    const hard = advanceBattleSession(initial, "engaged", 24, 0.1, "hard");
+
+    expect(hard.economy.accounts.verdant).toEqual(normal.economy.accounts.verdant);
+    expect(normal.economy.accounts.crimson.gold).toBe(0);
+    expect(hard.economy.accounts.crimson.gold).toBe(100);
+    expect(hard.economy.accounts.crimson.recoveryProgress).toBeCloseTo(0.8 / 7);
   });
 
   it("keeps opponent decisions identical across render-frame batching", () => {

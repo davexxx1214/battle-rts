@@ -1,0 +1,236 @@
+.dock {
+  position: absolute;
+  z-index: 27;
+  right: 232px;
+  bottom: 78px;
+  left: 310px;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border: 1px solid rgb(222 211 183 / 24%);
+  border-bottom: 2px solid rgb(229 184 77 / 72%);
+  color: var(--parchment);
+  background: rgb(11 14 13 / 92%);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 36%);
+  user-select: none;
+  backdrop-filter: blur(5px);
+}
+
+.scroller {
+  min-width: 0;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.scroller::-webkit-scrollbar {
+  display: none;
+}
+
+.groupLabel {
+  width: 22px;
+  min-width: 22px;
+  color: var(--amber);
+  font-size: 12px;
+  text-align: center;
+}
+
+.divider {
+  width: 1px;
+  min-width: 1px;
+  height: 43px;
+  margin-inline: 3px;
+  background: rgb(222 211 183 / 20%);
+}
+
+.action {
+  position: relative;
+  width: 58px;
+  min-width: 58px;
+  height: 58px;
+  display: grid;
+  grid-template-rows: 34px 10px 8px;
+  place-items: center;
+  padding: 2px 3px;
+  overflow: hidden;
+  border: 1px solid rgb(128 176 211 / 42%);
+  border-radius: 5px;
+  color: #d7e9f7;
+  background: rgb(28 46 57 / 88%);
+  font: inherit;
+  cursor: grab;
+  touch-action: pan-x;
+}
+
+.action[data-category="building"] {
+  border-color: rgb(229 184 77 / 42%);
+  background: rgb(60 50 27 / 86%);
+}
+
+.action:hover:not(:disabled),
+.action:focus-visible,
+.action[data-selected="true"],
+.action[data-dragging="true"] {
+  border-color: #f0c65f;
+  outline: none;
+  color: #fff6c8;
+  background: rgb(91 67 24 / 96%);
+  box-shadow: inset 0 -2px 0 var(--amber), 0 0 12px rgb(229 184 77 / 18%);
+}
+
+.action[data-category="troop"]:hover:not(:disabled),
+.action[data-category="troop"]:focus-visible,
+.action[data-category="troop"][data-dragging="true"] {
+  border-color: rgb(116 193 255 / 82%);
+  background: rgb(35 91 125 / 96%);
+  box-shadow: inset 0 -2px 0 #7bc5f5, 0 0 12px rgb(90 174 255 / 18%);
+}
+
+.action:disabled {
+  border-color: rgb(157 160 153 / 18%);
+  color: rgb(170 173 166 / 55%);
+  background: rgb(28 30 28 / 84%);
+  cursor: not-allowed;
+  filter: grayscale(1);
+  opacity: 0.48;
+}
+
+.iconFrame {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+}
+
+.iconFrame img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.iconFrame b {
+  position: absolute;
+  right: -7px;
+  bottom: -1px;
+  padding: 1px 3px;
+  border-radius: 5px;
+  color: #fff3bd;
+  background: rgb(7 9 8 / 90%);
+  font-size: 6px;
+  line-height: 1.2;
+}
+
+.name {
+  width: 100%;
+  overflow: hidden;
+  font-size: 7px;
+  font-weight: 900;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action small {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  color: #e9c466;
+  font-size: 6px;
+  font-weight: 800;
+}
+
+.action small i {
+  font-size: 5px;
+  font-style: normal;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 6px;
+  white-space: nowrap;
+}
+
+@media (max-width: 1050px) {
+  .dock {
+    right: 12px;
+  }
+
+  .hint {
+    display: none;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px),
+  (orientation: portrait) {
+  .dock {
+    right: max(4px, var(--game-safe-right));
+    bottom: calc(50px + max(4px, var(--game-safe-bottom)));
+    left: max(4px, var(--game-safe-left));
+    display: block;
+    padding: 3px;
+    border-radius: 6px;
+    background: rgb(10 13 12 / 88%);
+  }
+
+  .dock:has(+ [data-has-army="false"]) {
+    bottom: max(4px, var(--game-safe-bottom));
+  }
+
+  .scroller {
+    gap: 3px;
+  }
+
+  .groupLabel {
+    width: 16px;
+    min-width: 16px;
+    font-size: 10px;
+  }
+
+  .divider {
+    height: 34px;
+    margin-inline: 1px;
+  }
+
+  .action {
+    width: 44px;
+    min-width: 44px;
+    height: 45px;
+    grid-template-rows: 30px 9px;
+    padding: 1px 2px;
+  }
+
+  .iconFrame,
+  .iconFrame img {
+    width: 30px;
+    height: 30px;
+  }
+
+  .iconFrame b {
+    right: -5px;
+    font-size: 5px;
+  }
+
+  .name {
+    font-size: 6px;
+  }
+
+  .action small,
+  .hint {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock,
+  .dock * {
+    transition: none;
+  }
+}

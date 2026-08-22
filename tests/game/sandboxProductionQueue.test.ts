@@ -64,7 +64,7 @@ function enqueue(
 describe("sandbox production queue", () => {
   it("derives the queue and population limits from the sandbox mode", () => {
     expect(SANDBOX_PRODUCTION_MAX_QUEUE_LENGTH).toBe(5);
-    expect(SANDBOX_PRODUCTION_POPULATION_CAP).toBe(100);
+    expect(SANDBOX_PRODUCTION_POPULATION_CAP).toBe(60);
   });
 
   it("registers immutable, independent queues and rejects duplicate ids", () => {
@@ -280,12 +280,12 @@ describe("sandbox production queue", () => {
   it.each([
     { living: 49, troop: "swordsman", expected: true },
     { living: 50, troop: "spearman", expected: true },
-    { living: 79, troop: "archer", expected: true },
-    { living: 98, troop: "mage", expected: true },
-    { living: 96, troop: "catapult", expected: true },
-    { living: 97, troop: "catapult", expected: false },
-    { living: 99, troop: "spearman", expected: true },
-    { living: 100, troop: "spearman", expected: false },
+    { living: 59, troop: "archer", expected: true },
+    { living: 58, troop: "mage", expected: true },
+    { living: 56, troop: "catapult", expected: true },
+    { living: 57, troop: "catapult", expected: false },
+    { living: 59, troop: "spearman", expected: true },
+    { living: 60, troop: "spearman", expected: false },
   ] as const)(
     "applies the population cap at $living + $troop",
     ({ living, troop, expected }) => {
@@ -302,7 +302,7 @@ describe("sandbox production queue", () => {
   it("counts existing reservations and ready-blocked orders in cap admission", () => {
     let state = stateWithBuilding();
     let economy = createEconomyState(SANDBOX_ECONOMY_POLICY);
-    const first = enqueue(state, economy, "spearman", { livingVerdant: 98 });
+    const first = enqueue(state, economy, "spearman", { livingVerdant: 58 });
     if (!first.accepted) throw new Error("expected first enqueue success");
     state = first.state;
     economy = first.economy;
@@ -319,7 +319,7 @@ describe("sandbox production queue", () => {
     });
 
     const second = enqueue(blocked.state, economy, "spearman", {
-      livingVerdant: 99,
+      livingVerdant: 59,
     });
     expect(second).toMatchObject({ accepted: false, reason: "population-cap" });
   });

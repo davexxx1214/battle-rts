@@ -4,7 +4,6 @@ import styles from "./GameModeSelector.module.css";
 const GAME_MODES = [
   { mode: "campaign", label: "战役模式", shortLabel: "战役" },
   { mode: "normal", label: "自由对战", shortLabel: "自由" },
-  { mode: "arena", label: "竞技场模式", shortLabel: "竞技" },
   { mode: "sandbox", label: "沙盒模式", shortLabel: "沙盒" },
 ] as const satisfies readonly {
   readonly mode: GameMode;

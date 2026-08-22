@@ -19,6 +19,11 @@ import {
   type GameMode,
 } from "./app/gameMode";
 import {
+  advanceBattleLoopClock,
+  BATTLE_LOOP_POLL_INTERVAL_MS,
+  SIMULATION_STEP_SECONDS,
+} from "./app/battleLoop";
+import {
   BATTLE_RACE_LABELS,
   createFactionRaces,
   hasRace,
@@ -84,11 +89,19 @@ import {
 } from "./game/sandboxBattleTransactions";
 import {
   sandboxBuildingSpec,
+  sandboxTroopSpec,
   type SandboxBuildingSlot,
   type SandboxTroopSlot,
 } from "./game/sandboxCatalog";
 import { sandboxBuildingMissingPrerequisites } from "./game/sandboxConstruction";
-import { enqueueSandboxBattleProduction } from "./game/sandboxProductionTransactions";
+import {
+  enqueueSandboxBattleProduction,
+  setSandboxBattleRallyPoint,
+} from "./game/sandboxProductionTransactions";
+import {
+  SANDBOX_PRODUCTION_POPULATION_CAP,
+} from "./game/sandboxProductionQueue";
+import { sandboxQuickProductionBuildingId } from "./game/sandboxQuickProduction";
 import { issueSandboxSquadOrder } from "./game/sandboxOrders";
 import { battlefieldDefinitionFor } from "./map/battlefieldDefinition";
 import {
@@ -123,6 +136,11 @@ import {
 } from "./ui/fieldInput";
 import { SandboxMinimap } from "./ui/minimap";
 import { SandboxCommandPanel } from "./ui/SandboxCommandPanel";
+import {
+  SandboxActionDock,
+  type SandboxActionDockDragEvent,
+  type SandboxActionDockItem,
+} from "./ui/SandboxActionDock";
 import { SandboxSquadCommandBar } from "./ui/SandboxSquadCommandBar";
 import {
   createSandboxSelectionState,
@@ -158,6 +176,11 @@ interface ActiveDeploymentDrag {
   readonly kind: DeployableKind;
 }
 
+interface ActiveSandboxDockDrag {
+  readonly pointerId: number;
+  readonly item: SandboxActionDockItem;
+}
+
 interface MouseFieldDragState {
   readonly pointerId: number;
   readonly startField: FieldPoint;
@@ -174,7 +197,6 @@ interface SandboxCommandMarkerState {
   readonly position: WorldPoint;
 }
 
-const SIMULATION_STEP_SECONDS = 0.05;
 const TOUCH_DRAG_THRESHOLD_PX = 8;
 const FEEDBACK_LIFETIME_MS = {
   success: 1800,
@@ -263,11 +285,15 @@ export function App() {
   const previousPinchDistanceRef = useRef<number | null>(null);
   const suppressTouchDeploymentRef = useRef(false);
   const deploymentDragRef = useRef<ActiveDeploymentDrag | null>(null);
+  const sandboxDockDragRef = useRef<ActiveSandboxDockDrag | null>(null);
   const deploymentDragReleasePointerRef = useRef<number | null>(null);
+  const sandboxDockDragReleasePointerRef = useRef<number | null>(null);
   const mouseFieldDragRef = useRef<MouseFieldDragState | null>(null);
   const nextSandboxCommandMarkerSequence = useRef(1);
   const [deploymentDragActive, setDeploymentDragActive] = useState(false);
   const [deploymentDragOverBattlefield, setDeploymentDragOverBattlefield] = useState(false);
+  const [sandboxDockDragActive, setSandboxDockDragActive] = useState(false);
+  const [sandboxDockDragOverBattlefield, setSandboxDockDragOverBattlefield] = useState(false);
   const cameraViewStore = useMemo(createCameraViewStore, []);
   const clock = getBattleMatchClock(battle);
   const sandboxMode = battle.modeId === "sandbox";
@@ -672,6 +698,103 @@ export function App() {
     });
   }, [playUiCue]);
 
+  const enqueueSandboxTroopQuick = useCallback((
+    troopKind: SandboxTroopSlot,
+    rallyPoint: WorldPoint | null = null,
+  ) => {
+    playUiCue("select");
+    setApp((current) => {
+      if (current.session.phase !== "engaged") return current;
+      const buildingId = sandboxQuickProductionBuildingId(
+        current.session.battle,
+        troopKind,
+      );
+      if (!buildingId) {
+        const producer = sandboxBuildingSpec(sandboxTroopSpec(troopKind).producer);
+        return {
+          ...current,
+          feedback: {
+            tone: "error",
+            message: `没有可用的${producer.displayByRace[
+              current.session.battle.factionRaces.verdant
+            ].name}生产队列`,
+          },
+        };
+      }
+
+      let productionBattle = current.session.battle;
+      if (rallyPoint) {
+        const rallyResult = setSandboxBattleRallyPoint(productionBattle, {
+          faction: "verdant",
+          buildingId,
+          worldPosition: rallyPoint,
+        });
+        if (!rallyResult.ok) {
+          return {
+            ...current,
+            feedback: {
+              tone: "error",
+              message: "该拖放位置不能作为集结点",
+            },
+          };
+        }
+        productionBattle = rallyResult.battle;
+      }
+
+      const result = enqueueSandboxBattleProduction(productionBattle, {
+        faction: "verdant",
+        buildingId,
+        troopKind,
+      });
+      if (!result.ok) {
+        return {
+          ...current,
+          feedback: {
+            tone: "error",
+            message: sandboxActionReasonLabel(result.reason),
+          },
+        };
+      }
+      return {
+        ...current,
+        session: { ...current.session, battle: result.battle },
+        feedback: {
+          tone: "success",
+          message: rallyPoint
+            ? `训练已入队，并将集结到拖放位置（支付 ${result.costCharged} 金币）`
+            : `训练已加入最短队列，支付 ${result.costCharged} 金币`,
+        },
+      };
+    });
+  }, [playUiCue]);
+
+  const selectSandboxSquadGroup = useCallback((squadIds: readonly string[]) => {
+    if (
+      !sandboxMode
+      || battlePhase !== "engaged"
+      || battle.winner !== null
+      || squadIds.length === 0
+    ) return;
+    const uniqueCount = new Set(squadIds).size;
+    playUiCue("select");
+    setCursorWorld(null);
+    setSelectedSandboxBuilding(null);
+    setSandboxSelection((current) => selectSandboxSquadsInBox(
+      current,
+      squadIds,
+      false,
+    ));
+    setSandboxSelectionRect(null);
+    setSandboxInteractionMode("neutral");
+    setApp((current) => ({
+      ...current,
+      feedback: {
+        tone: "info",
+        message: `已选择 ${uniqueCount} 个我方单位`,
+      },
+    }));
+  }, [battle.winner, battlePhase, playUiCue, sandboxMode]);
+
   const issueSelectedSandboxAdvance = useCallback((destination: WorldPoint) => {
     const selectedSquadIds = sandboxSelection.selectedSquadIds;
     setApp((current) => {
@@ -738,6 +861,134 @@ export function App() {
       worldPosition: bridgeRef.current.screenToWorld(fieldPoint.x, fieldPoint.y),
     } as const;
   }, []);
+
+  const handleSandboxActionDrag = useCallback((event: SandboxActionDockDragEvent) => {
+    if (event.phase === "start") {
+      if (sandboxDockDragRef.current) return;
+      sandboxDockDragRef.current = {
+        pointerId: event.pointerId,
+        item: event.item,
+      };
+      const target = resolveDeploymentDragTarget(event.client);
+      setSandboxDockDragActive(true);
+      setSandboxDockDragOverBattlefield(
+        target.overBattlefield && target.worldPosition !== null,
+      );
+      setCursorWorld(target.overBattlefield ? target.worldPosition : null);
+      if (event.item.category === "building") {
+        setSelectedSandboxBuilding(event.item.slot);
+        setSandboxSelection(createSandboxSelectionState());
+        setSandboxInteractionMode("placing-building");
+      } else {
+        setSelectedSandboxBuilding(null);
+        setSandboxInteractionMode("neutral");
+      }
+      playUiCue("select");
+      setApp((current) => ({
+        ...current,
+        feedback: {
+          tone: "info",
+          message: event.item.category === "building"
+            ? "拖到合法建造格，松手直接开工"
+            : "拖到战场，松手训练并设置集结点",
+        },
+      }));
+      return;
+    }
+
+    const activeDrag = sandboxDockDragRef.current;
+    if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
+    if (event.phase === "move") {
+      const target = resolveDeploymentDragTarget(event.client);
+      setSandboxDockDragOverBattlefield(
+        target.overBattlefield && target.worldPosition !== null,
+      );
+      setCursorWorld(target.overBattlefield ? target.worldPosition : null);
+      return;
+    }
+
+    sandboxDockDragRef.current = null;
+    sandboxDockDragReleasePointerRef.current = event.pointerId;
+    queueMicrotask(() => {
+      if (sandboxDockDragReleasePointerRef.current === event.pointerId) {
+        sandboxDockDragReleasePointerRef.current = null;
+      }
+    });
+    setSandboxDockDragActive(false);
+    setSandboxDockDragOverBattlefield(false);
+    setCursorWorld(null);
+    setSelectedSandboxBuilding(null);
+    setSandboxInteractionMode("neutral");
+
+    if (event.phase === "cancel") {
+      setApp((current) => ({
+        ...current,
+        feedback: { tone: "info", message: "快捷操作已取消，金币未扣除" },
+      }));
+      return;
+    }
+
+    const target = resolveDeploymentDragTarget(event.client);
+    if (!target.overBattlefield || !target.worldPosition) {
+      setApp((current) => ({
+        ...current,
+        feedback: { tone: "info", message: "拖放已取消，金币未扣除" },
+      }));
+      return;
+    }
+
+    const worldPosition = target.worldPosition;
+    if (activeDrag.item.category === "troop") {
+      enqueueSandboxTroopQuick(activeDrag.item.slot, worldPosition);
+      return;
+    }
+
+    const slot = activeDrag.item.slot;
+    setApp((current) => {
+      if (current.session.phase !== "engaged" || current.session.battle.modeId !== "sandbox") {
+        return current;
+      }
+      const preview = previewSandboxBuildingConstruction(current.session.battle, {
+        faction: "verdant",
+        slot,
+        worldPosition,
+      });
+      if (!preview.valid) {
+        return {
+          ...current,
+          feedback: {
+            tone: "error",
+            message: `${sandboxActionReasonLabel(preview.reason ?? "invalid-request")}，金币未扣除`,
+          },
+        };
+      }
+      const result = startSandboxBuildingConstruction(current.session.battle, {
+        faction: "verdant",
+        slot,
+        worldPosition,
+      });
+      if (!result.ok) {
+        return {
+          ...current,
+          feedback: {
+            tone: "error",
+            message: `${sandboxActionReasonLabel(result.reason)}，金币未扣除`,
+          },
+        };
+      }
+      queueMicrotask(() => playUiCue("construction-started"));
+      return {
+        ...current,
+        session: { ...current.session, battle: result.battle },
+        feedback: {
+          tone: "success",
+          message: `施工已开始，支付 ${result.costCharged} 金币${
+            result.usedEmergencyPermit ? "（已使用紧急采矿许可）" : ""
+          }`,
+        },
+      };
+    });
+  }, [enqueueSandboxTroopQuick, playUiCue, resolveDeploymentDragTarget]);
 
   const handleDeploymentDrag = useCallback((event: DeploymentDragEvent) => {
     if (event.phase === "start") {
@@ -1055,6 +1306,8 @@ export function App() {
     if (
       deploymentDragRef.current?.pointerId === event.pointerId
       || deploymentDragReleasePointerRef.current === event.pointerId
+      || sandboxDockDragRef.current?.pointerId === event.pointerId
+      || sandboxDockDragReleasePointerRef.current === event.pointerId
     ) return;
     const mouseDrag = mouseFieldDragRef.current;
     if (mouseDrag?.pointerId === event.pointerId) {
@@ -1282,7 +1535,20 @@ export function App() {
     selectedSandboxBuilding,
   ]);
 
-  const fieldFeedback = deploymentDragActive
+  const fieldFeedback = sandboxDockDragActive
+    ? !sandboxDockDragOverBattlefield
+      ? { tone: "info" as const, message: "拖到战场后松手，拖回快捷栏可取消" }
+      : sandboxConstructionPreview
+        ? sandboxConstructionPreview.valid
+          ? { tone: "success" as const, message: "格子可建造，松手直接施工" }
+          : {
+              tone: "error" as const,
+              message: sandboxActionReasonLabel(
+                sandboxConstructionPreview.reason ?? "invalid-request",
+              ),
+            }
+        : { tone: "success" as const, message: "松手训练兵种，并把这里设为集结点" }
+    : deploymentDragActive
     ? !deploymentDragOverBattlefield
       ? { tone: "info" as const, message: "拖回列表或在此松手将取消部署" }
       : deploymentPreview?.valid
@@ -1322,6 +1588,7 @@ export function App() {
     <main
       className={styles.appShell}
       data-view="battle"
+      data-game-mode={sandboxMode ? "sandbox" : mode}
       data-battle-theme={hasUndeadTerritory ? "undead" : "human"}
       data-enemy-race={factionRaces.crimson}
       aria-busy={!assetsReady}
@@ -1372,18 +1639,18 @@ export function App() {
                 data-mobile-open={mobileMatchSetupOpen}
               >
                 {mode !== "campaign" && (
-                  <>
-                    <FactionRaceSelector
-                      disabled={battlePhase !== "briefing"}
-                      factionRaces={factionRaces}
-                      onChange={changeFactionRace}
-                    />
+                  <FactionRaceSelector
+                    disabled={battlePhase !== "briefing"}
+                    factionRaces={factionRaces}
+                    onChange={changeFactionRace}
+                  />
+                )}
+                {mode !== "campaign" && !sandboxMode && (
                     <AiDifficultySelector
                       difficulty={difficulty}
                       disabled={battlePhase !== "briefing"}
                       onChange={changeDifficulty}
                     />
-                  </>
                 )}
                 {activeCampaignMission && (
                   <button
@@ -1504,17 +1771,33 @@ export function App() {
           />
         ))}
         {battle.winner === null && sandboxMode && (
+          <SandboxActionDock
+            battle={battle}
+            selectedBuilding={selectedSandboxBuilding}
+            disabled={battlePhase !== "engaged"}
+            onSelectBuilding={selectSandboxBuilding}
+            onEnqueueTroop={enqueueSandboxTroopQuick}
+            onDragAction={handleSandboxActionDrag}
+          />
+        )}
+        {battle.winner === null && sandboxMode && (
           <SandboxSquadCommandBar
             battle={battle}
             selectedSquadIds={sandboxSelection.selectedSquadIds}
             disabled={battlePhase !== "engaged"}
+            playerRace={factionRaces.verdant}
+            onSelectSquads={selectSandboxSquadGroup}
           />
         )}
 
         <div
           ref={battlefieldRef}
           className={styles.battlefield}
-          data-deploying={app.selectedDeployable !== null || selectedSandboxBuilding !== null}
+          data-deploying={
+            app.selectedDeployable !== null
+            || selectedSandboxBuilding !== null
+            || sandboxDockDragActive
+          }
           data-sandbox-interaction={sandboxInteractionMode}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -1584,7 +1867,16 @@ export function App() {
                   ? "Shift + 左键拖框多选"
                   : "从左侧选择部署单位"}</span>
           </div>
-          <div className={styles.objectiveFlag} data-tone={fieldFeedback?.tone ?? "info"}>
+          <div
+            className={styles.objectiveFlag}
+            data-tone={fieldFeedback?.tone ?? "info"}
+            data-has-feedback={fieldFeedback !== null}
+            data-action-active={
+              selectedSandboxBuilding !== null
+              || app.selectedDeployable !== null
+              || sandboxDockDragActive
+            }
+          >
             <span>{selectedSandboxBuilding
               ? "CONSTRUCTION MODE"
               : app.selectedDeployable
@@ -1806,20 +2098,19 @@ function useBattleLoop(
 ): void {
   useEffect(() => {
     if (phase !== "engaged") return;
-    let animationFrame = 0;
     let previous = performance.now();
     let accumulator = 0;
-    const frame = (now: number) => {
-      accumulator += Math.min(0.2, (now - previous) / 1000);
+    const advance = () => {
+      const now = performance.now();
+      const clockAdvance = advanceBattleLoopClock(accumulator, (now - previous) / 1000);
+      accumulator = clockAdvance.accumulatorSeconds;
       previous = now;
-      if (accumulator >= SIMULATION_STEP_SECONDS) {
-        const steps = Math.min(4, Math.floor(accumulator / SIMULATION_STEP_SECONDS));
-        accumulator -= steps * SIMULATION_STEP_SECONDS;
+      if (clockAdvance.steps > 0) {
         setApp((current) => {
           const battle = advanceBattleSession(
             current.session.battle,
             current.session.phase,
-            steps,
+            clockAdvance.steps,
             SIMULATION_STEP_SECONDS,
             difficulty,
           );
@@ -1828,10 +2119,11 @@ function useBattleLoop(
             : { ...current, session: { ...current.session, battle } };
         });
       }
-      animationFrame = requestAnimationFrame(frame);
     };
-    animationFrame = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(animationFrame);
+    // Keep authoritative rules independent from Three.js render cadence. A
+    // late-game FPS drop must not starve mining, production, combat, or AI.
+    const interval = window.setInterval(advance, BATTLE_LOOP_POLL_INTERVAL_MS);
+    return () => window.clearInterval(interval);
   }, [difficulty, phase, setApp]);
 }
 
@@ -1893,7 +2185,7 @@ function sandboxActionReasonLabel(reason: string): string {
     "wrong-producer": "该兵种必须从对应建筑训练",
     "queue-full": "该建筑的三项生产队列已满",
     "invalid-population": "人口状态异常",
-    "population-cap": "人口预留将超过 100 上限",
+    "population-cap": `人口预留将超过 ${SANDBOX_PRODUCTION_POPULATION_CAP} 上限`,
     "insufficient-gold": "金币不足",
     "building-not-operational": "建筑尚未完工",
     "empty-selection": "请先选择己方单位",

@@ -199,10 +199,10 @@ function CharacterUnitModel({
   useEffect(() => () => {
     activeAction.current = null;
     mixer.stopAllAction();
-  }, [mixer]);
+    mixer.uncacheRoot(model);
+  }, [mixer, model]);
   useEffect(() => {
-    if (!isGhost) return;
-    configureGhostMaterials(model);
+    if (isGhost) configureGhostMaterials(model);
     return () => disposeOwnedModelMaterials(model);
   }, [isGhost, model]);
   useFrame(({ camera }, delta) => {

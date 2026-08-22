@@ -116,9 +116,9 @@ describe("sandbox opponent AI", () => {
     expect(SANDBOX_AI_ATTACK_WAVE_MINIMUM_UNITS).toBe(3);
     expect(SANDBOX_AI_ATTACK_WAVE_MINIMUM_POPULATION).toBe(10);
     expect(sandboxAiPopulationTarget(0, false)).toBe(12);
-    expect(sandboxAiPopulationTarget(2, false)).toBe(50);
-    expect(sandboxAiPopulationTarget(4, false)).toBe(80);
-    expect(sandboxAiPopulationTarget(4, true)).toBe(100);
+    expect(sandboxAiPopulationTarget(2, false)).toBe(20);
+    expect(sandboxAiPopulationTarget(4, false)).toBe(40);
+    expect(sandboxAiPopulationTarget(4, true)).toBe(60);
 
     let battle = createInitialBattle({ modeId: "sandbox" });
     for (let second = 0; second < 600 && battle.winner === null; second += 1) {
@@ -128,7 +128,7 @@ describe("sandbox opponent AI", () => {
         : { totalQueuePopulation: 0 };
       expect(
         sandboxUsedPopulation(battle.units, "crimson") + queue.totalQueuePopulation,
-      ).toBeLessThanOrEqual(100);
+      ).toBeLessThanOrEqual(60);
       expect(Object.values(battle.mining?.pitsById ?? {}).every((pit) => (
         pit.remainingOre >= 0 && pit.remainingOre <= pit.capacityOre
       ))).toBe(true);
@@ -278,10 +278,10 @@ describe("sandbox opponent AI", () => {
       && entry.goldBefore >= 0
       && entry.goldAfter >= 0
       && entry.remainingOreBefore >= entry.remainingOreAfter
-      && entry.livingPopulationBefore <= 100
-      && entry.livingPopulationAfter <= 100
-      && entry.reservedPopulationBefore <= 100
-      && entry.reservedPopulationAfter <= 100
+      && entry.livingPopulationBefore <= 60
+      && entry.livingPopulationAfter <= 60
+      && entry.reservedPopulationBefore <= 60
+      && entry.reservedPopulationAfter <= 60
       && entry.queuedOrdersBefore >= 0
       && entry.queuedOrdersAfter >= 0
     ))).toBe(true);

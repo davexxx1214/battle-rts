@@ -337,6 +337,11 @@ export const SCENERY_SCENE_ASSETS = {
     url: "/assets/kaykit/medieval-hex/decoration/nature/mountain_C.gltf",
     scale: 1.42,
   },
+  "mine-shaft": {
+    url: "/assets/kaykit/medieval-hex/buildings/yellow/building_mine_yellow.gltf",
+    scale: 0.84,
+    renderMode: "full-scene",
+  },
   "mine-rock-c": {
     url: "/assets/kaykit/medieval-hex/decoration/nature/rock_single_C.gltf",
     scale: 4.8,

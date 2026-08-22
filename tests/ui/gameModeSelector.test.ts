@@ -23,11 +23,11 @@ describe("game mode selector", () => {
 
     expect(markup).toContain("战役模式");
     expect(markup).toContain("自由对战");
-    expect(markup).toContain("竞技场模式");
+    expect(markup).not.toContain("竞技场模式");
     expect(markup).toContain("沙盒模式");
     expect(markup).toContain('value="sandbox"');
     expect(markup).not.toContain("人类对亡灵");
-    expect(markup.match(/<button/g)).toHaveLength(4);
+    expect(markup.match(/<button/g)).toHaveLength(3);
     expect(markup).toContain('aria-label="游戏模式"');
     expect(markup).toContain('aria-pressed="true"');
     expect(markup).toMatch(/自由对战<\/span><span[^>]*aria-hidden="true">自由<\/span><\/button>/);
@@ -43,10 +43,10 @@ describe("game mode selector", () => {
 
     expect(markup).toContain('data-compact-on-portrait="true"');
     expect(markup).toContain('aria-label="切换游戏模式"');
-    expect(markup.match(/<option/g)).toHaveLength(4);
+    expect(markup.match(/<option/g)).toHaveLength(3);
     expect(markup).toContain(">战役</option>");
     expect(markup).toContain(">自由</option>");
-    expect(markup).toContain(">竞技</option>");
+    expect(markup).not.toContain(">竞技</option>");
     expect(markup).toContain(">沙盒</option>");
   });
 

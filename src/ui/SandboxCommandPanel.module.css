@@ -47,6 +47,18 @@
   opacity: 0.42;
 }
 
+.mobileSummary {
+  display: none;
+}
+
+.mobileDismissLayer {
+  display: none;
+}
+
+.panelContent {
+  display: contents;
+}
+
 .resources {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -212,6 +224,18 @@
   font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.buildingIcon {
+  display: inline-block;
+  width: 14px;
+  margin-right: 4px;
+  color: var(--amber);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1;
+  text-align: center;
+  vertical-align: -1px;
 }
 
 .buildGrid strong,
@@ -422,33 +446,170 @@
   }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 620px), (orientation: portrait) {
   .panel {
-    top: auto;
-    right: max(6px, var(--game-safe-right));
-    bottom: calc(62px + max(6px, var(--game-safe-bottom)));
+    top: max(6px, var(--game-safe-top));
+    right: auto;
+    bottom: auto;
     left: max(6px, var(--game-safe-left));
     width: auto;
-    max-height: min(40vh, 330px);
+    max-height: none;
+    display: block;
+    padding: 0;
+    overflow: visible;
+    border-left-width: 1px;
+    border-radius: 7px;
+    background: rgb(12 15 13 / 90%);
+    box-shadow: 0 8px 22px rgb(0 0 0 / 32%);
+    backdrop-filter: blur(5px);
+  }
+
+  .mobileSummary {
+    position: relative;
+    z-index: 2;
+    height: 38px;
+    display: flex;
+    gap: 2px;
+    align-items: stretch;
+    padding: 3px;
+  }
+
+  .mobileSummary > span {
+    min-width: 50px;
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    border-right: 1px solid rgb(222 211 183 / 12%);
+    color: var(--muted);
+    font-size: 9px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .mobileSummary > span:first-child i {
+    color: var(--amber);
+  }
+
+  .mobileSummary > span:nth-child(2) i {
+    color: #8fc8f0;
+  }
+
+  .mobileSummary > span:nth-child(3) i {
+    color: #d8cfb5;
+  }
+
+  .mobileSummary i {
+    font-size: 11px;
+    font-style: normal;
+  }
+
+  .mobileSummary strong {
+    color: var(--parchment);
+    font-size: 9px;
+  }
+
+  .panel .mobilePanelToggle {
+    width: 34px;
+    min-width: 34px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    padding: 6px;
+    border-color: rgb(229 184 77 / 40%);
+    color: var(--amber);
+    background: rgb(65 51 23 / 68%);
+    touch-action: manipulation;
+  }
+
+  .mobilePanelToggle svg {
+    width: 19px;
+    height: 19px;
+    fill: none;
+    stroke: currentcolor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.8;
+  }
+
+  .mobilePanelToggle[aria-expanded="true"] {
+    border-color: var(--amber);
+    color: #fff2bd;
+    background: rgb(92 69 25 / 92%);
+  }
+
+  .panelContent {
+    position: absolute;
+    z-index: 2;
+    top: calc(100% + 5px);
+    left: 0;
+    width: min(360px, calc(100vw - 12px - var(--game-safe-left) - var(--game-safe-right)));
+    max-height: min(60vh, 520px);
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+    overflow: hidden auto;
+    border: 1px solid var(--line-strong);
+    border-top: 2px solid var(--amber);
+    color: var(--parchment);
+    background:
+      linear-gradient(145deg, rgb(90 174 255 / 9%), transparent 38%),
+      rgb(13 15 13 / 97%);
+    box-shadow: 12px 18px 38px rgb(0 0 0 / 48%);
+    scrollbar-width: thin;
+  }
+
+  .panel[data-mobile-expanded="true"] .panelContent {
+    display: flex;
+  }
+
+  .panel .mobileDismissLayer {
+    position: fixed;
+    z-index: 1;
+    inset: 0;
+    width: 100vw;
+    height: 100dvh;
+    display: none;
+    padding: 0;
+    border: 0;
+    opacity: 1;
+    background: transparent;
+    cursor: default;
+    touch-action: manipulation;
+  }
+
+  .panel[data-mobile-expanded="true"] .mobileDismissLayer {
+    display: block;
   }
 
   .buildGrid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .buildGrid button,
+  .trainingButtons button {
+    min-height: 42px;
+  }
 }
 
 @media (max-width: 410px) {
   .panel {
-    max-height: 46vh;
-    padding: 7px;
+    max-width: calc(100% - 12px - var(--game-safe-left) - var(--game-safe-right));
   }
 
   .resources {
     position: sticky;
     z-index: 2;
-    top: -7px;
+    top: -8px;
     padding-top: 4px;
     background: rgb(15 17 15 / 98%);
+  }
+
+  .mobileSummary > span {
+    min-width: 47px;
+    padding-inline: 5px;
   }
 
   .buildGrid button,

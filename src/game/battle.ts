@@ -53,7 +53,11 @@ import {
   unitSpecFor,
   type MatchPolicy,
 } from "./rules";
-import { battleModeDefinitionFor, type BattleModeId } from "./battleMode";
+import {
+  battleModeDefinitionFor,
+  type BattleEconomyPolicy,
+  type BattleModeId,
+} from "./battleMode";
 import {
   battlefieldDefinitionFor,
   type BattlefieldHealingZoneDefinition,
@@ -65,6 +69,7 @@ import {
   advanceEconomy,
   createEconomyState,
   getMatchClock,
+  grantGold,
   type EconomyState,
   type MatchClock,
 } from "./economy";
@@ -135,6 +140,7 @@ import {
 } from "./sandboxOrders";
 import type { SandboxOpponentAiState } from "./sandboxOpponentAi";
 import { isSandboxResourceStalemate } from "./sandboxResolution";
+import { sandboxNeutralKillReward } from "./sandboxNeutralRewards";
 
 export type { BattleRace, Faction, FactionRaces, UnitRole, WorldPoint } from "./types";
 export { UNIT_SPECS } from "./rules";
@@ -241,6 +247,13 @@ const MOVEMENT_EPSILON = 1e-9;
 const MAX_STEP_SECONDS = 0.1;
 const EVENT_WINDOW_SECONDS = 2;
 const POST_BATTLE_PRESENTATION_SECONDS = 8;
+/**
+ * Corpses remain authoritative slightly longer than their 6.85 second visual
+ * presentation, then leave both simulation and rendering state. Keeping dead
+ * units forever causes long, production-heavy Sandbox matches to retain every
+ * cloned character model they have ever rendered.
+ */
+export const BATTLE_CORPSE_RETENTION_SECONDS = 7;
 const MAX_MINING_LEDGER_EVENTS = 512;
 const ATTACK_LINE_SAMPLE_DISTANCE = 0.35;
 const BUILDING_ATTACK_LINE_CLEARANCE = 1.1;
@@ -341,7 +354,11 @@ export function getBattleMatchClock(state: BattleState): MatchClock {
   return getMatchClock(state.matchElapsed, state.matchPolicy);
 }
 
-export function stepBattle(state: BattleState, requestedDeltaSeconds: number): BattleState {
+export function stepBattle(
+  state: BattleState,
+  requestedDeltaSeconds: number,
+  recoverySpeedMultipliers: Readonly<Partial<Record<Faction, number>>> = {},
+): BattleState {
   if (!Number.isFinite(requestedDeltaSeconds) || requestedDeltaSeconds <= 0) {
     return state;
   }
@@ -365,16 +382,25 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       state.buildingOccupancy,
       elapsed,
     );
+    const units = pruneExpiredBattleCorpses(
+      state.units.map((unit) => ({
+        ...unit,
+        statusEffects: pruneUnitStatusEffects(unit.statusEffects, elapsed),
+      })),
+      elapsed,
+    );
+    const neutralMonsters = pruneExpiredBattleCorpses(
+      (state.neutralMonsters ?? []).map((unit) => ({
+        ...unit,
+        statusEffects: pruneUnitStatusEffects(unit.statusEffects, elapsed),
+      })),
+      elapsed,
+    );
     return {
       ...state,
-      units: state.units.map((unit) => ({
-        ...unit,
-        statusEffects: pruneUnitStatusEffects(unit.statusEffects, elapsed),
-      })),
-      neutralMonsters: (state.neutralMonsters ?? []).map((unit) => ({
-        ...unit,
-        statusEffects: pruneUnitStatusEffects(unit.statusEffects, elapsed),
-      })),
+      units,
+      neutralMonsters,
+      squads: pruneBattleSquads(state.squads, units),
       buildings: cleanup.buildings,
       buildingOccupancy: cleanup.occupancy,
       projectiles: [],
@@ -638,6 +664,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
         activeMatchDeltaSeconds,
         state.matchPolicy,
         mode.economyPolicy,
+        recoverySpeedMultipliers,
       )
     : { state: state.economy, newlyFullFactions: [] };
   const buildingStep = castleWinnerAfterBuildingHealth === null
@@ -740,6 +767,19 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     emit,
     castleAttackStep.buildings,
   );
+  const neutralRewardStep = state.modeId === "sandbox"
+    ? grantNeutralMonsterKillRewards(
+        buildingStep.economy,
+        emitted,
+        unitsAtStart,
+        castleAttackStep.buildings,
+        mode.economyPolicy,
+        emit,
+      )
+    : {
+        economy: buildingStep.economy,
+        newlyFullFactions: [] as readonly Faction[],
+      };
   const statusSettledCombatUnits = settleUnitStatusEffects(
     unitsAfterCastleAttacks,
     statusEffectIntents,
@@ -750,8 +790,14 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     runtime.battlefield.healingZones ?? [],
     activeMatchDeltaSeconds,
   );
-  const statusSettledUnits = healedCombatUnits.filter(isPlayerBattleUnit);
-  const neutralMonsters = healedCombatUnits.filter(isNeutralBattleUnit);
+  const statusSettledUnits = pruneExpiredBattleCorpses(
+    healedCombatUnits.filter(isPlayerBattleUnit),
+    elapsed,
+  );
+  const neutralMonsters = pruneExpiredBattleCorpses(
+    healedCombatUnits.filter(isNeutralBattleUnit),
+    elapsed,
+  );
   const productionAfterBuildingHealth = productionAtStart === null
     ? null
     : synchronizeSandboxProductionBuildings(
@@ -867,7 +913,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     && activeMatchDeltaSeconds > 0
     ? advanceSandboxMiningSystems({
         mining: miningAfterBuildingHealth,
-        economy: buildingStep.economy,
+        economy: neutralRewardStep.economy,
         buildings: castleAttackStep.buildings,
         units: unitsAfterProduction,
         elapsedSeconds: state.matchElapsed,
@@ -887,7 +933,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
       })
     : {
         mining: miningAfterBuildingHealth,
-        economy: buildingStep.economy,
+        economy: neutralRewardStep.economy,
         ledgerEvents: [],
         captureEvents: [],
         newlyFullFactions: [],
@@ -896,6 +942,7 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
   const newlyFullFactions = new Set([
     ...economyStep.newlyFullFactions,
     ...buildingStep.newlyFullFactions,
+    ...neutralRewardStep.newlyFullFactions,
     ...sandboxMiningStep.newlyFullFactions,
   ]);
   for (const faction of newlyFullFactions) {
@@ -944,7 +991,10 @@ export function stepBattle(state: BattleState, requestedDeltaSeconds: number): B
     mapId: state.mapId,
     units,
     neutralMonsters,
-    squads: appendUnitsToSquads(state.squads, producedUnits),
+    squads: pruneBattleSquads(
+      appendUnitsToSquads(state.squads, producedUnits),
+      units,
+    ),
     projectiles: winner
       ? []
       : [...projectileStep.projectiles, ...spawnedProjectiles],
@@ -1839,6 +1889,62 @@ function applyDamageIntents(
   });
 }
 
+function grantNeutralMonsterKillRewards(
+  economy: EconomyState,
+  events: readonly BattleEvent[],
+  units: readonly CombatBattleUnit[],
+  buildings: readonly BattleBuilding[],
+  economyPolicy: BattleEconomyPolicy,
+  emit: EmitBattleEvent,
+): {
+  readonly economy: EconomyState;
+  readonly newlyFullFactions: readonly Faction[];
+} {
+  const neutralById = new Map(units.filter(isNeutralBattleUnit).map((unit) => (
+    [unit.id, unit] as const
+  )));
+  const unitFactionById = new Map(units.map((unit) => [unit.id, unit.faction] as const));
+  const buildingFactionById = new Map(buildings.map((building) => (
+    [building.id, building.faction] as const
+  )));
+  const deaths = events.filter((event) => event.type === "unit-died");
+  const newlyFull = new Set<Faction>();
+  let nextEconomy = economy;
+
+  for (const death of deaths) {
+    if (death.type !== "unit-died" || death.killerId === null) continue;
+    const monster = neutralById.get(death.unitId);
+    if (!monster?.neutralKind) continue;
+    const killerFaction = unitFactionById.get(death.killerId)
+      ?? buildingFactionById.get(death.killerId)
+      ?? null;
+    if (killerFaction !== "verdant" && killerFaction !== "crimson") continue;
+    const granted = grantGold(
+      nextEconomy,
+      killerFaction,
+      sandboxNeutralKillReward(monster.neutralKind),
+      economyPolicy,
+    );
+    nextEconomy = granted.state;
+    if (granted.becameFull) newlyFull.add(killerFaction);
+    if (granted.creditedAmount <= 0) continue;
+    emit({
+      type: "neutral-kill-rewarded",
+      faction: killerFaction,
+      unitId: monster.id,
+      killerId: death.killerId,
+      monsterKind: monster.neutralKind,
+      gold: granted.creditedAmount,
+      position: { ...monster.position },
+    });
+  }
+  return {
+    economy: nextEconomy,
+    newlyFullFactions: (["verdant", "crimson"] as const)
+      .filter((faction) => newlyFull.has(faction)),
+  };
+}
+
 function resolveCastleWinner(
   buildings: readonly BattleBuilding[],
 ): Faction | "draw" | null {
@@ -2120,6 +2226,31 @@ export function appendUnitsToSquads(
   return [...next.values()];
 }
 
+function pruneExpiredBattleCorpses<TUnit extends CombatBattleUnit>(
+  units: readonly TUnit[],
+  elapsed: number,
+): readonly TUnit[] {
+  return units.filter((unit) => (
+    unit.health > 0
+    || unit.status !== "dead"
+    || elapsed - (unit.diedAt ?? 0) < BATTLE_CORPSE_RETENTION_SECONDS
+  ));
+}
+
+function pruneBattleSquads(
+  squads: readonly BattleSquad[],
+  units: readonly BattleUnit[],
+): readonly BattleSquad[] {
+  const retainedUnitIds = new Set(units.map((unit) => unit.id));
+  return squads.flatMap((squad) => {
+    const memberIds = squad.memberIds.filter((unitId) => retainedUnitIds.has(unitId));
+    if (memberIds.length === 0) return [];
+    return memberIds.length === squad.memberIds.length
+      ? [squad]
+      : [{ ...squad, memberIds }];
+  });
+}
+
 function livingSquadIds(units: readonly BattleUnit[]): ReadonlySet<string> {
   return new Set(units.flatMap((unit) => (
     unit.health > 0 && unit.status !== "dead" ? [unit.squadId] : []
@@ -2150,18 +2281,33 @@ function createNeutralMonsterGuards(
 ): NeutralBattleUnit[] {
   return encounters.flatMap((encounter) => {
     const guardLeashCenter = axialToWorld(encounter.anchor);
-    return encounter.guards.map((guard) => createBattleUnit({
-      id: `neutral-${guard.id}`,
-      faction: "neutral" as const,
-      role: guard.kind === "skeleton" ? "spearman" : "knight",
-      combatProfile: `neutral-${guard.kind}`,
-      neutralKind: guard.kind,
-      squadId: `neutral-encounter-${encounter.id}`,
-      position: axialToWorld(guard.coordinate),
-      guardAnchor: axialToWorld(guard.coordinate),
-      guardLeashCenter,
-      guardRadiusCells: encounter.guardRadiusCells,
-    }));
+    return encounter.guards.flatMap((guard) => {
+      const center = axialToWorld(guard.coordinate);
+      const radialX = center.x - guardLeashCenter.x;
+      const radialZ = center.z - guardLeashCenter.z;
+      const radialLength = Math.hypot(radialX, radialZ);
+      const perpendicular = radialLength > 1e-6
+        ? { x: -radialZ / radialLength, z: radialX / radialLength }
+        : { x: 1, z: 0 };
+      return [-1, 1].map((side) => {
+        const position = {
+          x: center.x + perpendicular.x * side * 0.28,
+          z: center.z + perpendicular.z * side * 0.28,
+        };
+        return createBattleUnit({
+          id: `neutral-${guard.id}-${side < 0 ? "a" : "b"}`,
+          faction: "neutral" as const,
+          role: guard.kind === "skeleton" ? "spearman" : "knight",
+          combatProfile: `neutral-${guard.kind}`,
+          neutralKind: guard.kind,
+          squadId: `neutral-encounter-${encounter.id}`,
+          position,
+          guardAnchor: position,
+          guardLeashCenter,
+          guardRadiusCells: encounter.guardRadiusCells,
+        });
+      });
+    });
   });
 }
 

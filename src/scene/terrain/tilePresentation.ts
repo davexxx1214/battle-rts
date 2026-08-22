@@ -16,6 +16,7 @@ import {
   SANDBOX_LARGE_FOREST_BANK_CELLS,
   SANDBOX_LARGE_RIVER_CELLS,
 } from "../../map/sandboxLargeDressing";
+import { SANDBOX_LARGE_ENVIRONMENT_FILL_SCENERY } from "../../map/sandboxLargeScenery";
 
 const TILE_ROOT = "/assets/kaykit/medieval-hex/tiles";
 
@@ -84,6 +85,11 @@ const SANDBOX_FARM_KEYS = new Set(
   Object.values(SANDBOX_LARGE_FARM_FIELD_CELLS).flat().map(coordinateKey),
 );
 const SANDBOX_FOREST_KEYS = new Set(SANDBOX_LARGE_FOREST_BANK_CELLS.map(coordinateKey));
+const SANDBOX_ENVIRONMENT_KIND_BY_KEY = new Map(
+  SANDBOX_LARGE_ENVIRONMENT_FILL_SCENERY.map(({ coordinate, kind }) => (
+    [coordinateKey(coordinate), kind] as const
+  )),
+);
 const SANDBOX_BUILD_KEYS = new Set(
   Object.values(SANDBOX_LARGE_BUILD_ANCHORS).flatMap((anchors) => (
     anchors.map(({ coordinate }) => coordinateKey(coordinate))
@@ -260,6 +266,10 @@ function sandboxLandTint(cell: BattlefieldCell): string {
   if (SANDBOX_FOREST_KEYS.has(key)) return "#a9c987";
   if (SANDBOX_FARM_FRINGE_KEYS.has(key)) return "#e4e0a4";
   if (SANDBOX_RIVER_BANK_KEYS.has(key)) return "#c2dca0";
+  const environmentKind = SANDBOX_ENVIRONMENT_KIND_BY_KEY.get(key);
+  if (environmentKind === "rock-hills") return "#c9caa0";
+  if (environmentKind === "bush") return "#d4e6a6";
+  if (environmentKind) return "#b7d18e";
   if (
     Math.max(
       Math.abs(cell.q - SANDBOX_LARGE_OASIS.coordinate.q),

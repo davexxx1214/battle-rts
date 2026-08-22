@@ -16,6 +16,7 @@ describe("AI difficulty selector", () => {
     expect(markup).toContain("简单");
     expect(markup).toContain("普通");
     expect(markup).toContain("困难");
+    expect(markup).not.toContain("疯狂");
     expect(markup).toContain('aria-label="对手难度"');
     expect(markup).toMatch(/<button[^>]*aria-pressed="true"[^>]*>简单<\/button>/);
   });

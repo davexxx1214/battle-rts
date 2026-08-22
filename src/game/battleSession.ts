@@ -15,6 +15,8 @@ import {
 
 export type { BattlePhase, BattleSessionState } from "./battleSessionState";
 
+export const HARD_AI_GOLD_RECOVERY_SPEED_MULTIPLIER = 1.3;
+
 export interface BattlePhaseAccess {
   readonly inspectField: boolean;
   readonly deployEntities: boolean;
@@ -47,14 +49,22 @@ export function advanceBattleSession(
   aiDifficulty: AiDifficulty = DEFAULT_AI_DIFFICULTY,
 ): BattleState {
   if (phase !== "engaged") return state;
-  let next = state;
   const usesLegacyOpponentAi = resolveBattleRuntimeContext(state).mode.opponentPolicy.kind
     === "legacy-deployment-ai";
   const usesSandboxOpponentAi = resolveBattleRuntimeContext(state).mode.opponentPolicy.kind
     === "sandbox-rts-ai";
+  let next = usesLegacyOpponentAi && aiDifficulty === "hard" && state.matchElapsed === 0
+    ? withOpponentStartingGold(state, GAME_RULES.economy.maximumGold)
+    : state;
   for (let index = 0; index < steps; index += 1) {
     const previousMatchElapsed = next.matchElapsed;
-    next = stepBattle(next, stepSeconds);
+    next = stepBattle(
+      next,
+      stepSeconds,
+      aiDifficulty === "hard"
+        ? { crimson: HARD_AI_GOLD_RECOVERY_SPEED_MULTIPLIER }
+        : undefined,
+    );
     const decisionCount = usesLegacyOpponentAi
       ? crossedDecisionCount(previousMatchElapsed, next.matchElapsed, aiDifficulty)
       : 0;
@@ -74,6 +84,25 @@ export function advanceBattleSession(
     }
   }
   return next;
+}
+
+function withOpponentStartingGold(state: BattleState, gold: number): BattleState {
+  const account = state.economy.accounts.crimson;
+  return {
+    ...state,
+    economy: {
+      ...state.economy,
+      accounts: {
+        ...state.economy.accounts,
+        crimson: {
+          ...account,
+          gold,
+          recoveryProgress: 0,
+          isFull: gold >= GAME_RULES.economy.maximumGold,
+        },
+      },
+    },
+  };
 }
 
 function crossedFixedDecisionCount(

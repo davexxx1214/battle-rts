@@ -20,13 +20,15 @@ import {
   miningIncomeEffectsAt,
   MINING_INCOME_EFFECT_DURATION_SECONDS,
 } from "./miningIncomePresentation";
+import { neutralKillRewardEffectsAt } from "./neutralKillRewardPresentation";
 
 export function MiningIncomeEffects({ battle }: { readonly battle: BattleState }) {
   const coinGltf = useLoader(GLTFLoader, MINING_COIN_EFFECT_ASSET.url);
-  const effects = miningIncomeEffectsAt(battle);
+  const miningEffects = miningIncomeEffectsAt(battle);
+  const killRewardEffects = neutralKillRewardEffectsAt(battle);
   return (
-    <group name="mining-income-effects">
-      {effects.map((effect) => (
+    <group name="gold-income-effects">
+      {miningEffects.map((effect) => (
         <MiningIncomeBurst
           age={effect.age}
           amount={effect.amount}
@@ -34,6 +36,16 @@ export function MiningIncomeEffects({ battle }: { readonly battle: BattleState }
           position={effect.position}
           sequence={effect.sequence}
           key={`mine-income-${effect.mineId}-${effect.sequence}`}
+        />
+      ))}
+      {killRewardEffects.map((effect) => (
+        <MiningIncomeBurst
+          age={effect.age}
+          amount={effect.amount}
+          coinSource={coinGltf.scene}
+          position={effect.position}
+          sequence={effect.sequence}
+          key={`neutral-kill-reward-${effect.unitId}-${effect.sequence}`}
         />
       ))}
     </group>

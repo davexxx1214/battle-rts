@@ -662,7 +662,8 @@ function UnitShadowInstances({
       const shadowScale = unit.role === "bone-dragon"
         ? 1.05
         : unit.role === "catapult" ? 0.78 : 0.42;
-      dummy.scale.setScalar(visible ? shadowScale : 0);
+      const factionScale = unit.faction === "neutral" ? 0.5 : 1;
+      dummy.scale.setScalar(visible ? shadowScale * factionScale : 0);
       dummy.updateMatrix();
       mesh.current!.setMatrixAt(index, dummy.matrix);
     });

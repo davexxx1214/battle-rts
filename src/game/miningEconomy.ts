@@ -1,4 +1,8 @@
 import type { Faction } from "./types";
+import {
+  SANDBOX_POPULATION_CAP,
+  populationIncomeMultiplier,
+} from "./battleMode";
 import type { HexCoordinate } from "../map/battlefield";
 import {
   SANDBOX_LARGE_MINE_CAPACITY,
@@ -478,9 +482,12 @@ function settleAttempt(
 
 function miningIncomeRate(usedPopulation: number): MiningIncomeRate {
   assertWholeNonNegative(usedPopulation, "Used population");
-  if (usedPopulation > 100) throw new RangeError("Used population cannot exceed 100.");
-  if (usedPopulation <= 50) return { numerator: 5, multiplier: 1 };
-  if (usedPopulation <= 80) return { numerator: 4, multiplier: 0.8 };
+  if (usedPopulation > SANDBOX_POPULATION_CAP) {
+    throw new RangeError(`Used population cannot exceed ${SANDBOX_POPULATION_CAP}.`);
+  }
+  const multiplier = populationIncomeMultiplier("sandbox", usedPopulation);
+  if (multiplier === 1) return { numerator: 5, multiplier };
+  if (multiplier === 0.8) return { numerator: 4, multiplier };
   return { numerator: 3, multiplier: 0.6 };
 }
 
@@ -491,8 +498,13 @@ function validatePopulations(
     const population = populations[faction];
     assertWholeNonNegative(population.usedPopulation, `${faction} used population`);
     assertWholeNonNegative(population.reservedPopulation, `${faction} reserved population`);
-    if (population.usedPopulation + population.reservedPopulation > 100) {
-      throw new RangeError(`${faction} committed population cannot exceed 100.`);
+    if (
+      population.usedPopulation + population.reservedPopulation
+      > SANDBOX_POPULATION_CAP
+    ) {
+      throw new RangeError(
+        `${faction} committed population cannot exceed ${SANDBOX_POPULATION_CAP}.`,
+      );
     }
   }
   return populations;

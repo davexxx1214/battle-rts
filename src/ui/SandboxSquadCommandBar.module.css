@@ -3,10 +3,10 @@
   z-index: 28;
   bottom: 12px;
   left: 310px;
-  width: min(460px, calc(100% - 520px));
+  width: min(720px, calc(100% - 520px));
   min-width: 0;
   display: grid;
-  grid-template-columns: auto minmax(180px, 1fr);
+  grid-template-columns: auto minmax(190px, 1.15fr) minmax(170px, 0.85fr);
   gap: 12px;
   align-items: center;
   padding: 8px 11px;
@@ -16,6 +16,54 @@
   background: rgb(13 15 13 / 93%);
   box-shadow: 0 12px 28px rgb(0 0 0 / 38%);
   user-select: none;
+}
+
+.quickSelect {
+  min-width: 0;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 2px 0 3px;
+  scrollbar-width: thin;
+}
+
+.quickSelect button {
+  min-width: max-content;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 5px 7px;
+  border: 1px solid rgb(128 176 211 / 42%);
+  color: #d7e9f7;
+  background: rgb(35 61 78 / 74%);
+  font: inherit;
+  font-size: 7px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.quickSelect button:hover:not(:disabled),
+.quickSelect button[aria-pressed="true"] {
+  border-color: rgb(116 193 255 / 82%);
+  color: #fff6c8;
+  background: rgb(39 99 137 / 88%);
+}
+
+.quickSelect button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.quickSelect em {
+  color: var(--amber);
+  font-style: normal;
+}
+
+.quickIcon {
+  color: #fff2bd;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1;
 }
 
 .bar[data-active="false"] {
@@ -47,9 +95,22 @@
 }
 
 .selectionSummary span {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
   color: var(--muted);
   font-size: 7px;
   white-space: nowrap;
+}
+
+.selectionSummary span i {
+  color: #8fc8f0;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.selectionSummary span b {
+  font: inherit;
 }
 
 .selectionSummary strong {
@@ -85,7 +146,7 @@
 @media (max-width: 900px) {
   .bar {
     left: 302px;
-    width: min(400px, calc(100% - 450px));
+    width: min(650px, calc(100% - 450px));
   }
 
   .guidance small {
@@ -96,17 +157,52 @@
 @media (orientation: landscape) and (max-height: 520px),
   (orientation: portrait) {
   .bar {
-    right: max(6px, var(--game-safe-right));
-    bottom: max(6px, var(--game-safe-bottom));
-    left: max(6px, var(--game-safe-left));
+    right: max(4px, var(--game-safe-right));
+    bottom: max(4px, var(--game-safe-bottom));
+    left: max(4px, var(--game-safe-left));
     width: auto;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 5px;
-    padding: 5px;
+    min-height: 42px;
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 3px;
+    padding: 3px;
+    border-bottom-width: 2px;
+    border-radius: 6px;
+    background: rgb(11 14 13 / 89%);
+    backdrop-filter: blur(5px);
+  }
+
+  .quickSelect {
+    grid-column: 2;
+    gap: 3px;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .quickSelect button {
+    min-width: 38px;
+    height: 34px;
+    justify-content: center;
+    gap: 2px;
+    padding: 3px 5px;
+    border-radius: 4px;
+    font-size: 7px;
+    touch-action: manipulation;
+  }
+
+  .quickLabel {
+    display: none;
+  }
+
+  .quickIcon {
+    font-size: 14px;
+  }
+
+  .quickSelect em {
+    font-size: 6px;
   }
 
   .selectionSummary {
-    min-width: 56px;
+    min-width: 38px;
     grid-template-columns: 1fr;
     gap: 0;
     text-align: center;
@@ -117,10 +213,31 @@
   }
 
   .selectionSummary span {
-    font-size: 6px;
+    justify-content: center;
+    font-size: 0;
+  }
+
+  .selectionSummary span b {
+    display: none;
+  }
+
+  .selectionSummary span i {
+    font-size: 12px;
+  }
+
+  .selectionSummary strong {
+    font-size: 12px;
   }
 
   .guidance {
-    padding-left: 8px;
+    display: none;
+  }
+
+  .bar[data-active="false"] {
+    opacity: 1;
+  }
+
+  .bar[data-has-army="false"] {
+    display: none;
   }
 }

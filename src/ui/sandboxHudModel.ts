@@ -1,5 +1,8 @@
 import type { BattleState } from "../game/battle";
-import { battleModeDefinitionFor } from "../game/battleMode";
+import {
+  SANDBOX_POPULATION_INCOME_BANDS,
+  battleModeDefinitionFor,
+} from "../game/battleMode";
 import { battleBuildingConstructionPhaseAt } from "../game/buildings";
 import {
   MAXIMUM_GROSS_ORE_PER_CYCLE,
@@ -140,7 +143,16 @@ export function createSandboxHudModel(
 }
 
 export function nextIncomeThresholdLabel(usedPopulation: number): string {
-  if (usedPopulation <= 50) return `再增加 ${51 - usedPopulation} 人，收入降至 80%`;
-  if (usedPopulation <= 80) return `再增加 ${81 - usedPopulation} 人，收入降至 60%`;
+  const currentBandIndex = SANDBOX_POPULATION_INCOME_BANDS.findIndex(
+    (band) => usedPopulation <= band.maximumPopulation,
+  );
+  if (
+    currentBandIndex >= 0
+    && currentBandIndex < SANDBOX_POPULATION_INCOME_BANDS.length - 1
+  ) {
+    const currentBand = SANDBOX_POPULATION_INCOME_BANDS[currentBandIndex]!;
+    const nextBand = SANDBOX_POPULATION_INCOME_BANDS[currentBandIndex + 1]!;
+    return `再增加 ${currentBand.maximumPopulation + 1 - usedPopulation} 人，收入降至 ${Math.round(nextBand.multiplier * 100)}%`;
+  }
   return "当前已处于最低收入档";
 }

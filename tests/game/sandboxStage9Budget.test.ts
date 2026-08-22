@@ -21,28 +21,27 @@ import {
 } from "../../src/map/sandboxLargeBattlefield";
 
 describe("sandbox stage 9 balance budgets", () => {
-  it("makes the 50→51 and 80→81 upkeep cliffs explicit", () => {
+  it("makes the 20→21 and 40→41 upkeep cliffs explicit", () => {
     expect([
-      [50, populationIncomeMultiplier("sandbox", 50)],
-      [51, populationIncomeMultiplier("sandbox", 51)],
-      [80, populationIncomeMultiplier("sandbox", 80)],
-      [81, populationIncomeMultiplier("sandbox", 81)],
+      [20, populationIncomeMultiplier("sandbox", 20)],
+      [21, populationIncomeMultiplier("sandbox", 21)],
+      [40, populationIncomeMultiplier("sandbox", 40)],
+      [41, populationIncomeMultiplier("sandbox", 41)],
     ]).toEqual([
-      [50, 1],
-      [51, 0.8],
-      [80, 0.8],
-      [81, 0.6],
+      [20, 1],
+      [21, 0.8],
+      [40, 0.8],
+      [41, 0.6],
     ]);
 
-    // Production happens in 2/3-population squads: a player at 50 commits
-    // directly to 52/53, and at 80 directly to 82/83. There is no hidden
-    // one-unit grace interval around either displayed threshold.
+    // Each order reserves its unit's population immediately. There is no
+    // hidden grace interval around either displayed threshold.
     for (const populationCost of [
       sandboxTroopSpec("spearman").populationCost,
       sandboxTroopSpec("swordsman").populationCost,
     ]) {
-      expect(populationIncomeMultiplier("sandbox", 50 + populationCost)).toBe(0.8);
-      expect(populationIncomeMultiplier("sandbox", 80 + populationCost)).toBe(0.6);
+      expect(populationIncomeMultiplier("sandbox", 20 + populationCost)).toBe(0.8);
+      expect(populationIncomeMultiplier("sandbox", 40 + populationCost)).toBe(0.6);
     }
   });
 
@@ -54,20 +53,20 @@ describe("sandbox stage 9 balance budgets", () => {
     const cheapestGoldPerPopulation = sandboxTroopSpec("spearman").cost
       / sandboxTroopSpec("spearman").populationCost;
 
-    const safeBandIncome = 2 * pitCapacity * populationIncomeMultiplier("sandbox", 50);
-    const costToOpenAndField50 = 2 * mineCost
+    const safeBandIncome = 2 * pitCapacity * populationIncomeMultiplier("sandbox", 20);
+    const costToOpenAndField20 = 2 * mineCost
       + barracksCost
-      + 50 * cheapestGoldPerPopulation;
-    expect(initialGold + safeBandIncome).toBeGreaterThanOrEqual(costToOpenAndField50);
+      + 20 * cheapestGoldPerPopulation;
+    expect(initialGold + safeBandIncome).toBeGreaterThanOrEqual(costToOpenAndField20);
 
-    const neutralPairIncome = 2 * pitCapacity * populationIncomeMultiplier("sandbox", 80);
-    const costFrom50To80 = 30 * cheapestGoldPerPopulation;
-    expect(neutralPairIncome).toBeGreaterThan(costFrom50To80);
+    const neutralPairIncome = 2 * pitCapacity * populationIncomeMultiplier("sandbox", 40);
+    const costFrom20To40 = 20 * cheapestGoldPerPopulation;
+    expect(neutralPairIncome).toBeGreaterThan(costFrom20To40);
 
-    const oneLatePitIncome = pitCapacity * populationIncomeMultiplier("sandbox", 100);
-    const costFrom80To100 = 20 * cheapestGoldPerPopulation;
-    expect(oneLatePitIncome).toBeLessThan(costFrom80To100);
-    expect(oneLatePitIncome * 2).toBeGreaterThan(costFrom80To100);
+    const oneLatePitIncome = pitCapacity * populationIncomeMultiplier("sandbox", 60);
+    const costFrom40To60 = 20 * cheapestGoldPerPopulation;
+    expect(oneLatePitIncome).toBeLessThan(costFrom40To60);
+    expect(oneLatePitIncome * 2).toBeGreaterThan(costFrom40To60);
   });
 
   it("keeps the 30-step center route faster while placing neutral ore by the 38-step flanks", () => {

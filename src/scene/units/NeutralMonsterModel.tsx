@@ -11,6 +11,7 @@ import {
   Quaternion,
   Vector3,
 } from "three";
+import type { Material } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { useEffect, useMemo, useRef } from "react";
@@ -25,6 +26,7 @@ import {
 } from "./unitHealthPresentation";
 
 const NEUTRAL_RING_COLOR = "#f2c35b";
+export const NEUTRAL_MONSTER_VISUAL_SCALE = 0.5;
 
 export function NeutralMonsterModel({
   unit,
@@ -84,7 +86,9 @@ export function NeutralMonsterModel({
 
   useEffect(() => () => {
     mixer.stopAllAction();
-  }, [mixer]);
+    mixer.uncacheRoot(model);
+    disposeOwnedModelMaterials(model);
+  }, [mixer, model]);
 
   useFrame(({ camera, clock }, delta) => {
     mixer.update(delta);
@@ -125,7 +129,9 @@ export function NeutralMonsterModel({
         delta,
       );
       const pulse = 0.94 + Math.sin(clock.elapsedTime * 2.4 + unit.id.length) * 0.04;
-      root.current.scale.setScalar(unit.health > 0 ? pulse : 1);
+      root.current.scale.setScalar(
+        (unit.health > 0 ? pulse : 1) * NEUTRAL_MONSTER_VISUAL_SCALE,
+      );
     }
     if (healthRoot.current) {
       faceHealthBarToCamera(healthRoot.current, camera, parentRotation, cameraRotation);
@@ -146,6 +152,7 @@ export function NeutralMonsterModel({
         unit.position.z,
       ]}
       rotation={[0, unit.facing, 0]}
+      scale={NEUTRAL_MONSTER_VISUAL_SCALE}
     >
       <primitive object={model} />
       {unit.health > 0 && (
@@ -185,10 +192,15 @@ function prepareNeutralMonsterModel(source: Object3D, targetHeight: number): Obj
     if (!(object instanceof Mesh)) return;
     object.castShadow = true;
     object.receiveShadow = true;
-    if (object.material instanceof MeshStandardMaterial) {
-      object.material = object.material.clone();
-      object.material.roughness = Math.max(0.52, object.material.roughness);
-    }
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    const ownedMaterials = materials.map((material) => {
+      const owned = material.clone();
+      if (owned instanceof MeshStandardMaterial) {
+        owned.roughness = Math.max(0.52, owned.roughness);
+      }
+      return owned;
+    });
+    object.material = Array.isArray(object.material) ? ownedMaterials : ownedMaterials[0]!;
   });
   const initialBounds = new Box3().setFromObject(model);
   const size = initialBounds.getSize(new Vector3());
@@ -198,6 +210,18 @@ function prepareNeutralMonsterModel(source: Object3D, targetHeight: number): Obj
   const center = bounds.getCenter(new Vector3());
   model.position.set(-center.x, -bounds.min.y, -center.z);
   return model;
+}
+
+function disposeOwnedModelMaterials(model: Object3D): void {
+  const materials = new Set<Material>();
+  model.traverse((object) => {
+    if (!(object instanceof Mesh)) return;
+    const objectMaterials = Array.isArray(object.material)
+      ? object.material
+      : [object.material];
+    for (const material of objectMaterials) materials.add(material);
+  });
+  for (const material of materials) material.dispose();
 }
 
 function normalizedDirection(origin: WorldPoint, destination: WorldPoint): WorldPoint {

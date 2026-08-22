@@ -74,7 +74,7 @@ describe("battle mode definitions", () => {
     });
     expect(battleModeDefinitionFor("sandbox").populationPolicy).toEqual({
       kind: "capped",
-      maximumPopulation: 100,
+      maximumPopulation: 60,
       troopCosts: {
         spearman: 1,
         swordsman: 1,
@@ -83,20 +83,20 @@ describe("battle mode definitions", () => {
         catapult: 4,
       },
       populationIncomeBands: [
-        { maximumPopulation: 50, multiplier: 1 },
-        { maximumPopulation: 80, multiplier: 0.8 },
-        { maximumPopulation: 100, multiplier: 0.6 },
+        { maximumPopulation: 20, multiplier: 1 },
+        { maximumPopulation: 40, multiplier: 0.8 },
+        { maximumPopulation: 60, multiplier: 0.6 },
       ],
     });
   });
 
   it.each([
     [0, 1],
-    [50, 1],
-    [51, 0.8],
-    [80, 0.8],
-    [81, 0.6],
-    [100, 0.6],
+    [20, 1],
+    [21, 0.8],
+    [40, 0.8],
+    [41, 0.6],
+    [60, 0.6],
   ])("uses the correct sandbox income band at population %i", (population, expected) => {
     expect(populationIncomeMultiplier("sandbox", population)).toBe(expected);
   });

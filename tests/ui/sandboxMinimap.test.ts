@@ -54,8 +54,11 @@ describe("sandbox minimap", () => {
     expect(markup.match(/data-control="neutral"/g)).toHaveLength(4);
     expect(markup.match(/data-minimap-castle=/g)).toHaveLength(2);
     expect(markup.match(/data-minimap-building=/g)).toHaveLength(2);
-    expect(markup.match(/data-minimap-unit=/g)).toHaveLength(14);
-    expect(markup.match(/data-faction="neutral"/g)?.length).toBeGreaterThanOrEqual(11);
+    expect(markup.match(/data-minimap-unit=/g)).toHaveLength(
+      battle.units.length + battle.neutralMonsters.length,
+    );
+    expect(markup.match(/data-faction="neutral"/g)?.length)
+      .toBeGreaterThanOrEqual(battle.neutralMonsters.length);
     expect(markup).toContain('data-minimap-healing-zone="central-oasis"');
     expect(markup).toContain('data-healing-per-second="4"');
     const mineMarker = minimapMineTag(markup, firstMine.id);

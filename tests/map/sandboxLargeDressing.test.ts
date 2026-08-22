@@ -13,6 +13,7 @@ import {
   SANDBOX_LARGE_CASTLE_SETTLEMENT_SCENERY,
   SANDBOX_LARGE_DRESSING_SCENERY,
   SANDBOX_LARGE_FARM_FIELD_CELLS,
+  SANDBOX_LARGE_FLANK_FOREST_CELLS,
   SANDBOX_LARGE_FOREST_BANK_CELLS,
   SANDBOX_LARGE_RIVER_CELLS,
   SANDBOX_LARGE_WILDLIFE,
@@ -32,9 +33,12 @@ describe("sandbox large stage 10 dressing", () => {
   )));
 
   it("adds mirrored KayKit farm belts outside roads, mines, and castle build anchors", () => {
-    expect(SANDBOX_LARGE_FARM_FIELD_CELLS.verdant).toHaveLength(12);
+    expect(SANDBOX_LARGE_FARM_FIELD_CELLS.verdant).toHaveLength(39);
     expect(SANDBOX_LARGE_FARM_FIELD_CELLS.crimson).toEqual(
-      SANDBOX_LARGE_FARM_FIELD_CELLS.verdant.map(({ q, r }) => ({ q: -q, r: -r })),
+      SANDBOX_LARGE_FARM_FIELD_CELLS.verdant.map(({ q, r }) => ({
+        q: q === 0 ? 0 : -q,
+        r: -r,
+      })),
     );
     for (const coordinate of Object.values(SANDBOX_LARGE_FARM_FIELD_CELLS).flat()) {
       const key = coordinateKey(coordinate);
@@ -45,15 +49,23 @@ describe("sandbox large stage 10 dressing", () => {
       expect(buildKeys.has(key), `${key} should not consume a build anchor`).toBe(false);
     }
     expect(SANDBOX_LARGE_DRESSING_SCENERY.filter(({ zone }) => zone === "sandbox-farm"))
-      .toHaveLength(30);
+      .toHaveLength(84);
   });
 
   it("keeps the east river and forest art-only and outside the locked road reserve", () => {
     expect(SANDBOX_LARGE_RIVER_CELLS).toHaveLength(15);
     expect(SANDBOX_LARGE_FOREST_BANK_CELLS).toHaveLength(8);
+    expect(SANDBOX_LARGE_FLANK_FOREST_CELLS).toHaveLength(80);
+    const flankForestKeys = new Set(SANDBOX_LARGE_FLANK_FOREST_CELLS.map(coordinateKey));
+    expect(flankForestKeys.size).toBe(SANDBOX_LARGE_FLANK_FOREST_CELLS.length);
+    expect(new Set([...flankForestKeys].map((key) => {
+      const [q, r] = key.split(",").map(Number);
+      return coordinateKey({ q: q === 0 ? 0 : -(q ?? 0), r: -(r ?? 0) });
+    }))).toEqual(flankForestKeys);
     for (const coordinate of [
       ...SANDBOX_LARGE_RIVER_CELLS,
       ...SANDBOX_LARGE_FOREST_BANK_CELLS,
+      ...SANDBOX_LARGE_FLANK_FOREST_CELLS,
     ]) {
       const key = coordinateKey(coordinate);
       const cell = SANDBOX_LARGE_BATTLEFIELD_MAP.cells.find((candidate) => (
@@ -112,12 +124,12 @@ describe("sandbox large stage 10 dressing", () => {
       mapKeys.has(coordinateKey(coordinate))
     ))).toBe(true);
     expect(SANDBOX_LARGE_BATTLEFIELD_MAP.cells).toHaveLength(871);
-    expect(SANDBOX_LARGE_ROAD_RESERVE).toHaveLength(331);
+    expect(SANDBOX_LARGE_ROAD_RESERVE).toHaveLength(341);
     expect(SANDBOX_LARGE_BATTLEFIELD_FINGERPRINT).toMatch(/^fnv1a32:[a-f0-9]{8}$/);
   });
 
   it("freezes deterministic art metadata and keeps every id unique", () => {
-    expect(SANDBOX_LARGE_DRESSING_SCENERY).toHaveLength(75);
+    expect(SANDBOX_LARGE_DRESSING_SCENERY).toHaveLength(289);
     expect(new Set(SANDBOX_LARGE_DRESSING_SCENERY.map(({ id }) => id)).size)
       .toBe(SANDBOX_LARGE_DRESSING_SCENERY.length);
     expect(Object.isFrozen(SANDBOX_LARGE_DRESSING_SCENERY)).toBe(true);

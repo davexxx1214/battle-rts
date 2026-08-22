@@ -102,11 +102,11 @@ describe("sandbox mining integration", () => {
   });
 
   it("uses post-casualty population and ignores reserved population for the rate", () => {
-    const units = Array.from({ length: 81 }, (_, index) => ({
+    const units = Array.from({ length: 41 }, (_, index) => ({
       faction: "verdant" as const,
       role: "spearman" as const,
-      health: index === 80 ? 0 : 100,
-      status: index === 80 ? "dead" : "idle",
+      health: index === 40 ? 0 : 100,
+      status: index === 40 ? "dead" : "idle",
       position: axialToWorld({ q: -8, r: 15 }),
     }));
     const result = advanceSandboxMiningSystems({
@@ -120,7 +120,7 @@ describe("sandbox mining integration", () => {
     });
 
     expect(result.ledgerEvents[0]).toMatchObject({
-      usedPopulation: 80,
+      usedPopulation: 40,
       reservedPopulation: 20,
       netCredited: 80,
     });
@@ -166,7 +166,7 @@ describe("sandbox mining integration", () => {
       const pit = mining.pitsById[pitId]!;
       mining = replaceMinePitState(mining, { ...pit, remainingOre: 1 });
     }
-    const units = Array.from({ length: 51 }, () => ({
+    const units = Array.from({ length: 21 }, () => ({
       faction: "verdant" as const,
       role: "spearman" as const,
       health: 100,

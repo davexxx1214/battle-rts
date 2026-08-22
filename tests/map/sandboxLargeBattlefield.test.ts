@@ -13,6 +13,7 @@ import {
   SANDBOX_LARGE_BATTLEFIELD_MAP,
   SANDBOX_LARGE_BATTLE_STRUCTURES,
   SANDBOX_LARGE_BUILD_ANCHORS,
+  SANDBOX_LARGE_CASTLE_FORTIFICATIONS,
   SANDBOX_LARGE_CASTLES,
   SANDBOX_LARGE_GATES,
   SANDBOX_LARGE_MINE_PITS,
@@ -25,6 +26,7 @@ import {
   SANDBOX_LARGE_WORLD_BOUNDS,
   SANDBOX_LARGE_VISUAL_ROAD_CELLS,
   SANDBOX_LARGE_ZONES,
+  SANDBOX_LARGE_STRUCTURES,
   createSandboxLargeBattlefieldFingerprint,
   generateSandboxLargeCoordinates,
   sandboxLargeFingerprintSource,
@@ -73,6 +75,9 @@ describe("sandbox large battlefield", () => {
     const mineDistrictKeys = new Set(SANDBOX_LARGE_MINE_DISTRICTS.flatMap((district) => (
       district.cells.map(coordinateKey)
     )));
+    const castleWallKeys = new Set(SANDBOX_LARGE_CASTLE_FORTIFICATIONS.flatMap((structure) => (
+      structure.footprint.map(coordinateKey)
+    )));
     const zoneByCell = new Map(SANDBOX_LARGE_ZONES.flatMap((zone) => (
       zone.cells.map((coordinate) => [coordinateKey(coordinate), zone] as const)
     )));
@@ -94,11 +99,13 @@ describe("sandbox large battlefield", () => {
     ]);
     expect(cells.filter((cell) => !cell.walkable).map(coordinateKey))
       .toEqual(expect.arrayContaining([...mineDistrictKeys]));
-    expect(cells.filter((cell) => !cell.walkable)).toHaveLength(64);
+    expect(cells.filter((cell) => !cell.walkable)).toHaveLength(72);
     expect(cells.every((cell) => (
       cell.zoneId === zoneByCell.get(coordinateKey(cell))?.id
       && cell.territory === zoneByCell.get(coordinateKey(cell))?.territory
-      && cell.blocker === (mineDistrictKeys.has(coordinateKey(cell)) ? "terrain" : "none")
+      && cell.blocker === (mineDistrictKeys.has(coordinateKey(cell))
+        ? "terrain"
+        : castleWallKeys.has(coordinateKey(cell)) ? "fixed-structure" : "none")
       && Array.isArray(cell.routeTags)
     ))).toBe(true);
     expect(cells.filter((cell) => mineDistrictKeys.has(coordinateKey(cell))).every((cell) => (
@@ -145,18 +152,21 @@ describe("sandbox large battlefield", () => {
     expect(new Set(cells.filter((cell) => (
       cell.buildPolicy === "mine-only"
     )).map(coordinateKey))).toEqual(mineKeys);
-    expect(cells.filter((cell) => cell.buildPolicy === "ordinary")).toHaveLength(68);
+    expect(cells.filter((cell) => cell.buildPolicy === "ordinary")).toHaveLength(60);
     expect(cells.filter((cell) => (
       cell.reservedForPath && cell.buildPolicy !== "forbidden"
     ))).toEqual([]);
   });
 
-  it("locks the three route network at 327 cells and its apron reserve at 331", () => {
+  it("locks the three route network at 337 cells and its apron reserve at 341", () => {
     const networkKeys = new Set(SANDBOX_LARGE_ROAD_NETWORK_CELLS.map(coordinateKey));
     const reserveKeys = new Set(SANDBOX_LARGE_ROAD_RESERVE.map(coordinateKey));
+    const wallKeys = new Set(SANDBOX_LARGE_CASTLE_FORTIFICATIONS.flatMap(({ footprint }) => (
+      footprint.map(coordinateKey)
+    )));
 
-    expect(networkKeys.size).toBe(327);
-    expect(reserveKeys.size).toBe(331);
+    expect(networkKeys.size).toBe(337);
+    expect(reserveKeys.size).toBe(341);
     expect([...networkKeys].every((key) => reserveKeys.has(key))).toBe(true);
     expect(SANDBOX_LARGE_ROUTES.map((route) => route.id)).toEqual([
       "center",
@@ -166,13 +176,15 @@ describe("sandbox large battlefield", () => {
     const routeCellKeys = SANDBOX_LARGE_ROUTES.flatMap((route) => (
       route.cells.map(coordinateKey)
     ));
-    expect(routeCellKeys).toHaveLength(327);
+    expect(routeCellKeys).toHaveLength(337);
     expect(new Set(routeCellKeys)).toEqual(networkKeys);
     for (const coordinate of SANDBOX_LARGE_ROAD_RESERVE) {
+      const blockedByWall = wallKeys.has(coordinateKey(coordinate));
       expect(getMapCell(SANDBOX_LARGE_BATTLEFIELD_MAP, coordinate)).toMatchObject({
-        walkable: true,
+        walkable: !blockedByWall,
         buildable: false,
         reservedForPath: true,
+        blocker: blockedByWall ? "fixed-structure" : "none",
       });
     }
     expect(mirroredKeys(reserveKeys)).toEqual(reserveKeys);
@@ -187,7 +199,7 @@ describe("sandbox large battlefield", () => {
       .map(coordinateKey)
       .filter((key) => !networkKeys.has(key));
 
-    expect(routeByCell.size).toBe(327);
+    expect(routeByCell.size).toBe(337);
     for (const coordinate of SANDBOX_LARGE_ROAD_NETWORK_CELLS) {
       const cell = getMapCell(SANDBOX_LARGE_BATTLEFIELD_MAP, coordinate)!;
       expect(cell.routeTags).toEqual([routeByCell.get(coordinateKey(coordinate))]);
@@ -201,23 +213,23 @@ describe("sandbox large battlefield", () => {
     ))).toBe(true);
   });
 
-  it("separates the 123-cell detailed road centerlines from the wide movement corridors", () => {
+  it("separates the 125-cell detailed road centerlines from the wide movement corridors", () => {
     const networkKeys = new Set(SANDBOX_LARGE_ROAD_NETWORK_CELLS.map(coordinateKey));
 
-    expect(SANDBOX_LARGE_VISUAL_ROAD_CELLS).toHaveLength(123);
+    expect(SANDBOX_LARGE_VISUAL_ROAD_CELLS).toHaveLength(125);
     expect(SANDBOX_LARGE_VISUAL_ROAD_CELLS.every((cell) => (
       networkKeys.has(coordinateKey(cell))
       && getMapCell(SANDBOX_LARGE_BATTLEFIELD_MAP, cell)?.visualRoad === true
     ))).toBe(true);
     expect(SANDBOX_LARGE_BATTLEFIELD_MAP.cells.filter((cell) => cell.visualRoad))
-      .toHaveLength(123);
+      .toHaveLength(125);
   });
 
   it("locks the 30/38/38 route paths and 6/12-step lane changes", () => {
     expect(Object.fromEntries(SANDBOX_LARGE_ROUTES.map((route) => [
       route.id,
       route.referencePath.length - 1,
-    ]))).toEqual({ center: 30, west: 38, east: 38 });
+    ]))).toEqual({ center: 32, west: 40, east: 40 });
 
     const reserveKeys = new Set(SANDBOX_LARGE_ROAD_RESERVE.map(coordinateKey));
     for (const route of SANDBOX_LARGE_ROUTES) {
@@ -241,27 +253,104 @@ describe("sandbox large battlefield", () => {
 
   it("locks mirrored castles, double gates, approaches, rallies, and spawns", () => {
     expect(SANDBOX_LARGE_CASTLES).toEqual({
-      verdant: { q: -8, r: 16 },
-      crimson: { q: 8, r: -16 },
+      verdant: { q: -9, r: 17 },
+      crimson: { q: 9, r: -17 },
     });
     expect(SANDBOX_LARGE_GATES).toEqual({
       verdant: {
-        cells: [{ q: -8, r: 15 }, { q: -7, r: 15 }],
-        approach: { q: -7, r: 14 },
+        cells: [{ q: -9, r: 16 }, { q: -8, r: 16 }],
+        approach: { q: -8, r: 15 },
       },
       crimson: {
-        cells: [{ q: 8, r: -15 }, { q: 7, r: -15 }],
-        approach: { q: 7, r: -14 },
+        cells: [{ q: 9, r: -16 }, { q: 8, r: -16 }],
+        approach: { q: 8, r: -15 },
       },
     });
     expect(SANDBOX_LARGE_RALLY_POINTS).toEqual({
-      verdant: { q: -7, r: 14 },
-      crimson: { q: 7, r: -14 },
+      verdant: { q: -8, r: 15 },
+      crimson: { q: 8, r: -15 },
     });
     expect(SANDBOX_LARGE_BATTLEFIELD_MAP.verdantCamp)
       .toEqual(SANDBOX_LARGE_RALLY_POINTS.verdant);
     expect(SANDBOX_LARGE_BATTLEFIELD_MAP.crimsonCamp)
       .toEqual(SANDBOX_LARGE_RALLY_POINTS.crimson);
+  });
+
+  it("frames both castles with blocking walls and a walkable front gate", () => {
+    expect(SANDBOX_LARGE_CASTLE_FORTIFICATIONS).toHaveLength(10);
+    expect(SANDBOX_LARGE_STRUCTURES).toHaveLength(12);
+    for (const faction of ["verdant", "crimson"] as const) {
+      const fortifications = SANDBOX_LARGE_CASTLE_FORTIFICATIONS.filter((structure) => (
+        structure.faction === faction
+      ));
+      const gates = fortifications.filter(({ kind }) => kind === "wall-gate");
+      const walls = fortifications.filter(({ kind }) => kind !== "wall-gate");
+
+      expect(fortifications).toHaveLength(5);
+      expect(gates).toHaveLength(1);
+      expect(gates[0]!.coordinate).toEqual(SANDBOX_LARGE_GATES[faction].approach);
+      expect(walls).toHaveLength(4);
+      expect(gates.every(({ coordinate, footprint }) => {
+        const cell = getMapCell(SANDBOX_LARGE_BATTLEFIELD_MAP, coordinate);
+        return footprint.length === 0
+          && cell?.walkable === true
+          && cell.blocker === "none"
+          && cell.visualRoad === true;
+      })).toBe(true);
+      expect(walls.every(({ coordinate, footprint }) => {
+        const cell = getMapCell(SANDBOX_LARGE_BATTLEFIELD_MAP, coordinate);
+        return footprint.length === 1
+          && hexDistance(coordinate, SANDBOX_LARGE_CASTLES[faction]) <= 2
+          && cell?.walkable === false
+          && cell.buildable === false
+          && cell.blocker === "fixed-structure";
+      })).toBe(true);
+    }
+  });
+
+  it("reuses the battle-mode five-piece connector topology exactly", () => {
+    const localConnectors = {
+      "wall-straight": [{ x: -1, z: 0 }, { x: 1, z: 0 }],
+      "wall-gate": [{ x: -1, z: 0 }, { x: 1, z: 0 }],
+      "wall-corner": [
+        { x: -1, z: 0 },
+        { x: 0.5, z: -Math.sqrt(3) / 2 },
+      ],
+    } as const;
+
+    for (const faction of ["verdant", "crimson"] as const) {
+      const segments = SANDBOX_LARGE_CASTLE_FORTIFICATIONS.filter((structure) => (
+        structure.faction === faction
+      ));
+      expect([...segments.map((segment) => (
+        segments.filter((candidate) => (
+          hexDistance(segment.coordinate, candidate.coordinate) === 1
+        )).length
+      ))].sort()).toEqual([1, 1, 2, 2, 2]);
+
+      for (const segment of segments) {
+        const segmentWorld = axialToWorld(segment.coordinate);
+        const cosine = Math.cos(segment.rotationY);
+        const sine = Math.sin(segment.rotationY);
+        const connectorDirections = localConnectors[segment.kind as keyof typeof localConnectors]
+          .map((connector) => ({
+            x: connector.x * cosine + connector.z * sine,
+            z: -connector.x * sine + connector.z * cosine,
+          }));
+        const neighborDirections = segments
+          .filter((candidate) => hexDistance(segment.coordinate, candidate.coordinate) === 1)
+          .map((candidate) => {
+            const candidateWorld = axialToWorld(candidate.coordinate);
+            return {
+              x: (candidateWorld.x - segmentWorld.x) / 2,
+              z: (candidateWorld.z - segmentWorld.z) / 2,
+            };
+          });
+        expect(neighborDirections.every((neighbor) => connectorDirections.some((connector) => (
+          Math.hypot(neighbor.x - connector.x, neighbor.z - connector.z) < 0.001
+        ))), `${segment.id} should aim a connector at every neighbor`).toBe(true);
+      }
+    }
   });
 
   it("defines eight mirrored 3000-ore pits with two reserved road entrances", () => {
@@ -301,7 +390,7 @@ describe("sandbox large battlefield", () => {
     const playerGates = SANDBOX_LARGE_GATES.verdant.cells;
     expect(SANDBOX_LARGE_MINE_PITS.map((pit) => (
       shortestRoadDistance(playerGates, pit.entrances)
-    ))).toEqual([9, 9, 13, 13, 20, 20, 25, 25]);
+    ))).toEqual([9, 10, 13, 14, 21, 21, 26, 26]);
   });
 
   it("clusters 34 mirrored build anchors per faction around each castle", () => {
@@ -311,12 +400,11 @@ describe("sandbox large battlefield", () => {
       const r = 13 + index;
       return [r, verdant.filter((anchor) => anchor.coordinate.r === r).length];
     }));
-
-    expect(verdant).toHaveLength(34);
-    expect(crimson).toHaveLength(34);
-    expect(rowCounts).toEqual({ 13: 4, 14: 6, 15: 8, 16: 8, 17: 8 });
+    expect(verdant).toHaveLength(30);
+    expect(crimson).toHaveLength(30);
+    expect(rowCounts).toEqual({ 13: 3, 14: 5, 15: 7, 16: 7, 17: 8 });
     expect(verdant.filter((anchor) => anchor.wing === "west")).toHaveLength(17);
-    expect(verdant.filter((anchor) => anchor.wing === "east")).toHaveLength(17);
+    expect(verdant.filter((anchor) => anchor.wing === "east")).toHaveLength(13);
     expect(verdant.every((anchor) => {
       const distance = hexDistance(anchor.coordinate, SANDBOX_LARGE_CASTLES.verdant);
       return distance >= 3 && distance <= 6;
@@ -324,7 +412,7 @@ describe("sandbox large battlefield", () => {
     expect(new Set(crimson.map((anchor) => coordinateKey(anchor.coordinate))))
       .toEqual(mirroredKeys(new Set(verdant.map((anchor) => coordinateKey(anchor.coordinate)))));
     expect(SANDBOX_LARGE_BATTLEFIELD_MAP.cells.filter((cell) => cell.buildable))
-      .toHaveLength(68);
+      .toHaveLength(60);
     for (const anchor of [...verdant, ...crimson]) {
       expect(getMapCell(SANDBOX_LARGE_BATTLEFIELD_MAP, anchor.coordinate)).toMatchObject({
         buildable: true,
@@ -374,7 +462,7 @@ describe("sandbox large battlefield", () => {
       .not.toBe(SANDBOX_LARGE_BATTLEFIELD_FINGERPRINT);
     expect(createSandboxLargeBattlefieldFingerprint(changedRouteSource))
       .not.toBe(SANDBOX_LARGE_BATTLEFIELD_FINGERPRINT);
-    expect(SANDBOX_LARGE_BATTLEFIELD_FINGERPRINT).toBe("fnv1a32:9c5df2be");
+    expect(SANDBOX_LARGE_BATTLEFIELD_FINGERPRINT).toBe("fnv1a32:b8047747");
   });
 
   it("freezes all exported geometry metadata used by the fingerprint", () => {
@@ -393,6 +481,8 @@ describe("sandbox large battlefield", () => {
       SANDBOX_LARGE_BUILD_ANCHORS,
       SANDBOX_LARGE_ZONES,
       SANDBOX_LARGE_BATTLE_STRUCTURES,
+      SANDBOX_LARGE_CASTLE_FORTIFICATIONS,
+      SANDBOX_LARGE_STRUCTURES,
       SANDBOX_LARGE_WORLD_BOUNDS,
       SANDBOX_LARGE_VISUAL_ROAD_CELLS,
     ].every(Object.isFrozen)).toBe(true);

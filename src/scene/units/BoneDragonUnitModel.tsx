@@ -123,20 +123,22 @@ export function BoneDragonUnitModel({
   useEffect(() => () => {
     activeAction.current = null;
     mixer.stopAllAction();
-  }, [mixer]);
+    mixer.uncacheRoot(dragon.model);
+  }, [dragon.model, mixer]);
   useEffect(() => {
-    if (!isGhost) return;
-    dragon.model.traverse((object) => {
-      if (!(object instanceof Mesh)) return;
-      object.castShadow = false;
-      const materials = Array.isArray(object.material) ? object.material : [object.material];
-      for (const material of materials) {
-        material.transparent = true;
-        material.opacity = 0.42;
-        material.depthWrite = false;
-        material.needsUpdate = true;
-      }
-    });
+    if (isGhost) {
+      dragon.model.traverse((object) => {
+        if (!(object instanceof Mesh)) return;
+        object.castShadow = false;
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        for (const material of materials) {
+          material.transparent = true;
+          material.opacity = 0.42;
+          material.depthWrite = false;
+          material.needsUpdate = true;
+        }
+      });
+    }
     return () => disposeOwnedModelMaterials(dragon.model);
   }, [dragon, isGhost]);
 

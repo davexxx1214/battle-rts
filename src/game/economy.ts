@@ -73,6 +73,7 @@ export function advanceEconomy(
   deltaSeconds: number,
   clockPolicy: MatchPolicy = MATCH_POLICIES.normal,
   economyPolicy: BattleEconomyPolicy = LEGACY_ECONOMY_POLICY,
+  recoverySpeedMultipliers: Readonly<Partial<Record<Faction, number>>> = {},
 ): EconomyAdvanceResult {
   if (!Number.isFinite(elapsedSeconds) || !Number.isFinite(deltaSeconds) || deltaSeconds <= 0) {
     return { state, newlyFullFactions: [] };
@@ -92,10 +93,13 @@ export function advanceEconomy(
   for (const segment of splitRecoverySegments(start, end, clockPolicy)) {
     const nextAccounts = { ...accounts };
     for (const faction of FACTIONS) {
+      const recoverySpeedMultiplier = recoverySpeedMultipliers[faction] ?? 1;
       const advanced = advanceAccount(
         accounts[faction],
         segment.seconds,
-        economyPolicy.passiveIncome.normalRecoverySeconds / segment.multiplier,
+        economyPolicy.passiveIncome.normalRecoverySeconds
+          / segment.multiplier
+          / recoverySpeedMultiplier,
         economyPolicy,
         economyPolicy.passiveIncome,
       );

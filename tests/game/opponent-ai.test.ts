@@ -57,6 +57,19 @@ function advanceHard(session: BattleSessionState): BattleSessionState {
 }
 
 describe("deterministic opponent deployment AI", () => {
+  it("keeps normal deployment strategy identical to hard", () => {
+    const hard = advanceOpponentAi(
+      engagedSession(GAME_RULES.economy.maximumGold),
+      "hard",
+    );
+    const normal = advanceOpponentAi(
+      engagedSession(GAME_RULES.economy.maximumGold),
+      "normal",
+    );
+
+    expect(normal).toEqual(hard);
+  });
+
   it("uses distinct economy plans for the three difficulty strategies", () => {
     const easy = advanceOpponentAi(
       engagedSession(GAME_RULES.economy.maximumGold),
@@ -96,8 +109,8 @@ describe("deterministic opponent deployment AI", () => {
       fundCrimson(hard, GAME_RULES.economy.maximumGold),
       "hard",
     );
-    expect(normalAfterMine.battle.deploymentCounts.crimson.spearman).toBe(1);
-    expect(normalAfterMine.battle.deploymentCounts.crimson.barracks).toBe(0);
+    expect(normalAfterMine.battle.deploymentCounts.crimson.spearman).toBe(0);
+    expect(normalAfterMine.battle.deploymentCounts.crimson.barracks).toBe(1);
     expect(hardAfterMine.battle.deploymentCounts.crimson.barracks).toBe(1);
   });
 
