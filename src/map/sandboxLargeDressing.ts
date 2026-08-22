@@ -139,30 +139,83 @@ const FARM_LANDMARKS: readonly BattlefieldScenery[] = [
   ),
 ];
 
+export const SANDBOX_LARGE_CASTLE_SETTLEMENT_SCENERY: readonly BattlefieldScenery[] =
+  Object.freeze([
+    ...mirrorFactionScenery(scenery({
+      id: "sandbox-verdant-castle-church",
+      kind: "camp-church",
+      zone: "verdant-camp",
+      coordinate: { q: -10, r: 17 },
+      offset: { x: 0.08, z: 0.02 },
+      scale: 1,
+      rotationY: Math.PI / 3,
+      faction: "verdant",
+    })),
+    ...mirrorFactionScenery(scenery({
+      id: "sandbox-verdant-castle-well",
+      kind: "camp-well",
+      zone: "verdant-camp",
+      coordinate: { q: -9, r: 17 },
+      offset: { x: 0.12, z: 0.04 },
+      scale: 0.78,
+      rotationY: Math.PI / 6,
+      faction: "verdant",
+    })),
+    ...mirrorFactionScenery(scenery({
+      id: "sandbox-verdant-castle-market",
+      kind: "camp-market",
+      zone: "verdant-camp",
+      coordinate: { q: -8, r: 18 },
+      offset: { x: 0, z: -0.08 },
+      scale: 0.96,
+      rotationY: 0,
+      faction: "verdant",
+    })),
+    ...mirrorFactionScenery(scenery({
+      id: "sandbox-verdant-castle-tavern",
+      kind: "camp-tavern",
+      zone: "verdant-camp",
+      coordinate: { q: -6, r: 18 },
+      offset: { x: -0.06, z: -0.04 },
+      scale: 0.92,
+      rotationY: -Math.PI / 3,
+      faction: "verdant",
+    })),
+    ...mirrorFactionScenery(scenery({
+      id: "sandbox-verdant-castle-home-a",
+      kind: "farm-home-a",
+      zone: "verdant-camp",
+      coordinate: { q: -10, r: 16 },
+      offset: { x: 0.04, z: 0.02 },
+      scale: 0.94,
+      rotationY: Math.PI / 3,
+      faction: "verdant",
+    })),
+    ...mirrorFactionScenery(scenery({
+      id: "sandbox-verdant-castle-home-b",
+      kind: "farm-home-b",
+      zone: "verdant-camp",
+      coordinate: { q: -6, r: 16 },
+      offset: { x: -0.04, z: 0.02 },
+      scale: 0.98,
+      rotationY: -Math.PI / 3,
+      faction: "verdant",
+    })),
+  ]);
+
 const RIVER_SCENERY = SANDBOX_LARGE_RIVER_CELLS.flatMap((coordinate, index) => {
   const detailKind = index % 3 === 0
     ? "water-lily-a"
     : index % 3 === 1 ? "water-plant-a" : "water-lily-b";
-  return [
-    scenery({
-      id: `sandbox-river-water-${index}`,
-      kind: "shallow-water",
-      zone: "sandbox-river",
-      coordinate,
-      offset: { x: 0, z: 0 },
-      scale: 1,
-      rotationY: 0,
-    }),
-    scenery({
-      id: `sandbox-river-detail-${index}`,
-      kind: detailKind,
-      zone: "sandbox-river",
-      coordinate,
-      offset: index % 2 === 0 ? { x: 0.42, z: -0.32 } : { x: -0.38, z: 0.28 },
-      scale: 0.72 + (index % 3) * 0.08,
-      rotationY: (index % 6) * Math.PI / 3,
-    }),
-  ];
+  return scenery({
+    id: `sandbox-river-detail-${index}`,
+    kind: detailKind,
+    zone: "sandbox-river",
+    coordinate,
+    offset: index % 2 === 0 ? { x: 0.42, z: -0.32 } : { x: -0.38, z: 0.28 },
+    scale: 0.72 + (index % 3) * 0.08,
+    rotationY: (index % 6) * Math.PI / 3,
+  });
 });
 
 const RIVER_LANDMARKS: readonly BattlefieldScenery[] = [
@@ -211,6 +264,7 @@ export const SANDBOX_LARGE_DRESSING_SCENERY: readonly BattlefieldScenery[] =
   Object.freeze([
     ...FARM_SCENERY,
     ...FARM_LANDMARKS,
+    ...SANDBOX_LARGE_CASTLE_SETTLEMENT_SCENERY,
     ...RIVER_SCENERY,
     ...RIVER_LANDMARKS,
     ...FOREST_SCENERY,
@@ -250,6 +304,7 @@ function mirrorFactionScenery(source: BattlefieldScenery): readonly BattlefieldS
     scenery({
       ...source,
       id: source.id.replace("verdant", "crimson"),
+      zone: source.zone === "verdant-camp" ? "crimson-camp" : source.zone,
       coordinate: { q: -source.coordinate.q, r: -source.coordinate.r },
       offset: { x: -source.offset.x, z: -source.offset.z },
       rotationY: source.rotationY + Math.PI,

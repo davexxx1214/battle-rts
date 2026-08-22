@@ -414,6 +414,42 @@ export const SCENERY_SCENE_ASSETS = {
       crimson: "/assets/kaykit/medieval-hex/buildings/red/building_watermill_red.gltf",
     },
   },
+  "camp-church": {
+    url: "/assets/kaykit/medieval-hex/buildings/blue/building_church_blue.gltf",
+    scale: 1.08,
+    renderMode: "full-scene",
+    factionUrls: {
+      verdant: "/assets/kaykit/medieval-hex/buildings/blue/building_church_blue.gltf",
+      crimson: "/assets/kaykit/medieval-hex/buildings/red/building_church_red.gltf",
+    },
+  },
+  "camp-market": {
+    url: "/assets/kaykit/medieval-hex/buildings/blue/building_market_blue.gltf",
+    scale: 1.08,
+    renderMode: "full-scene",
+    factionUrls: {
+      verdant: "/assets/kaykit/medieval-hex/buildings/blue/building_market_blue.gltf",
+      crimson: "/assets/kaykit/medieval-hex/buildings/red/building_market_red.gltf",
+    },
+  },
+  "camp-tavern": {
+    url: "/assets/kaykit/medieval-hex/buildings/blue/building_tavern_blue.gltf",
+    scale: 1.08,
+    renderMode: "full-scene",
+    factionUrls: {
+      verdant: "/assets/kaykit/medieval-hex/buildings/blue/building_tavern_blue.gltf",
+      crimson: "/assets/kaykit/medieval-hex/buildings/red/building_tavern_red.gltf",
+    },
+  },
+  "camp-well": {
+    url: "/assets/kaykit/medieval-hex/buildings/blue/building_well_blue.gltf",
+    scale: 1.16,
+    renderMode: "full-scene",
+    factionUrls: {
+      verdant: "/assets/kaykit/medieval-hex/buildings/blue/building_well_blue.gltf",
+      crimson: "/assets/kaykit/medieval-hex/buildings/red/building_well_red.gltf",
+    },
+  },
   "shallow-water": {
     url: "/assets/kaykit/medieval-hex/tiles/base/hex_water.gltf",
     scale: 1,

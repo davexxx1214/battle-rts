@@ -81,6 +81,23 @@ describe("scene asset presentation", () => {
     }
   });
 
+  it("preloads faction-matched KayKit buildings for both castle settlements", () => {
+    for (const kind of [
+      "camp-church",
+      "camp-market",
+      "camp-tavern",
+      "camp-well",
+    ] as const) {
+      const asset = SCENERY_SCENE_ASSETS[kind];
+      expect(asset.renderMode).toBe("full-scene");
+      expect(asset.url).toContain("/buildings/blue/");
+      expect(asset.factionUrls?.verdant).toContain("/buildings/blue/");
+      expect(asset.factionUrls?.crimson).toContain("/buildings/red/");
+      expect(SCENE_SINGLE_GLTF_URLS).toContain(asset.factionUrls?.verdant);
+      expect(SCENE_SINGLE_GLTF_URLS).toContain(asset.factionUrls?.crimson);
+    }
+  });
+
   it("maps and preloads every battle building for both presentation races", () => {
     const kinds = Object.keys(BATTLE_BUILDING_ASSET_KEYS) as BattleBuildingKind[];
 
@@ -291,6 +308,10 @@ describe("scene asset presentation", () => {
     expect(Object.keys(SCENERY_SCENE_ASSETS).sort()).toEqual([
       "bay-ship",
       "bush",
+      "camp-church",
+      "camp-market",
+      "camp-tavern",
+      "camp-well",
       "castle-rock",
       "farm-cargo-wagon",
       "farm-dirt",

@@ -61,7 +61,7 @@ describe("battlefield definitions", () => {
     expect(definition.minePits).toHaveLength(8);
     expect(definition.buildAnchors?.verdant).toHaveLength(34);
     expect(definition.buildAnchors?.crimson).toHaveLength(34);
-    expect(definition.scenery).toHaveLength(174);
+    expect(definition.scenery).toHaveLength(171);
     expect(definition.wildlife).toHaveLength(5);
   });
 

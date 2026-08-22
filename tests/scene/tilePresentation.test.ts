@@ -11,8 +11,14 @@ import {
 import { BATTLEFIELD_SCENERY } from "../../src/map/battlefieldScenery";
 import {
   SANDBOX_LARGE_BATTLEFIELD_MAP,
+  SANDBOX_LARGE_BUILD_ANCHORS,
   SANDBOX_LARGE_VISUAL_ROAD_CELLS,
 } from "../../src/map/sandboxLargeBattlefield";
+import {
+  SANDBOX_LARGE_FARM_FIELD_CELLS,
+  SANDBOX_LARGE_FOREST_BANK_CELLS,
+  SANDBOX_LARGE_RIVER_CELLS,
+} from "../../src/map/sandboxLargeDressing";
 import { UNDEAD_HALLOWEEN_ASSETS } from "../../src/scene/assets";
 import {
   TERRAIN_TILE_ASSETS,
@@ -105,6 +111,31 @@ describe("terrain tile presentation", () => {
     expect(plan.filter(({ cell }) => cell.surface === "rock").every(({ assetKey }) => (
       assetKey === "grass"
     ))).toBe(true);
+  });
+
+  it("integrates the sandbox river, farms, forests, and build pads into the tile layer", () => {
+    const plan = createTerrainTilePlan(SANDBOX_LARGE_BATTLEFIELD_MAP);
+    const byKey = new Map(plan.map((tile) => [coordinateKey(tile.cell), tile]));
+    const riverTiles = SANDBOX_LARGE_RIVER_CELLS.map((coordinate) => (
+      byKey.get(coordinateKey(coordinate))!
+    ));
+
+    expect(riverTiles).toHaveLength(15);
+    expect(riverTiles.every(({ assetKey, connections }) => (
+      assetKey.startsWith("river-") && connections.length === 2
+    ))).toBe(true);
+    expect(new Set(riverTiles.map(({ assetKey }) => assetKey)))
+      .toEqual(new Set(["river-A", "river-B"]));
+    expect(new Set(SANDBOX_LARGE_FARM_FIELD_CELLS.verdant.map((coordinate) => (
+      byKey.get(coordinateKey(coordinate))?.tint
+    )))).toEqual(new Set(["#ead59a"]));
+    expect(new Set(SANDBOX_LARGE_FOREST_BANK_CELLS.map((coordinate) => (
+      byKey.get(coordinateKey(coordinate))?.tint
+    )))).toEqual(new Set(["#a9c987"]));
+    expect(Object.values(SANDBOX_LARGE_BUILD_ANCHORS).flat().every(({ coordinate }) => (
+      byKey.get(coordinateKey(coordinate))?.tint === "#d8e9a0"
+    ))).toBe(true);
+    expect(createTerrainTilePlan(SANDBOX_LARGE_BATTLEFIELD_MAP)).toEqual(plan);
   });
 
   it("aligns two land road exits with both lanes of every bridge", () => {

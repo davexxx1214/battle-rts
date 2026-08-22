@@ -10,6 +10,7 @@ import {
   SANDBOX_LARGE_ROAD_RESERVE,
 } from "../../src/map/sandboxLargeBattlefield";
 import {
+  SANDBOX_LARGE_CASTLE_SETTLEMENT_SCENERY,
   SANDBOX_LARGE_DRESSING_SCENERY,
   SANDBOX_LARGE_FARM_FIELD_CELLS,
   SANDBOX_LARGE_FOREST_BANK_CELLS,
@@ -65,9 +66,42 @@ describe("sandbox large stage 10 dressing", () => {
       expect(cell?.blocker).toBe("none");
     }
     expect(SANDBOX_LARGE_DRESSING_SCENERY.filter(({ kind }) => kind === "shallow-water"))
-      .toHaveLength(SANDBOX_LARGE_RIVER_CELLS.length);
+      .toHaveLength(0);
     expect(SANDBOX_LARGE_DRESSING_SCENERY.filter(({ kind }) => kind === "river-bridge"))
       .toHaveLength(1);
+  });
+
+  it("builds mirrored castle settlements without consuming construction or route cells", () => {
+    expect(SANDBOX_LARGE_CASTLE_SETTLEMENT_SCENERY).toHaveLength(12);
+    const verdant = SANDBOX_LARGE_CASTLE_SETTLEMENT_SCENERY.filter(({ faction }) => (
+      faction === "verdant"
+    ));
+    const crimson = SANDBOX_LARGE_CASTLE_SETTLEMENT_SCENERY.filter(({ faction }) => (
+      faction === "crimson"
+    ));
+
+    expect(verdant).toHaveLength(6);
+    expect(crimson.map(({ coordinate }) => coordinate)).toEqual(
+      verdant.map(({ coordinate }) => ({ q: -coordinate.q, r: -coordinate.r })),
+    );
+    expect(new Set(verdant.map(({ kind }) => kind))).toEqual(new Set([
+      "camp-church",
+      "camp-market",
+      "camp-tavern",
+      "camp-well",
+      "farm-home-a",
+      "farm-home-b",
+    ]));
+    expect(verdant.every(({ zone }) => zone === "verdant-camp")).toBe(true);
+    expect(crimson.every(({ zone }) => zone === "crimson-camp")).toBe(true);
+    for (const item of SANDBOX_LARGE_CASTLE_SETTLEMENT_SCENERY) {
+      const key = coordinateKey(item.coordinate);
+      expect(mapKeys.has(key), `${key} should remain on the map`).toBe(true);
+      expect(roadKeys.has(key), `${key} should stay off road reserve`).toBe(false);
+      expect(mineDistrictKeys.has(key), `${key} should stay outside mine ridges`).toBe(false);
+      expect(minePitKeys.has(key), `${key} should not cover a mine pit`).toBe(false);
+      expect(buildKeys.has(key), `${key} should not consume a build anchor`).toBe(false);
+    }
   });
 
   it("adds animated wildlife without changing navigation or the map fingerprint", () => {
@@ -83,7 +117,7 @@ describe("sandbox large stage 10 dressing", () => {
   });
 
   it("freezes deterministic art metadata and keeps every id unique", () => {
-    expect(SANDBOX_LARGE_DRESSING_SCENERY).toHaveLength(78);
+    expect(SANDBOX_LARGE_DRESSING_SCENERY).toHaveLength(75);
     expect(new Set(SANDBOX_LARGE_DRESSING_SCENERY.map(({ id }) => id)).size)
       .toBe(SANDBOX_LARGE_DRESSING_SCENERY.length);
     expect(Object.isFrozen(SANDBOX_LARGE_DRESSING_SCENERY)).toBe(true);
